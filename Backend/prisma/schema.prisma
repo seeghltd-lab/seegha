@@ -1,0 +1,185 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUMS ──────────────────────────────────────────
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  MODERATOR
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  TERMINATED
+  RESIGNED
+  PROBATION
+}
+
+enum RequisitionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum UserType {
+  ADMIN
+  EMPLOYEE
+}
+
+enum SenderType {
+  ADMIN
+  EMPLOYEE
+}
+
+// ─── ADMIN ──────────────────────────────────────────
+
+model Admin {
+  id        String    @id @default(uuid())
+  names     String
+  email     String    @unique
+  password  String
+  isLocked  Boolean   @default(false)
+  role      AdminRole @default(ADMIN)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("Admin")
+}
+
+// ─── EMPLOYEE ───────────────────────────────────────
+
+model Employee {
+  id             String         @id @default(uuid())
+  firstName      String         @map("first_name")
+  lastName       String         @map("last_name")
+  email          String         @unique
+  password       String
+  phone          String
+  position       String
+  status         EmployeeStatus @default(ACTIVE)
+  isLocked       Boolean        @default(false)
+  profilePicture String?        @map("profile_picture")
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  requisitions Requisition[]
+  permissions  EmployeePermission[]
+
+  @@map("Employee")
+}
+
+// ─── STOCK ──────────────────────────────────────────
+
+model Stock {
+  id              String   @id @default(cuid())
+  name            String
+  sku             String   @unique
+  quantity        Float    @default(0)
+  unit            String
+  purchasingPrice Float?
+  sellingPrice    Float
+  reorderLevel    Float    @default(5)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  requisitionItems RequisitionItem[]
+
+  @@map("Stock")
+}
+
+// ─── REQUISITION ────────────────────────────────────
+
+model Requisition {
+  id          String            @id @default(cuid())
+  status      RequisitionStatus @default(PENDING)
+  description String?
+  employeeId  String
+  employee    Employee          @relation(fields: [employeeId], references: [id])
+  items       RequisitionItem[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@map("Requisition")
+}
+
+// ─── REQUISITION ITEM ───────────────────────────────
+
+model RequisitionItem {
+  id            String      @id @default(cuid())
+  requisitionId String
+  requisition   Requisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+  stockId       String?
+  stock         Stock?      @relation(fields: [stockId], references: [id])
+  itemName      String
+  quantity      Float
+  unit          String
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("RequisitionItem")
+}
+
+// ─── PERMISSIONS ────────────────────────────────────
+
+model Permission {
+  id          String               @id @default(uuid())
+  name        String               @unique
+  description String?
+  employees   EmployeePermission[]
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@map("Permission")
+}
+
+model EmployeePermission {
+  id           String     @id @default(uuid())
+  employeeId   String
+  permissionId String
+  employee     Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([employeeId, permissionId])
+  @@map("EmployeePermission")
+}
+
+// ─── NOTIFICATIONS ──────────────────────────────────
+
+model Notification {
+  id         String      @id @default(cuid())
+  recipients Json
+  senderId   String?
+  senderType SenderType?
+  title      String
+  message    String
+  link       String?
+  createdAt  DateTime    @default(now())
+
+  @@map("Notification")
+}
+
+// ─── PUSH SUBSCRIPTIONS ─────────────────────────────
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  type      UserType
+  endpoint  String   @db.Text
+  p256dh    String
+  auth      String
+  label     String?
+  createdAt DateTime @default(now())
+
+  @@unique([endpoint(length: 255)])
+  @@index([userId, type])
+  @@map("PushSubscription")
+}
