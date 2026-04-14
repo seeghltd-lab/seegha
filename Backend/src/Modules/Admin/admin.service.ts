@@ -91,7 +91,7 @@ export class AdminService {
 
   async editProfile(
     adminId: string,
-    data: { names?: string; email?: string },
+    data: { names?: string; email?: string; phone?: string; profilePicture?: string },
   ) {
     const admin = await this.prisma.admin.findUnique({
       where: { id: adminId },
@@ -112,6 +112,8 @@ export class AdminService {
       data: {
         ...(data.names && { names: data.names }),
         ...(data.email && { email: data.email }),
+        ...(data.phone !== undefined && { phone: data.phone }),
+        ...(data.profilePicture && { profilePicture: data.profilePicture }),
       },
     });
 

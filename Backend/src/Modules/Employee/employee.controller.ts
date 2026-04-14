@@ -27,7 +27,7 @@ export class EmployeeController {
   )
   async create(
     @Body() body: any,
-    @UploadedFiles() files: { profileImg?: Express.Multer.File[] },
+    @UploadedFiles() files: { profileImg?: any[] },
   ) {
     const profilePicture = files?.profileImg?.[0]
       ? `uploads/profile/${files.profileImg[0].filename}`
@@ -53,7 +53,7 @@ export class EmployeeController {
   async update(
     @Param('id') id: string,
     @Body() body: any,
-    @UploadedFiles() files: { profileImg?: Express.Multer.File[] },
+    @UploadedFiles() files: { profileImg?: any[] },
   ) {
     const profilePicture = files?.profileImg?.[0]
       ? `uploads/profile/${files.profileImg[0].filename}`

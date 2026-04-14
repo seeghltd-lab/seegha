@@ -1,13 +1,16 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Package, 
-  Users, 
-  FileText, 
-  Settings, 
+import {
+  LayoutDashboard,
+  Package,
+  Users,
+  FileText,
+  Settings,
   X,
-  ChevronRight
+  ChevronRight,
+  Truck,
+  User,
+  Landmark
 } from 'lucide-react';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import { useEmployeeAuth } from '../context/EmployeeAuthContext';
@@ -22,14 +25,18 @@ const Sidebar = ({ isOpen, onToggle, role }) => {
 
   const links = role === 'admin' ? [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/admin/dashboard' },
-    { id: 'inventory', label: 'Inventory', icon: Package, path: '/admin/inventory' },
+    { id: 'categories', label: 'Categories', icon: Package, path: '/admin/categories' },
+    { id: 'stock', label: 'Stock', icon: Package, path: '/admin/stock' },
+    { id: 'suppliers', label: 'Suppliers', icon: Truck, path: '/admin/suppliers' },
     { id: 'employees', label: 'Employees', icon: Users, path: '/admin/employees' },
     { id: 'requisitions', label: 'Requisitions', icon: FileText, path: '/admin/requisition-management' },
-    { id: 'settings', label: 'Settings', icon: Settings, path: '/admin/settings' },
+    { id: 'profile', label: 'My Profile', icon: User, path: '/admin/profile' },
+    { id: 'sites', label: 'Sites', icon: Landmark, path: '/admin/site-management' },
   ] : [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     { id: 'inventory', label: 'My Inventory', icon: Package, path: '/inventory' },
     { id: 'requisitions', label: 'My Requests', icon: FileText, path: '/requisitions' },
+    { id: 'profile', label: 'My Profile', icon: User, path: '/profile' },
   ];
 
   return (

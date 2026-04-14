@@ -82,7 +82,7 @@ export class EmployeeAuthController {
   async updateProfile(
     @Req() req: RequestWithEmployee,
     @Body() body: any,
-    @UploadedFiles() files: { profileImg?: Express.Multer.File[] },
+    @UploadedFiles() files: { profileImg?: any[] },
   ) {
     const profilePicture = files?.profileImg?.[0]
       ? `uploads/profile/${files.profileImg[0].filename}`

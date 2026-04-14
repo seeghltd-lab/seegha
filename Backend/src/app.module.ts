@@ -12,6 +12,11 @@ import { PermissionModule } from './Modules/Permissions/permission.module';
 import { PushNotificationModule } from './Modules/PushNotification/push-notification.module';
 import { NotificationModule } from './Modules/Notification/notification.module';
 import { StockModule } from './Modules/Stock/stock.module';
+import { SupplierModule } from './Modules/Supplier/supplier.module';
+import { CategoryModule } from './Modules/Category/category.module';
+import { SiteSettingsModule } from './Modules/SiteSettings/site-settings.module';
+import { SiteModule } from './Modules/Site/site.module';
+import { RequisitionModule } from './Modules/Requisition/requisition.module';
 
 @Module({
   imports: [
@@ -28,6 +33,11 @@ import { StockModule } from './Modules/Stock/stock.module';
     PushNotificationModule,
     NotificationModule,
     StockModule,
+    SupplierModule,
+    CategoryModule,
+    SiteSettingsModule,
+    SiteModule,
+    RequisitionModule,
   ],
   controllers: [],
   providers: [],

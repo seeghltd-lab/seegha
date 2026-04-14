@@ -23,7 +23,7 @@ export const EmployeeUploadConfig = {
     },
   }),
   limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req: any, file: Express.Multer.File, cb: any) => {
+  fileFilter: (req: any, file: any, cb: any) => {
     const allowed = /jpeg|jpg|png|gif|webp/;
     const ext = allowed.test(path.extname(file.originalname).toLowerCase());
     const mime = allowed.test(file.mimetype);

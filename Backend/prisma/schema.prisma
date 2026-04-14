@@ -39,19 +39,69 @@ enum SenderType {
   EMPLOYEE
 }
 
+enum SupplierStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum MovementType {
+  IN
+  OUT
+  ADJUSTMENT
+}
+
+enum SiteStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
 // ─── ADMIN ──────────────────────────────────────────
 
 model Admin {
-  id        String    @id @default(uuid())
-  names     String
-  email     String    @unique
-  password  String
-  isLocked  Boolean   @default(false)
-  role      AdminRole @default(ADMIN)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id             String    @id @default(uuid())
+  names          String
+  email          String    @unique
+  password       String
+  phone          String?
+  profilePicture String?
+  isLocked       Boolean   @default(false)
+  role           AdminRole @default(ADMIN)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@map("Admin")
+}
+
+model Site {
+  id          String     @id @default(cuid())
+  name        String
+  location    String
+  managerName String?
+  status      SiteStatus @default(ACTIVE)
+  description String?    @db.Text
+  budget      Decimal    @default(0) @db.Decimal(14, 2)
+  startDate   DateTime?
+  endDate     DateTime?
+  image       String?
+  adminId     String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  stocks Stock[]
+
+  @@index([adminId])
+  @@map("Site")
+}
+
+model SiteSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String?  @db.Text
+  updatedAt DateTime @updatedAt
+
+  @@map("SiteSetting")
 }
 
 // ─── EMPLOYEE ───────────────────────────────────────
@@ -76,23 +126,103 @@ model Employee {
   @@map("Employee")
 }
 
+// ─── SUPPLIER ───────────────────────────────────────
+
+model Supplier {
+  id            String         @id @default(cuid())
+  code          String         @unique
+  name          String
+  contactPerson String?
+  email         String?
+  phone         String?
+  address       String?
+  city          String?
+  country       String?        @default("Rwanda")
+  paymentTerms  String?
+  rating        Float?         @default(0)
+  status        SupplierStatus @default(ACTIVE)
+  notes         String?        @db.Text
+  adminId       String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  stocks Stock[]
+
+  @@index([adminId])
+  @@map("Supplier")
+}
+
+// ─── CATEGORY ───────────────────────────────────────
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  adminId     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  stocks Stock[]
+
+  @@index([adminId])
+  @@map("Category")
+}
+
 // ─── STOCK ──────────────────────────────────────────
 
 model Stock {
-  id              String   @id @default(cuid())
-  name            String
-  sku             String   @unique
-  quantity        Float    @default(0)
-  unit            String
-  purchasingPrice Float?
-  sellingPrice    Float
-  reorderLevel    Float    @default(5)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                String    @id @default(cuid())
+  sku               String    @unique
+  itemName          String
+  categoryId        String?
+  supplierId        String?
+  unit              String
+  quantity          Int       @default(0)
+  unitCost          Decimal   @db.Decimal(12, 2)
+  totalValue        Decimal   @db.Decimal(14, 2)
+  warehouseLocation String
+  receivedDate      DateTime
+  reorderLevel      Int       @default(5)
+  expiryDate        DateTime?
+  description       String?   @db.Text
+  stockImg          String?
+  adminId           String
+  siteId            String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
+  category         Category?        @relation(fields: [categoryId], references: [id])
+  supplier         Supplier?        @relation(fields: [supplierId], references: [id])
+  site             Site?            @relation(fields: [siteId], references: [id])
+  history          StockHistory[]
   requisitionItems RequisitionItem[]
 
+  @@index([adminId])
+  @@index([categoryId])
+  @@index([supplierId])
+  @@index([siteId])
   @@map("Stock")
+}
+
+// ─── STOCK HISTORY ──────────────────────────────────
+
+model StockHistory {
+  id                  String       @id @default(cuid())
+  stockId             String
+  movementType        MovementType
+  qtyBefore           Int
+  qtyChange           Int
+  qtyAfter            Int
+  unitPrice           Decimal?     @db.Decimal(12, 2)
+  notes               String?
+  createdByAdminId    String?
+  createdByEmployeeId String?
+  createdAt           DateTime     @default(now())
+
+  stock Stock @relation(fields: [stockId], references: [id], onDelete: Cascade)
+
+  @@index([stockId])
+  @@map("StockHistory")
 }
 
 // ─── REQUISITION ────────────────────────────────────

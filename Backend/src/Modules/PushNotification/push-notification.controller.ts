@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -56,7 +57,10 @@ export class PushNotificationController {
   }
 
   @Get('subscriptions')
-  async getSubscriptions(@Body() body: { userId: string; type: UserType }) {
-    return this.pushService.getSubscriptions(body.userId, body.type);
+  async getSubscriptions(
+    @Query('userId') userId: string,
+    @Query('type') type: UserType,
+  ) {
+    return this.pushService.getSubscriptions(userId, type);
   }
 }

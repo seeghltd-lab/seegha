@@ -7,9 +7,25 @@ import {
   Put,
   Req,
   Res,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
+import { mkdirSync } from 'fs';
 import { Response } from 'express';
+
+mkdirSync('./uploads/admin', { recursive: true });
+
+const adminAvatarStorage = diskStorage({
+  destination: './uploads/admin',
+  filename: (_, file, cb) => {
+    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, `admin-${unique}${extname(file.originalname)}`);
+  },
+});
 import { AdminService } from './admin.service';
 import { AdminAuthGuard } from '../../Guards/admin-auth.guard';
 import { RolesGuard } from '../../Guards/roles.guard';
@@ -60,8 +76,14 @@ export class AdminController {
 
   @Put('edit-profile')
   @UseGuards(AdminAuthGuard)
-  async editProfile(@Req() req: RequestWithAdmin, @Body() body: any) {
-    return this.adminService.editProfile(req.admin!.id, body);
+  @UseInterceptors(FileInterceptor('profilePicture', { storage: adminAvatarStorage }))
+  async editProfile(
+    @Req() req: RequestWithAdmin,
+    @Body() body: any,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    const profilePicture = file ? `/uploads/admin/${file.filename}` : undefined;
+    return this.adminService.editProfile(req.admin!.id, { ...body, profilePicture });
   }
 
   @Patch('change-password')

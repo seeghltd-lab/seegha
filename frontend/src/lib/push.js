@@ -24,8 +24,10 @@ export async function subscribePush(userId, type, label) {
     await navigator.serviceWorker.ready;
 
     const publicVapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
-    if (!publicVapidKey) {
-      console.warn('VAPID public key not configured');
+    if (!publicVapidKey || publicVapidKey === 'your_vapid_public_key_here') {
+      console.warn(
+        'VAPID public key not configured. Run `npx web-push generate-vapid-keys` and set VITE_VAPID_PUBLIC_KEY in frontend/.env and VAPID_PUBLIC_KEY + VAPID_PRIVATE_KEY in backend/.env',
+      );
       return null;
     }
 
@@ -78,7 +80,7 @@ export async function checkPushSubscribed(userId, type) {
     if (!subscription) return false;
 
     const { data } = await api.get('/push-notifications/subscriptions', {
-      data: { userId, type },
+      params: { userId, type },
     });
 
     return data.some((sub) => sub.endpoint === subscription.endpoint);
