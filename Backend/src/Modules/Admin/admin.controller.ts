@@ -80,7 +80,7 @@ export class AdminController {
   async editProfile(
     @Req() req: RequestWithAdmin,
     @Body() body: any,
-    @UploadedFile() file?: Express.Multer.File,
+    @UploadedFile() file?: any,
   ) {
     const profilePicture = file ? `/uploads/admin/${file.filename}` : undefined;
     return this.adminService.editProfile(req.admin!.id, { ...body, profilePicture });

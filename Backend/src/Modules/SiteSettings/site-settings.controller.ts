@@ -29,7 +29,7 @@ export class SiteSettingsController {
   @Put('logo')
   @UseGuards(AdminAuthGuard)
   @UseInterceptors(FileInterceptor('logo', { storage: siteLogoStorage }))
-  uploadLogo(@UploadedFile() file: Express.Multer.File) {
+  uploadLogo(@UploadedFile() file: any) {
     return this.siteSettingsService.updateLogo(`/uploads/site/${file.filename}`);
   }
 }

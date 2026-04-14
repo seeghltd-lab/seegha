@@ -40,7 +40,7 @@ export class SiteController {
   async create(
     @Body() data: CreateSiteDto,
     @Req() req: any,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: any,
   ) {
     const adminId = req.admin?.id;
     const siteData = { ...data };
@@ -76,7 +76,7 @@ export class SiteController {
   async update(
     @Param('id') id: string,
     @Body() data: Partial<CreateSiteDto>,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: any,
   ) {
     const siteData = { ...data };
     if (file) {

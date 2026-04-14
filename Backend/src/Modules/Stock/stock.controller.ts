@@ -37,7 +37,7 @@ export class StockController {
   create(
     @Body() body: any,
     @Req() req: any,
-    @UploadedFile() file?: Express.Multer.File,
+    @UploadedFile() file?: any,
   ) {
     const stockImg = file ? `/uploads/stock/${file.filename}` : undefined;
     return this.stockService.create({ ...body, stockImg }, req.admin.id);
@@ -100,7 +100,7 @@ export class StockController {
     @Param('id') id: string,
     @Body() body: any,
     @Req() req: any,
-    @UploadedFile() file?: Express.Multer.File,
+    @UploadedFile() file?: any,
   ) {
     const stockImg = file ? `/uploads/stock/${file.filename}` : undefined;
     const data = stockImg ? { ...body, stockImg } : body;
