@@ -19,6 +19,13 @@ class NotificationService {
     const { data } = await api.put(`/notifications/${id}/read`);
     return data;
   }
+
+  async markAllAsRead(recipientId, recipientType) {
+    const { data } = await api.put('/notifications/read-all', null, {
+      params: { recipientId, recipientType },
+    });
+    return data;
+  }
 }
 
 export default new NotificationService();

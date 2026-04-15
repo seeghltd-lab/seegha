@@ -1,15 +1,30 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bell, CheckCircle2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Bell, CheckCheck, ArrowRight, Clock } from 'lucide-react';
 import { useNotification } from '../context/NotificationContext';
+import { useAdminAuth } from '../context/AdminAuthContext';
+
+function timeAgo(dateStr) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return `${d}d ago`;
+}
 
 const NotificationBell = () => {
-  const { unreadCount, notifications, markAsRead } = useNotification();
+  const { unreadCount, notifications, markAsRead, markAllAsRead } = useNotification();
+  const { isAuthenticated: isAdmin } = useAdminAuth();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setIsOpen(false);
       }
     };
@@ -17,74 +32,117 @@ const NotificationBell = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const handleNotifClick = (notif) => {
+    if (!notif.read) markAsRead(notif.id);
+    setIsOpen(false);
+    if (notif.link) {
+      // internal navigation only
+      if (notif.link.startsWith('/')) navigate(notif.link);
+      else window.open(notif.link, '_blank', 'noopener');
+    }
+  };
+
+  const notifPagePath = isAdmin ? '/admin/notifications' : '/notifications';
+
+  // Show at most 6 in dropdown
+  const preview = notifications.slice(0, 6);
+
   return (
     <div className="relative" ref={dropdownRef}>
-      <button 
-        onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2.5 rounded-xl hover:bg-slate-100 border border-transparent hover:border-slate-200 transition-all group"
+      {/* Bell button */}
+      <button
+        onClick={() => setIsOpen(prev => !prev)}
+        className={`relative p-2.5 rounded-xl transition-all border ${
+          isOpen
+            ? 'bg-primary/10 border-primary/20 text-primary'
+            : 'border-transparent hover:bg-slate-100 hover:border-slate-200 text-slate-500'
+        }`}
       >
-        <Bell className={`w-5 h-5 text-slate-600 group-hover:text-blue-600 transition-colors ${unreadCount > 0 ? 'animate-pulse' : ''}`} />
+        <Bell size={19} className={unreadCount > 0 ? 'text-primary' : ''} />
         {unreadCount > 0 && (
-          <span className="absolute top-1 right-1 flex items-center justify-center w-5 h-5 text-[10px] font-bold text-white bg-rose-500 border-2 border-white rounded-full shadow-sm shadow-rose-500/30">
+          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-black text-white bg-rose-500 rounded-full border-2 border-white shadow-sm">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
       </button>
 
+      {/* Dropdown */}
       {isOpen && (
-        <div className="absolute right-0 w-80 sm:w-96 mt-3 glass-panel rounded-2xl z-50 overflow-hidden transform origin-top-right transition-all animate-in fade-in slide-in-from-top-4">
-          <div className="p-4 border-b border-slate-200/50 bg-white/40 flex justify-between items-center">
-            <h3 className="font-semibold text-slate-800 tracking-wide font-outfit">Notifications</h3>
+        <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden">
+
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <Bell size={14} className="text-primary" />
+              <span className="text-sm font-bold text-slate-800">Notifications</span>
+              {unreadCount > 0 && (
+                <span className="text-[10px] font-black text-white bg-rose-500 rounded-full px-1.5 py-0.5">
+                  {unreadCount}
+                </span>
+              )}
+            </div>
             {unreadCount > 0 && (
-              <span className="text-xs font-semibold bg-blue-100 text-blue-700 py-1 px-2.5 rounded-full border border-blue-200">
-                {unreadCount} new
-              </span>
+              <button
+                onClick={() => { markAllAsRead(); }}
+                className="flex items-center gap-1 text-[11px] font-bold text-primary hover:underline"
+              >
+                <CheckCheck size={12} /> Mark all read
+              </button>
             )}
           </div>
-          <div className="max-h-[28rem] overflow-y-auto">
-            {notifications.length === 0 ? (
-              <div className="p-8 text-center flex flex-col items-center justify-center gap-2">
-                <Bell className="w-8 h-8 text-slate-300 mb-2" />
-                <p className="text-slate-500 text-sm font-medium">All caught up!</p>
-                <p className="text-slate-400 text-xs">No pending insights in the system.</p>
+
+          {/* Notification list — capped height */}
+          <div className="max-h-[15rem] overflow-y-auto divide-y divide-slate-50">
+            {preview.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 gap-2 text-center">
+                <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
+                  <Bell size={16} className="text-slate-300" />
+                </div>
+                <p className="text-sm font-semibold text-slate-400">All caught up</p>
+                <p className="text-xs text-slate-300">No new notifications</p>
               </div>
             ) : (
-              <div className="py-2">
-                {notifications.map((notif) => (
-                  <div 
-                    key={notif.id} 
-                    className={`relative p-4 mx-2 my-1 rounded-xl transition-all cursor-pointer border ${!notif.read ? 'bg-blue-50/50 hover:bg-blue-50/80 border-blue-100' : 'hover:bg-slate-50/80 border-transparent'}`}
-                    onClick={() => {
-                      if (!notif.read) markAsRead(notif.id);
-                      if (notif.link) window.open(notif.link, '_blank');
-                    }}
-                  >
-                    {!notif.read && (
-                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-blue-500 rounded-r-md"></div>
+              preview.map((notif) => (
+                <div
+                  key={notif.id}
+                  onClick={() => handleNotifClick(notif)}
+                  className={`flex gap-3 px-4 py-3 cursor-pointer transition-colors ${
+                    !notif.read ? 'bg-primary/4 hover:bg-primary/8' : 'hover:bg-slate-50'
+                  }`}
+                >
+                  {/* Unread dot */}
+                  <div className="flex-shrink-0 mt-1">
+                    {notif.read ? (
+                      <div className="w-2 h-2 rounded-full bg-slate-200 mt-0.5" />
+                    ) : (
+                      <div className="w-2 h-2 rounded-full bg-primary mt-0.5" />
                     )}
-                    <div className="flex gap-3 pl-2">
-                      <div className="mt-0.5 shrink-0">
-                        {notif.read ? (
-                          <CheckCircle2 className="w-5 h-5 text-slate-400" />
-                        ) : (
-                          <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center">
-                            <div className="w-2 h-2 rounded-full bg-blue-600"></div>
-                          </div>
-                        )}
-                      </div>
-                      <div>
-                        <p className={`text-sm font-medium leading-tight ${!notif.read ? 'text-slate-900' : 'text-slate-500'}`}>
-                          {notif.title}
-                        </p>
-                        <p className="text-xs text-slate-500 mt-1.5 leading-relaxed line-clamp-2">
-                          {notif.message}
-                        </p>
-                      </div>
-                    </div>
                   </div>
-                ))}
-              </div>
+
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-[13px] font-semibold leading-tight truncate ${notif.read ? 'text-slate-500' : 'text-slate-800'}`}>
+                      {notif.title}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-1">
+                      {notif.message}
+                    </p>
+                    <p className="text-[10px] text-slate-300 mt-1 flex items-center gap-1">
+                      <Clock size={9} /> {timeAgo(notif.createdAt)}
+                    </p>
+                  </div>
+                </div>
+              ))
             )}
+          </div>
+
+          {/* Footer */}
+          <div className="border-t border-slate-100 px-4 py-2.5">
+            <button
+              onClick={() => { setIsOpen(false); navigate(notifPagePath); }}
+              className="w-full flex items-center justify-center gap-1.5 text-[12px] font-bold text-primary hover:underline py-1"
+            >
+              View all notifications <ArrowRight size={12} />
+            </button>
           </div>
         </div>
       )}

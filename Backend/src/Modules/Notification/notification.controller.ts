@@ -56,6 +56,14 @@ export class NotificationController {
     return this.notificationService.getUnreadCount(recipientId, recipientType);
   }
 
+  @Put('read-all')
+  async markAllAsRead(
+    @Query('recipientId') recipientId: string,
+    @Query('recipientType') recipientType: 'ADMIN' | 'EMPLOYEE',
+  ) {
+    return this.notificationService.markAllAsRead(recipientId, recipientType);
+  }
+
   @Put(':id/read')
   async markAsRead(@Param('id') id: string, @Req() req: any) {
     const recipientId = req.admin?.id || req.employee?.id;

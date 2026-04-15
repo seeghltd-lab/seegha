@@ -31,6 +31,8 @@ import AdminProfile from './pages/admin/AdminProfile';
 import SiteManagement from './pages/admin/SiteManagement';
 import EmployeeProfile from './pages/employee/EmployeeProfile';
 import RequisitionManagement from './pages/admin/RequisitionManagement';
+import PermissionManagement from './pages/admin/PermissionManagement';
+import NotificationsPage from './pages/admin/NotificationsPage';
 import EmployeeRequisitionPage from './pages/employee/RequisitionPage';
 // Bridge component: sits inside all providers, wires auth state → notification recipient
 function NotificationBridge() {
@@ -70,6 +72,7 @@ function App() {
                     <Route path="/dashboard" element={<EmployeeDashboard />} />
                     <Route path="/profile" element={<EmployeeProfile />} />
                     <Route path="/requisitions" element={<EmployeeRequisitionPage />} />
+                    <Route path="/notifications" element={<NotificationsPage />} />
                   </Route>
                 </Route>
 
@@ -102,6 +105,12 @@ function App() {
 
                     {/* Admin Requisition Management */}
                     <Route path="/admin/requisition-management" element={<RequisitionManagement />} />
+
+                    {/* Admin Permission Management */}
+                    <Route path="/admin/permissions" element={<PermissionManagement />} />
+
+                    {/* Notifications */}
+                    <Route path="/admin/notifications" element={<NotificationsPage />} />
 
                     {/* Admin Profile & Config */}
                     <Route path="/admin/profile" element={<AdminProfile />} />

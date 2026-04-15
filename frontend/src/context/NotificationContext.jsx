@@ -54,6 +54,17 @@ export const NotificationProvider = ({ children }) => {
     }
   }, []);
 
+  const markAllAsRead = async () => {
+    if (!activeRecipient) return;
+    try {
+      await notificationService.markAllAsRead(activeRecipient.id, activeRecipient.type);
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setUnreadCount(0);
+    } catch (error) {
+      console.error('Failed to mark all as read', error);
+    }
+  };
+
   const markAsRead = async (id) => {
     try {
       await notificationService.markAsRead(id);
@@ -83,6 +94,11 @@ export const NotificationProvider = ({ children }) => {
     fetchUnreadCount();
   });
 
+  useSocketEvent('notifications-all-read', () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    setUnreadCount(0);
+  });
+
   const value = {
     notifications,
     unreadCount,
@@ -91,6 +107,7 @@ export const NotificationProvider = ({ children }) => {
     setRecipient,
     fetchNotifications,
     markAsRead,
+    markAllAsRead,
   };
 
   return (

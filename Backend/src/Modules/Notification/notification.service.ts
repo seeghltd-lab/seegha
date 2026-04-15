@@ -137,6 +137,31 @@ export class NotificationService {
     return result;
   }
 
+  async markAllAsRead(recipientId: string, recipientType: 'ADMIN' | 'EMPLOYEE') {
+    const all = await this.prisma.notification.findMany();
+
+    const toUpdate = all.filter((n) => {
+      const recipients = n.recipients as Recipient[];
+      return recipients.some(
+        (r) => r.id === recipientId && r.type === recipientType && !r.read,
+      );
+    });
+
+    await Promise.all(
+      toUpdate.map((n) => {
+        const recipients = (n.recipients as Recipient[]).map((r) =>
+          r.id === recipientId && r.type === recipientType ? { ...r, read: true } : r,
+        );
+        return this.prisma.notification.update({ where: { id: n.id }, data: { recipients } });
+      }),
+    );
+
+    this.socket.emitToAdmin(recipientId, 'notifications-all-read', {});
+    this.socket.emitToEmployee(recipientId, 'notifications-all-read', {});
+
+    return { marked: toUpdate.length };
+  }
+
   async getUnreadCount(recipientId: string, recipientType: 'ADMIN' | 'EMPLOYEE') {
     const all = await this.prisma.notification.findMany();
     const unread = all.filter((n) => {

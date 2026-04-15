@@ -5,12 +5,13 @@ import {
   Package,
   Users,
   FileText,
-  Settings,
   X,
   ChevronRight,
   Truck,
   User,
-  Landmark
+  Landmark,
+  Shield,
+  Bell,
 } from 'lucide-react';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import { useEmployeeAuth } from '../context/EmployeeAuthContext';
@@ -30,12 +31,15 @@ const Sidebar = ({ isOpen, onToggle, role }) => {
     { id: 'suppliers', label: 'Suppliers', icon: Truck, path: '/admin/suppliers' },
     { id: 'employees', label: 'Employees', icon: Users, path: '/admin/employees' },
     { id: 'requisitions', label: 'Requisitions', icon: FileText, path: '/admin/requisition-management' },
+    { id: 'permissions', label: 'Permissions', icon: Shield, path: '/admin/permissions' },
+    { id: 'notifications', label: 'Notifications', icon: Bell, path: '/admin/notifications' },
     { id: 'profile', label: 'My Profile', icon: User, path: '/admin/profile' },
     { id: 'sites', label: 'Sites', icon: Landmark, path: '/admin/site-management' },
   ] : [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     { id: 'inventory', label: 'My Inventory', icon: Package, path: '/inventory' },
     { id: 'requisitions', label: 'My Requests', icon: FileText, path: '/requisitions' },
+    { id: 'notifications', label: 'Notifications', icon: Bell, path: '/notifications' },
     { id: 'profile', label: 'My Profile', icon: User, path: '/profile' },
   ];
 
