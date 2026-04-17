@@ -31,6 +31,8 @@ import AdminProfile from './pages/admin/AdminProfile';
 import SiteManagement from './pages/admin/SiteManagement';
 import EmployeeProfile from './pages/employee/EmployeeProfile';
 import RequisitionManagement from './pages/admin/RequisitionManagement';
+import ApproveRequisition from './pages/admin/requisition/ApproveRequisition';
+import ReceiveRequisition from './pages/admin/requisition/ReceiveRequisition';
 import PermissionManagement from './pages/admin/PermissionManagement';
 import NotificationsPage from './pages/admin/NotificationsPage';
 import EmployeeRequisitionPage from './pages/employee/RequisitionPage';
@@ -105,6 +107,8 @@ function App() {
 
                     {/* Admin Requisition Management */}
                     <Route path="/admin/requisition-management" element={<RequisitionManagement />} />
+                    <Route path="/admin/requisition-management/approve/:id" element={<ApproveRequisition />} />
+                    <Route path="/admin/requisition-management/receive/:id" element={<ReceiveRequisition />} />
 
                     {/* Admin Permission Management */}
                     <Route path="/admin/permissions" element={<PermissionManagement />} />

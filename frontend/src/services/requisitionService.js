@@ -16,8 +16,23 @@ class RequisitionService {
     return data;
   }
 
-  async updateStatus(id, status, notes) {
-    const { data } = await api.patch(`/requisitions/${id}/status`, { status, notes });
+  async getReceivingSummary(id) {
+    const { data } = await api.get(`/requisitions/${id}/receiving-summary`);
+    return data;
+  }
+
+  async approve(id, payload = {}) {
+    const { data } = await api.put(`/requisitions/${id}/approve`, payload);
+    return data;
+  }
+
+  async reject(id, reason) {
+    const { data } = await api.put(`/requisitions/${id}/reject`, { reason });
+    return data;
+  }
+
+  async receiveItems(id, items) {
+    const { data } = await api.put(`/requisitions/${id}/receive`, { items });
     return data;
   }
 

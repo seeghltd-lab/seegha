@@ -2,17 +2,18 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Plus, X, Trash2, Package, ChevronLeft, ChevronRight,
   Clock, CheckCircle, XCircle, CheckCheck, Search, Eye,
-  FileText, AlertCircle,
+  FileText, AlertCircle, Truck,
 } from 'lucide-react';
 import requisitionService from '../../services/requisitionService';
 import stockService from '../../services/stockService';
 import { useSocketEvent } from '../../context/SocketContext';
 
 const STATUS_CONFIG = {
-  PENDING:   { label: 'Pending',   color: 'bg-amber-100 text-amber-700',    icon: Clock },
-  APPROVED:  { label: 'Approved',  color: 'bg-emerald-100 text-emerald-700', icon: CheckCircle },
-  REJECTED:  { label: 'Rejected',  color: 'bg-red-100 text-red-600',         icon: XCircle },
-  COMPLETED: { label: 'Completed', color: 'bg-blue-100 text-blue-700',        icon: CheckCheck },
+  PENDING:            { label: 'Pending',            color: 'bg-amber-100 text-amber-700',    icon: Clock },
+  APPROVED:           { label: 'Approved',           color: 'bg-blue-100 text-blue-700',      icon: CheckCircle },
+  PARTIALLY_RECEIVED: { label: 'Partially Received', color: 'bg-orange-100 text-orange-700',  icon: Truck },
+  FULLY_RECEIVED:     { label: 'Fully Received',     color: 'bg-emerald-100 text-emerald-700',icon: CheckCheck },
+  REJECTED:           { label: 'Rejected',           color: 'bg-red-100 text-red-600',         icon: XCircle },
 };
 
 const UNITS = ['PCS', 'BOX', 'KG', 'LITERS', 'METER', 'SET', 'PAIR', 'ROLL', 'BAG', 'OTHER'];
@@ -391,14 +392,16 @@ export default function EmployeeRequisitionPage() {
               {requisitions.map(req => (
                 <div key={req.id} className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 flex items-center gap-4">
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                    req.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-600' :
+                    req.status === 'APPROVED' ? 'bg-blue-100 text-blue-600' :
                     req.status === 'REJECTED' ? 'bg-red-100 text-red-500' :
-                    req.status === 'COMPLETED' ? 'bg-blue-100 text-blue-600' :
+                    req.status === 'FULLY_RECEIVED' ? 'bg-emerald-100 text-emerald-600' :
+                    req.status === 'PARTIALLY_RECEIVED' ? 'bg-orange-100 text-orange-600' :
                     'bg-amber-100 text-amber-600'
                   }`}>
                     {req.status === 'APPROVED' ? <CheckCircle size={18} /> :
                      req.status === 'REJECTED' ? <XCircle size={18} /> :
-                     req.status === 'COMPLETED' ? <CheckCheck size={18} /> :
+                     req.status === 'FULLY_RECEIVED' ? <CheckCheck size={18} /> :
+                     req.status === 'PARTIALLY_RECEIVED' ? <Truck size={18} /> :
                      <Clock size={18} />}
                   </div>
 
@@ -488,7 +491,11 @@ export default function EmployeeRequisitionPage() {
                   {selected.status === 'REJECTED' && (
                     <div className="flex items-start gap-2 p-3 bg-red-50 rounded-xl border border-red-100">
                       <AlertCircle size={15} className="text-red-500 flex-shrink-0 mt-0.5" />
-                      <p className="text-sm text-red-700">Your request was rejected. Contact your manager for more info.</p>
+                      <p className="text-sm text-red-700">
+                        {selected.rejectReason
+                          ? <>Rejected: <strong>{selected.rejectReason}</strong></>
+                          : 'Your request was rejected. Contact your manager for more info.'}
+                      </p>
                     </div>
                   )}
 
@@ -503,7 +510,16 @@ export default function EmployeeRequisitionPage() {
                             {i + 1}
                           </div>
                           <div className="flex-1">
-                            <p className="font-semibold text-slate-800 text-sm">{item.itemName}</p>
+                            <div className="flex items-center justify-between">
+                              <p className="font-semibold text-slate-800 text-sm">{item.itemName}</p>
+                              {item.receivingStatus && item.receivingStatus !== 'NOT_RECEIVED' && (
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                                  item.receivingStatus === 'FULLY_RECEIVED' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                                }`}>
+                                  {item.receivingStatus === 'FULLY_RECEIVED' ? 'Received' : `${item.receivedQty}/${item.quantity}`}
+                                </span>
+                              )}
+                            </div>
                             <p className="text-xs text-slate-500 mt-0.5">
                               {item.quantity} {item.unit}
                               {item.stock && <span className="ml-2 font-mono text-slate-400">· {item.stock.sku}</span>}

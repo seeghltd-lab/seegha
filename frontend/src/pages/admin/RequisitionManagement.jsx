@@ -1,18 +1,20 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Search, Eye, CheckCircle, XCircle, Package, ChevronLeft, ChevronRight,
-  Clock, CheckCheck, AlertCircle, Filter, User, Trash2, X, FileText,
+  Clock, CheckCheck, AlertCircle, User, Trash2, X, FileText, Truck,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import requisitionService from '../../services/requisitionService';
 import { useSocketEvent } from '../../context/SocketContext';
 
 const PAGE_SIZE = 10;
 
 const STATUS_CONFIG = {
-  PENDING:   { label: 'Pending',   color: 'bg-amber-100 text-amber-700',    icon: Clock },
-  APPROVED:  { label: 'Approved',  color: 'bg-emerald-100 text-emerald-700', icon: CheckCircle },
-  REJECTED:  { label: 'Rejected',  color: 'bg-red-100 text-red-600',         icon: XCircle },
-  COMPLETED: { label: 'Completed', color: 'bg-blue-100 text-blue-700',        icon: CheckCheck },
+  PENDING:            { label: 'Pending',            color: 'bg-amber-100 text-amber-700',    icon: Clock },
+  APPROVED:           { label: 'Approved',           color: 'bg-blue-100 text-blue-700',      icon: CheckCircle },
+  PARTIALLY_RECEIVED: { label: 'Partially Received', color: 'bg-orange-100 text-orange-700',  icon: Truck },
+  FULLY_RECEIVED:     { label: 'Fully Received',     color: 'bg-emerald-100 text-emerald-700',icon: CheckCheck },
+  REJECTED:           { label: 'Rejected',           color: 'bg-red-100 text-red-600',         icon: XCircle },
 };
 
 function StatusBadge({ status }) {
@@ -35,6 +37,7 @@ function Toast({ toast }) {
 }
 
 export default function RequisitionManagement() {
+  const navigate = useNavigate();
   const [requisitions, setRequisitions] = useState([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -42,10 +45,11 @@ export default function RequisitionManagement() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [loading, setLoading] = useState(false);
-  const [selected, setSelected] = useState(null);  // detail modal
+  const [selected, setSelected] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [actionTarget, setActionTarget] = useState(null); // { req, action: 'APPROVED'|'REJECTED'|'COMPLETED'|'DELETE' }
-  const [notes, setNotes] = useState('');
+  const [rejectTarget, setRejectTarget] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [acting, setActing] = useState(false);
   const [toast, setToast] = useState(null);
 
@@ -75,7 +79,6 @@ export default function RequisitionManagement() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Real-time updates
   useSocketEvent('requisition-created', () => load());
   useSocketEvent('requisition-updated', () => load());
   useSocketEvent('requisition-deleted', () => load());
@@ -93,42 +96,44 @@ export default function RequisitionManagement() {
     }
   };
 
-  const handleAction = async () => {
-    if (!actionTarget) return;
+  const handleReject = async () => {
+    if (!rejectTarget) return;
+    if (!rejectReason.trim()) { showToast('Rejection reason required', 'error'); return; }
     setActing(true);
     try {
-      if (actionTarget.action === 'DELETE') {
-        await requisitionService.remove(actionTarget.req.id);
-        showToast('Requisition deleted');
-      } else {
-        await requisitionService.updateStatus(actionTarget.req.id, actionTarget.action, notes || undefined);
-        showToast(`Requisition ${actionTarget.action.toLowerCase()}`);
-      }
-      setActionTarget(null);
-      setNotes('');
+      await requisitionService.reject(rejectTarget.id, rejectReason);
+      showToast('Requisition rejected');
+      setRejectTarget(null);
+      setRejectReason('');
+      if (selected?.id === rejectTarget.id) setSelected(null);
       load();
-      // Close detail modal if it was for this requisition
-      if (selected?.id === actionTarget.req.id) setSelected(null);
     } catch (err) {
-      showToast(err.response?.data?.message || 'Action failed', 'error');
+      showToast(err.response?.data?.message || 'Failed to reject', 'error');
     } finally {
       setActing(false);
     }
   };
 
-  const counts = {
-    PENDING: requisitions.filter(r => r.status === 'PENDING').length,
-    APPROVED: requisitions.filter(r => r.status === 'APPROVED').length,
-    REJECTED: requisitions.filter(r => r.status === 'REJECTED').length,
-    COMPLETED: requisitions.filter(r => r.status === 'COMPLETED').length,
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setActing(true);
+    try {
+      await requisitionService.remove(deleteTarget.id);
+      showToast('Requisition deleted');
+      setDeleteTarget(null);
+      if (selected?.id === deleteTarget.id) setSelected(null);
+      load();
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Failed to delete', 'error');
+    } finally {
+      setActing(false);
+    }
   };
 
-  const actionConfig = {
-    APPROVED:  { label: 'Approve',  btnClass: 'bg-emerald-500 hover:bg-emerald-600', msg: 'Approve this requisition? Stock items will be deducted.' },
-    REJECTED:  { label: 'Reject',   btnClass: 'bg-red-500 hover:bg-red-600',         msg: 'Reject this requisition?' },
-    COMPLETED: { label: 'Complete', btnClass: 'bg-blue-500 hover:bg-blue-600',        msg: 'Mark this requisition as completed?' },
-    DELETE:    { label: 'Delete',   btnClass: 'bg-red-500 hover:bg-red-600',          msg: 'Permanently delete this requisition?' },
-  };
+  const counts = Object.keys(STATUS_CONFIG).reduce((acc, key) => {
+    acc[key] = requisitions.filter(r => r.status === key).length;
+    return acc;
+  }, {});
 
   return (
     <div className="p-6 space-y-5">
@@ -143,7 +148,7 @@ export default function RequisitionManagement() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
           const Icon = cfg.icon;
           return (
@@ -153,8 +158,8 @@ export default function RequisitionManagement() {
               className={`p-4 rounded-xl border text-left transition-all ${statusFilter === key ? 'border-primary bg-primary/5 shadow-sm' : 'bg-white border-slate-100 hover:border-slate-200'}`}
             >
               <div className="flex items-center gap-2 mb-1">
-                <Icon size={16} className={statusFilter === key ? 'text-primary' : 'text-slate-400'} />
-                <span className="text-xs font-semibold text-slate-500">{cfg.label}</span>
+                <Icon size={15} className={statusFilter === key ? 'text-primary' : 'text-slate-400'} />
+                <span className="text-xs font-semibold text-slate-500 leading-tight">{cfg.label}</span>
               </div>
               <p className="text-2xl font-extrabold text-slate-800">{counts[key] ?? 0}</p>
             </button>
@@ -169,7 +174,7 @@ export default function RequisitionManagement() {
           <input
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1); }}
-            placeholder="Search by employee name or description..."
+            placeholder="Search by employee or description..."
             className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
         </div>
@@ -224,12 +229,14 @@ export default function RequisitionManagement() {
                   </div>
                 </td>
                 <td className="px-5 py-4 hidden sm:table-cell">
-                  <p className="text-slate-600 text-sm max-w-xs truncate">{req.description || <span className="text-slate-300 italic">No description</span>}</p>
+                  <p className="text-slate-600 text-sm max-w-xs truncate">
+                    {req.description || <span className="text-slate-300 italic">No description</span>}
+                  </p>
                 </td>
                 <td className="px-5 py-4">
                   <span className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700">
                     <Package size={13} className="text-slate-400" />
-                    {req._count?.items ?? 0}
+                    {req._count?.items ?? req.items?.length ?? 0}
                   </span>
                 </td>
                 <td className="px-5 py-4"><StatusBadge status={req.status} /></td>
@@ -242,25 +249,30 @@ export default function RequisitionManagement() {
                       className="p-1.5 rounded-lg hover:bg-primary/10 text-primary" title="View details">
                       <Eye size={14} />
                     </button>
+
                     {req.status === 'PENDING' && (
                       <>
-                        <button onClick={() => setActionTarget({ req, action: 'APPROVED' })}
+                        <button
+                          onClick={() => navigate(`/admin/requisition-management/approve/${req.id}`)}
                           className="p-1.5 rounded-lg hover:bg-emerald-50 text-emerald-600" title="Approve">
                           <CheckCircle size={14} />
                         </button>
-                        <button onClick={() => setActionTarget({ req, action: 'REJECTED' })}
+                        <button onClick={() => { setRejectTarget(req); setRejectReason(''); }}
                           className="p-1.5 rounded-lg hover:bg-red-50 text-red-500" title="Reject">
                           <XCircle size={14} />
                         </button>
                       </>
                     )}
-                    {req.status === 'APPROVED' && (
-                      <button onClick={() => setActionTarget({ req, action: 'COMPLETED' })}
-                        className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600" title="Mark Complete">
-                        <CheckCheck size={14} />
+
+                    {(req.status === 'APPROVED' || req.status === 'PARTIALLY_RECEIVED') && (
+                      <button
+                        onClick={() => navigate(`/admin/requisition-management/receive/${req.id}`)}
+                        className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600" title="Receive Items">
+                        <Truck size={14} />
                       </button>
                     )}
-                    <button onClick={() => setActionTarget({ req, action: 'DELETE' })}
+
+                    <button onClick={() => setDeleteTarget(req)}
                       className="p-1.5 rounded-lg hover:bg-red-50 text-red-500" title="Delete">
                       <Trash2 size={14} />
                     </button>
@@ -293,7 +305,6 @@ export default function RequisitionManagement() {
       {selected && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
-            {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <div>
                 <h2 className="text-lg font-bold text-slate-800">Requisition Details</h2>
@@ -309,7 +320,6 @@ export default function RequisitionManagement() {
                 <div className="text-center py-8 text-slate-400">Loading...</div>
               ) : (
                 <>
-                  {/* Employee Info */}
                   <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
                     <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold">
                       <User size={18} />
@@ -323,15 +333,20 @@ export default function RequisitionManagement() {
                     <div className="ml-auto"><StatusBadge status={selected.status} /></div>
                   </div>
 
-                  {/* Description */}
-                  {selected.description && (
-                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-100">
-                      <p className="text-xs font-semibold text-amber-700 mb-1">Description</p>
-                      <p className="text-sm text-slate-700 whitespace-pre-wrap">{selected.description}</p>
+                  {selected.rejectReason && (
+                    <div className="p-3 bg-red-50 rounded-xl border border-red-100">
+                      <p className="text-xs font-semibold text-red-700 mb-1">Rejection Reason</p>
+                      <p className="text-sm text-red-600">{selected.rejectReason}</p>
                     </div>
                   )}
 
-                  {/* Items */}
+                  {selected.description && (
+                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-100">
+                      <p className="text-xs font-semibold text-amber-700 mb-1">Description</p>
+                      <p className="text-sm text-slate-700">{selected.description}</p>
+                    </div>
+                  )}
+
                   <div>
                     <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
                       Items ({selected.items?.length ?? 0})
@@ -343,17 +358,27 @@ export default function RequisitionManagement() {
                             {i + 1}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-slate-800 text-sm">{item.itemName}</p>
-                            {item.stock && (
-                              <p className="text-xs text-slate-400 font-mono">SKU: {item.stock.sku}</p>
-                            )}
+                            <div className="flex items-center justify-between">
+                              <p className="font-semibold text-slate-800 text-sm">{item.itemName}</p>
+                              {item.receivingStatus && (
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                                  item.receivingStatus === 'FULLY_RECEIVED' ? 'bg-emerald-100 text-emerald-700' :
+                                  item.receivingStatus === 'PARTIALLY_RECEIVED' ? 'bg-amber-100 text-amber-700' :
+                                  'bg-slate-100 text-slate-500'
+                                }`}>{item.receivingStatus.replace(/_/g, ' ')}</span>
+                              )}
+                            </div>
+                            {item.stock && <p className="text-xs text-slate-400 font-mono">SKU: {item.stock.sku}</p>}
                             <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
                               <span>Qty: <strong className="text-slate-700">{item.quantity}</strong></span>
                               <span>Unit: <strong className="text-slate-700">{item.unit}</strong></span>
-                              {item.stock && (
-                                <span className={`font-semibold ${item.stock.quantity < item.quantity ? 'text-red-500' : 'text-emerald-600'}`}>
-                                  In stock: {item.stock.quantity}
-                                </span>
+                              {item.receivedQty > 0 && (
+                                <span>Received: <strong className="text-emerald-600">{item.receivedQty}</strong></span>
+                              )}
+                              {item.costPrice && (
+                                <span>Cost: <strong className="text-slate-700">
+                                  {new Intl.NumberFormat('en-RW').format(item.costPrice)} RWF
+                                </strong></span>
                               )}
                             </div>
                           </div>
@@ -364,30 +389,32 @@ export default function RequisitionManagement() {
 
                   <p className="text-xs text-slate-400">
                     Submitted: {new Date(selected.createdAt).toLocaleString()}
+                    {selected.approvedAt && ` · Approved: ${new Date(selected.approvedAt).toLocaleString()}`}
                   </p>
                 </>
               )}
             </div>
 
-            {/* Modal Actions */}
             {!detailLoading && (
               <div className="px-6 py-4 border-t border-slate-100 flex flex-wrap gap-2">
                 {selected.status === 'PENDING' && (
                   <>
-                    <button onClick={() => { setActionTarget({ req: selected, action: 'APPROVED' }); setSelected(null); }}
+                    <button
+                      onClick={() => { setSelected(null); navigate(`/admin/requisition-management/approve/${selected.id}`); }}
                       className="flex-1 py-2 rounded-xl bg-emerald-500 text-white text-sm font-bold hover:bg-emerald-600">
                       Approve
                     </button>
-                    <button onClick={() => { setActionTarget({ req: selected, action: 'REJECTED' }); setSelected(null); }}
+                    <button onClick={() => { setRejectTarget(selected); setSelected(null); setRejectReason(''); }}
                       className="flex-1 py-2 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600">
                       Reject
                     </button>
                   </>
                 )}
-                {selected.status === 'APPROVED' && (
-                  <button onClick={() => { setActionTarget({ req: selected, action: 'COMPLETED' }); setSelected(null); }}
-                    className="flex-1 py-2 rounded-xl bg-blue-500 text-white text-sm font-bold hover:bg-blue-600">
-                    Mark Complete
+                {(selected.status === 'APPROVED' || selected.status === 'PARTIALLY_RECEIVED') && (
+                  <button
+                    onClick={() => { setSelected(null); navigate(`/admin/requisition-management/receive/${selected.id}`); }}
+                    className="flex-1 py-2 rounded-xl bg-primary text-white text-sm font-bold hover:bg-primary/90">
+                    Receive Items
                   </button>
                 )}
                 <button onClick={() => setSelected(null)}
@@ -400,33 +427,47 @@ export default function RequisitionManagement() {
         </div>
       )}
 
-      {/* Action Confirm Modal */}
-      {actionTarget && (
+      {/* Reject Modal */}
+      {rejectTarget && (
         <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
-            <h2 className="text-lg font-bold text-slate-800 mb-1">
-              {actionConfig[actionTarget.action]?.label} Requisition
-            </h2>
-            <p className="text-sm text-slate-500 mb-4">{actionConfig[actionTarget.action]?.msg}</p>
-
-            {(actionTarget.action === 'APPROVED' || actionTarget.action === 'REJECTED') && (
-              <textarea
-                value={notes}
-                onChange={e => setNotes(e.target.value)}
-                placeholder="Add a note (optional)..."
-                rows={3}
-                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 mb-4"
-              />
-            )}
-
+            <h2 className="text-lg font-bold text-slate-800 mb-1">Reject Requisition</h2>
+            <p className="text-sm text-slate-500 mb-4">Provide a reason for the employee.</p>
+            <textarea
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+              placeholder="Reason for rejection..."
+              rows={3}
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 mb-4"
+            />
             <div className="flex gap-3">
-              <button onClick={() => { setActionTarget(null); setNotes(''); }}
+              <button onClick={() => { setRejectTarget(null); setRejectReason(''); }}
                 className="flex-1 py-2 rounded-xl border border-slate-200 text-sm font-semibold hover:bg-slate-50">
                 Cancel
               </button>
-              <button onClick={handleAction} disabled={acting}
-                className={`flex-1 py-2 rounded-xl text-white text-sm font-bold disabled:opacity-60 ${actionConfig[actionTarget.action]?.btnClass}`}>
-                {acting ? 'Processing...' : actionConfig[actionTarget.action]?.label}
+              <button onClick={handleReject} disabled={acting}
+                className="flex-1 py-2 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 disabled:opacity-60">
+                {acting ? 'Rejecting...' : 'Reject'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirm Modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <h2 className="text-lg font-bold text-slate-800 mb-1">Delete Requisition</h2>
+            <p className="text-sm text-slate-500 mb-4">This action cannot be undone.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setDeleteTarget(null)}
+                className="flex-1 py-2 rounded-xl border border-slate-200 text-sm font-semibold hover:bg-slate-50">
+                Cancel
+              </button>
+              <button onClick={handleDelete} disabled={acting}
+                className="flex-1 py-2 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 disabled:opacity-60">
+                {acting ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>
