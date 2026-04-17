@@ -196,11 +196,6 @@ export class RequisitionService {
               },
             },
             receivingLogs: {
-              include: {
-                receivedBy: {
-                  select: { id: true, firstName: true, lastName: true },
-                },
-              },
               orderBy: { receivedAt: 'desc' },
             },
           },
@@ -356,6 +351,8 @@ export class RequisitionService {
   async receiveItems(
     requisitionId: string,
     receivedById: string,
+    receivedByType: 'ADMIN' | 'EMPLOYEE',
+    receivedByName: string,
     items: { itemId: string; receivedQty: number; note?: string }[],
   ) {
     const requisition = await this.prisma.requisition.findUnique({
@@ -393,6 +390,8 @@ export class RequisitionService {
           requisitionItemId: item.id,
           receivedQty: receiveData.receivedQty,
           receivedById,
+          receivedByType,
+          receivedByName,
           note: receiveData.note || null,
         },
       });
@@ -472,7 +471,6 @@ export class RequisitionService {
         items: {
           include: {
             receivingLogs: {
-              include: { receivedBy: { select: { id: true, firstName: true, lastName: true } } },
               orderBy: { receivedAt: 'desc' },
             },
           },
@@ -503,9 +501,6 @@ export class RequisitionService {
       where: { requisitionId },
       include: {
         receivingLogs: {
-          include: {
-            receivedBy: { select: { id: true, firstName: true, lastName: true } },
-          },
           orderBy: { receivedAt: 'desc' },
         },
       },

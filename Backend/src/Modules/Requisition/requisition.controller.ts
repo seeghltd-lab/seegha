@@ -75,8 +75,13 @@ export class RequisitionController {
     @Body() body: { items: { itemId: string; receivedQty: number; note?: string }[] },
     @Req() req: any,
   ) {
+    const isAdmin = !!req.admin;
     const receivedById = req.admin?.id ?? req.employee?.id;
-    return this.requisitionService.receiveItems(id, receivedById, body.items);
+    const receivedByType: 'ADMIN' | 'EMPLOYEE' = isAdmin ? 'ADMIN' : 'EMPLOYEE';
+    const receivedByName = isAdmin
+      ? (req.admin.names ?? req.admin.email ?? 'Admin')
+      : `${req.employee.firstName ?? ''} ${req.employee.lastName ?? ''}`.trim() || req.employee.email;
+    return this.requisitionService.receiveItems(id, receivedById, receivedByType, receivedByName, body.items);
   }
 
   @Delete(':id')

@@ -305,7 +305,7 @@ export default function ReceiveRequisition() {
                     {item.receivingLogs.map((log) => (
                       <div key={log.id} className="flex items-center gap-2 text-xs text-slate-500">
                         <Clock size={10} className="flex-shrink-0" />
-                        <span>{log.receivedQty} {item.unit} by {log.receivedBy?.firstName} {log.receivedBy?.lastName}</span>
+                        <span>{log.receivedQty} {item.unit} by {log.receivedByName ?? log.receivedById}</span>
                         <span className="text-slate-300">·</span>
                         <span>{new Date(log.receivedAt).toLocaleString()}</span>
                         {log.note && <span className="text-slate-400 italic">"{log.note}"</span>}

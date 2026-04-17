@@ -129,7 +129,6 @@ model Employee {
 
   requisitions   Requisition[]
   permissions    EmployeePermission[]
-  receivingLogs  ReceivingLog[]
 
   @@map("Employee")
 }
@@ -278,12 +277,13 @@ model ReceivingLog {
   id                String          @id @default(cuid())
   requisitionItemId String
   receivedQty       Float
-  receivedById      String
+  receivedById      String          // Admin or Employee ID — no FK constraint (dual role)
+  receivedByType    String          @default("ADMIN")
+  receivedByName    String?
   receivedAt        DateTime        @default(now())
   note              String?
 
   requisitionItem   RequisitionItem @relation(fields: [requisitionItemId], references: [id], onDelete: Cascade)
-  receivedBy        Employee        @relation(fields: [receivedById], references: [id])
 
   @@map("ReceivingLog")
 }
