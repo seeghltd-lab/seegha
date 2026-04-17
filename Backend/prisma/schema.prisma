@@ -25,8 +25,15 @@ enum EmployeeStatus {
 enum RequisitionStatus {
   PENDING
   APPROVED
+  PARTIALLY_RECEIVED
+  FULLY_RECEIVED
   REJECTED
-  COMPLETED
+}
+
+enum ReceivingStatus {
+  NOT_RECEIVED
+  PARTIALLY_RECEIVED
+  FULLY_RECEIVED
 }
 
 enum UserType {
@@ -120,8 +127,9 @@ model Employee {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
-  requisitions Requisition[]
-  permissions  EmployeePermission[]
+  requisitions   Requisition[]
+  permissions    EmployeePermission[]
+  receivingLogs  ReceivingLog[]
 
   @@map("Employee")
 }
@@ -228,14 +236,17 @@ model StockHistory {
 // ─── REQUISITION ────────────────────────────────────
 
 model Requisition {
-  id          String            @id @default(cuid())
-  status      RequisitionStatus @default(PENDING)
-  description String?
-  employeeId  String
-  employee    Employee          @relation(fields: [employeeId], references: [id])
-  items       RequisitionItem[]
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  id           String            @id @default(cuid())
+  status       RequisitionStatus @default(PENDING)
+  description  String?
+  rejectReason String?
+  employeeId   String
+  approvedAt   DateTime?
+  completedAt  DateTime?
+  employee     Employee          @relation(fields: [employeeId], references: [id])
+  items        RequisitionItem[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
 
   @@map("Requisition")
 }
@@ -243,18 +254,38 @@ model Requisition {
 // ─── REQUISITION ITEM ───────────────────────────────
 
 model RequisitionItem {
-  id            String      @id @default(cuid())
-  requisitionId String
-  requisition   Requisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
-  stockId       String?
-  stock         Stock?      @relation(fields: [stockId], references: [id])
-  itemName      String
-  quantity      Float
-  unit          String
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  id              String          @id @default(cuid())
+  requisitionId   String
+  requisition     Requisition     @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+  stockId         String?
+  stock           Stock?          @relation(fields: [stockId], references: [id])
+  itemName        String
+  quantity        Float
+  unit            String
+  note            String?
+  costPrice       Float?
+  receivedQty     Float           @default(0)
+  receivingStatus ReceivingStatus @default(NOT_RECEIVED)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  receivingLogs   ReceivingLog[]
 
   @@map("RequisitionItem")
+}
+
+model ReceivingLog {
+  id                String          @id @default(cuid())
+  requisitionItemId String
+  receivedQty       Float
+  receivedById      String
+  receivedAt        DateTime        @default(now())
+  note              String?
+
+  requisitionItem   RequisitionItem @relation(fields: [requisitionItemId], references: [id], onDelete: Cascade)
+  receivedBy        Employee        @relation(fields: [receivedById], references: [id])
+
+  @@map("ReceivingLog")
 }
 
 // ─── PERMISSIONS ────────────────────────────────────

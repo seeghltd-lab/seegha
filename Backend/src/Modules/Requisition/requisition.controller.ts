@@ -4,8 +4,8 @@ import {
   Delete,
   Get,
   Param,
-  Patch,
   Post,
+  Put,
   Query,
   Req,
   UseGuards,
@@ -19,14 +19,12 @@ import { DualAuthGuard } from '../../Guards/dual-auth.guard';
 export class RequisitionController {
   constructor(private readonly requisitionService: RequisitionService) {}
 
-  // Employee creates a requisition
   @Post()
   @UseGuards(EmployeeAuthGuard)
   create(@Body() body: any, @Req() req: any) {
     return this.requisitionService.create(body, req.employee.id);
   }
 
-  // Both admin (sees all) and employee (sees own) list requisitions
   @Get()
   @UseGuards(DualAuthGuard)
   findAll(@Query() query: any, @Req() req: any) {
@@ -35,7 +33,13 @@ export class RequisitionController {
     return this.requisitionService.findAll(query, callerId, role);
   }
 
-  // Get one requisition detail
+  // Must be before /:id to avoid route collision
+  @Get(':id/receiving-summary')
+  @UseGuards(DualAuthGuard)
+  getReceivingSummary(@Param('id') id: string) {
+    return this.requisitionService.getReceivingSummary(id);
+  }
+
   @Get(':id')
   @UseGuards(DualAuthGuard)
   findOne(@Param('id') id: string, @Req() req: any) {
@@ -44,18 +48,37 @@ export class RequisitionController {
     return this.requisitionService.findOne(id, callerId, role);
   }
 
-  // Admin updates requisition status
-  @Patch(':id/status')
+  @Put(':id/approve')
   @UseGuards(AdminAuthGuard)
-  updateStatus(
+  approve(
     @Param('id') id: string,
-    @Body() body: { status: any; notes?: string },
+    @Body() body: { items?: any[]; notes?: string },
     @Req() req: any,
   ) {
-    return this.requisitionService.updateStatus(id, body.status, req.admin.id, body.notes);
+    return this.requisitionService.approveRequisition(id, req.admin.id, body);
   }
 
-  // Delete: admin anytime, employee only if PENDING
+  @Put(':id/reject')
+  @UseGuards(AdminAuthGuard)
+  reject(
+    @Param('id') id: string,
+    @Body('reason') reason: string,
+    @Req() req: any,
+  ) {
+    return this.requisitionService.rejectRequisition(id, req.admin.id, reason);
+  }
+
+  @Put(':id/receive')
+  @UseGuards(DualAuthGuard)
+  receiveItems(
+    @Param('id') id: string,
+    @Body() body: { items: { itemId: string; receivedQty: number; note?: string }[] },
+    @Req() req: any,
+  ) {
+    const receivedById = req.admin?.id ?? req.employee?.id;
+    return this.requisitionService.receiveItems(id, receivedById, body.items);
+  }
+
   @Delete(':id')
   @UseGuards(DualAuthGuard)
   remove(@Param('id') id: string, @Req() req: any) {
