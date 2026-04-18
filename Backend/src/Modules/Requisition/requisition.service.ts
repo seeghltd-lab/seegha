@@ -214,7 +214,8 @@ export class RequisitionService {
 
   async approveRequisition(
     id: string,
-    adminId: string,
+    approverId: string,
+    approverType: 'ADMIN' | 'EMPLOYEE',
     body: { items?: any[]; notes?: string },
   ) {
     const requisition = await this.prisma.requisition.findUnique({
@@ -297,14 +298,14 @@ export class RequisitionService {
       title: 'Requisition Approved',
       message: `Your requisition has been approved${body.notes ? `: ${body.notes}` : '.'}`,
       link: `/requisitions`,
-      senderId: adminId,
-      senderType: 'ADMIN',
+      senderId: approverId,
+      senderType: approverType,
     });
 
     return updated;
   }
 
-  async rejectRequisition(id: string, adminId: string, reason: string) {
+  async rejectRequisition(id: string, approverId: string, approverType: 'ADMIN' | 'EMPLOYEE', reason: string) {
     if (!reason?.trim()) {
       throw new BadRequestException('Rejection reason is required');
     }
@@ -341,8 +342,8 @@ export class RequisitionService {
       title: 'Requisition Rejected',
       message: `Your requisition was rejected: ${reason}`,
       link: `/requisitions`,
-      senderId: adminId,
-      senderType: 'ADMIN',
+      senderId: approverId,
+      senderType: approverType,
     });
 
     return updated;

@@ -10,7 +10,9 @@ import { useSocketEvent } from '../../context/SocketContext';
 // All permission keys available in this system
 const PERMISSION_OPTIONS = [
   { key: 'stock_management',      label: 'Stock Management',      desc: 'Create, edit, and delete stock items' },
-  { key: 'requisition_management', label: 'Requisition Management', desc: 'Submit and track requisition requests' },
+  { key: 'create_requisition',    label: 'Create Requisition',    desc: 'Submit new requisition requests' },
+  { key: 'approve_requisition',   label: 'Approve Requisition',   desc: 'Approve or reject pending requisitions' },
+  { key: 'receive_requisition',   label: 'Receive Requisition',   desc: 'Record physical receipt of requisition items' },
   { key: 'supplier_management',   label: 'Supplier Management',   desc: 'Manage supplier records' },
   { key: 'category_management',   label: 'Category Management',   desc: 'Manage stock categories' },
   { key: 'site_management',       label: 'Site Management',       desc: 'View and manage construction sites' },

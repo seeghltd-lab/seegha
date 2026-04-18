@@ -5,6 +5,10 @@ import {
   Truck, AlertCircle, History, Calendar, FileText,
 } from 'lucide-react';
 import requisitionService from '../../services/requisitionService';
+import { useEmployeeAuth } from '../../context/EmployeeAuthContext';
+
+const hasPerm = (employee, name) =>
+  employee?.permissions?.some(p => p.permission.name === name) ?? false;
 
 const STATUS_CONFIG = {
   PENDING:            { label: 'Pending',            color: 'bg-amber-100 text-amber-700',     icon: Clock },
@@ -51,9 +55,38 @@ function ProgressBar({ received, total }) {
 export default function EmployeeRequisitionDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { employee } = useEmployeeAuth();
+  const canApprove = hasPerm(employee, 'approve_requisition');
+  const canReceive = hasPerm(employee, 'receive_requisition');
   const [requisition, setRequisition] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [rejectModal, setRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [acting, setActing] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (msg, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3200);
+  };
+
+  const handleReject = async () => {
+    if (!rejectReason.trim()) { showToast('Rejection reason required', 'error'); return; }
+    setActing(true);
+    try {
+      await requisitionService.reject(id, rejectReason);
+      showToast('Requisition rejected');
+      setRejectModal(false);
+      setRejectReason('');
+      const data = await requisitionService.getOne(id);
+      setRequisition(data);
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Failed to reject', 'error');
+    } finally {
+      setActing(false);
+    }
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -85,6 +118,12 @@ export default function EmployeeRequisitionDetail() {
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-5">
+      {toast && (
+        <div className={`fixed top-6 right-6 z-[100] px-4 py-3 rounded-xl shadow-lg text-sm font-semibold text-white ${toast.type === 'error' ? 'bg-red-500' : 'bg-emerald-500'}`}>
+          {toast.msg}
+        </div>
+      )}
+
       <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-primary transition-colors">
         <ArrowLeft size={15} /> Back to My Requisitions
       </button>
@@ -220,6 +259,58 @@ export default function EmployeeRequisitionDetail() {
           })}
         </div>
       </div>
+
+      {/* Permission-based actions */}
+      {(canApprove || canReceive) && (requisition.status === 'PENDING' || requisition.status === 'APPROVED' || requisition.status === 'PARTIALLY_RECEIVED') && (
+        <div className="flex flex-wrap gap-3">
+          {requisition.status === 'PENDING' && canApprove && (
+            <>
+              <button
+                onClick={() => navigate(`/requisitions/approve/${id}`)}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 text-white text-sm font-bold hover:bg-emerald-600 transition-colors">
+                <CheckCircle size={15} /> Approve
+              </button>
+              <button
+                onClick={() => setRejectModal(true)}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-colors">
+                <XCircle size={15} /> Reject
+              </button>
+            </>
+          )}
+          {(requisition.status === 'APPROVED' || requisition.status === 'PARTIALLY_RECEIVED') && canReceive && (
+            <button
+              onClick={() => navigate(`/requisitions/receive/${id}`)}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors">
+              <Truck size={15} /> Receive Items
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Reject modal */}
+      {rejectModal && (
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <h2 className="text-lg font-bold text-slate-800 mb-1">Reject Requisition</h2>
+            <p className="text-sm text-slate-500 mb-4">Provide a reason for rejection.</p>
+            <textarea
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+              placeholder="Reason for rejection..."
+              rows={3}
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 mb-4"
+            />
+            <div className="flex gap-3">
+              <button onClick={() => { setRejectModal(false); setRejectReason(''); }}
+                className="flex-1 py-2 rounded-xl border border-slate-200 text-sm font-semibold hover:bg-slate-50">Cancel</button>
+              <button onClick={handleReject} disabled={acting}
+                className="flex-1 py-2 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 disabled:opacity-60">
+                {acting ? 'Rejecting...' : 'Reject'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

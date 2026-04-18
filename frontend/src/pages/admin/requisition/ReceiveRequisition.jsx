@@ -120,7 +120,7 @@ export default function ReceiveRequisition() {
       setReceiveInputs(nextInputs);
 
       if (updated.status === 'FULLY_RECEIVED') {
-        setTimeout(() => navigate('/admin/requisition-management'), 1800);
+        setTimeout(() => navigate(-1), 1800);
       } else {
         setTimeout(() => setSuccess(false), 2500);
       }

@@ -153,7 +153,7 @@ export default function ApproveRequisition() {
       };
       await requisitionService.approve(id, payload);
       setSuccess(true);
-      setTimeout(() => navigate('/admin/requisition-management'), 1800);
+      setTimeout(() => navigate(-1), 1800);
     } catch (err) {
       setErrors({ submit: err.response?.data?.message || err.message || 'Failed to approve' });
     } finally {

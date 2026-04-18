@@ -36,6 +36,9 @@ import ReceiveRequisition from './pages/admin/requisition/ReceiveRequisition';
 import PermissionManagement from './pages/admin/PermissionManagement';
 import NotificationsPage from './pages/admin/NotificationsPage';
 import EmployeeRequisitionPage from './pages/employee/RequisitionPage';
+import EmployeeRequisitionDetail from './pages/employee/RequisitionDetail';
+import RequisitionDetail from './pages/admin/requisition/RequisitionDetail';
+import CreateRequisition from './pages/admin/requisition/CreateRequisition';
 // Bridge component: sits inside all providers, wires auth state → notification recipient
 function NotificationBridge() {
   const { admin, isAuthenticated: adminAuth } = useAdminAuth();
@@ -74,6 +77,9 @@ function App() {
                     <Route path="/dashboard" element={<EmployeeDashboard />} />
                     <Route path="/profile" element={<EmployeeProfile />} />
                     <Route path="/requisitions" element={<EmployeeRequisitionPage />} />
+                    <Route path="/requisitions/approve/:id" element={<ApproveRequisition />} />
+                    <Route path="/requisitions/receive/:id" element={<ReceiveRequisition />} />
+                    <Route path="/requisitions/:id" element={<EmployeeRequisitionDetail />} />
                     <Route path="/notifications" element={<NotificationsPage />} />
                   </Route>
                 </Route>
@@ -107,8 +113,10 @@ function App() {
 
                     {/* Admin Requisition Management */}
                     <Route path="/admin/requisition-management" element={<RequisitionManagement />} />
+                    <Route path="/admin/requisition-management/create" element={<CreateRequisition />} />
                     <Route path="/admin/requisition-management/approve/:id" element={<ApproveRequisition />} />
                     <Route path="/admin/requisition-management/receive/:id" element={<ReceiveRequisition />} />
+                    <Route path="/admin/requisition-management/:id" element={<RequisitionDetail />} />
 
                     {/* Admin Permission Management */}
                     <Route path="/admin/permissions" element={<PermissionManagement />} />

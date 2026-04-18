@@ -8,21 +8,23 @@ import {
   Put,
   Query,
   Req,
+  SetMetadata,
   UseGuards,
 } from '@nestjs/common';
 import { RequisitionService } from './requisition.service';
-import { AdminAuthGuard } from '../../Guards/admin-auth.guard';
-import { EmployeeAuthGuard } from '../../Guards/employee-auth.guard';
 import { DualAuthGuard } from '../../Guards/dual-auth.guard';
+import { EmployeePermissionGuard } from '../../Guards/employee-permission.guard';
 
 @Controller('requisitions')
 export class RequisitionController {
   constructor(private readonly requisitionService: RequisitionService) {}
 
   @Post()
-  @UseGuards(EmployeeAuthGuard)
+  @SetMetadata('permission', 'create_requisition')
+  @UseGuards(DualAuthGuard, EmployeePermissionGuard)
   create(@Body() body: any, @Req() req: any) {
-    return this.requisitionService.create(body, req.employee.id);
+    const employeeId = req.admin ? body.employeeId : req.employee.id;
+    return this.requisitionService.create(body, employeeId);
   }
 
   @Get()
@@ -49,27 +51,34 @@ export class RequisitionController {
   }
 
   @Put(':id/approve')
-  @UseGuards(AdminAuthGuard)
+  @SetMetadata('permission', 'approve_requisition')
+  @UseGuards(DualAuthGuard, EmployeePermissionGuard)
   approve(
     @Param('id') id: string,
     @Body() body: { items?: any[]; notes?: string },
     @Req() req: any,
   ) {
-    return this.requisitionService.approveRequisition(id, req.admin.id, body);
+    const approverId = req.admin?.id ?? req.employee?.id;
+    const approverType: 'ADMIN' | 'EMPLOYEE' = req.admin ? 'ADMIN' : 'EMPLOYEE';
+    return this.requisitionService.approveRequisition(id, approverId, approverType, body);
   }
 
   @Put(':id/reject')
-  @UseGuards(AdminAuthGuard)
+  @SetMetadata('permission', 'approve_requisition')
+  @UseGuards(DualAuthGuard, EmployeePermissionGuard)
   reject(
     @Param('id') id: string,
     @Body('reason') reason: string,
     @Req() req: any,
   ) {
-    return this.requisitionService.rejectRequisition(id, req.admin.id, reason);
+    const approverId = req.admin?.id ?? req.employee?.id;
+    const approverType: 'ADMIN' | 'EMPLOYEE' = req.admin ? 'ADMIN' : 'EMPLOYEE';
+    return this.requisitionService.rejectRequisition(id, approverId, approverType, reason);
   }
 
   @Put(':id/receive')
-  @UseGuards(DualAuthGuard)
+  @SetMetadata('permission', 'receive_requisition')
+  @UseGuards(DualAuthGuard, EmployeePermissionGuard)
   receiveItems(
     @Param('id') id: string,
     @Body() body: { items: { itemId: string; receivedQty: number; note?: string }[] },
