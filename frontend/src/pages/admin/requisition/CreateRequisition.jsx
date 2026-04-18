@@ -124,7 +124,7 @@ export default function CreateRequisition() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    employeeService.getAll({ limit: 200, status: 'ACTIVE' })
+    employeeService.getAllEmployees()
       .then(d => setEmployees(d.employees || d || []))
       .catch(() => {});
     stockService.getAll({ limit: 200 })
