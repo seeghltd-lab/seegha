@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { SiteSettingsService, siteLogoStorage } from './site-settings.service';
-import { AdminAuthGuard } from '../../Guards/admin-auth.guard';
+import { DualAuthGuard } from '../../Guards/dual-auth.guard';
 
 @Controller('site-settings')
 export class SiteSettingsController {
@@ -21,13 +21,13 @@ export class SiteSettingsController {
   }
 
   @Put()
-  @UseGuards(AdminAuthGuard)
+  @UseGuards(DualAuthGuard)
   update(@Body() body: Record<string, string>) {
     return this.siteSettingsService.updateMany(body);
   }
 
   @Put('logo')
-  @UseGuards(AdminAuthGuard)
+  @UseGuards(DualAuthGuard)
   @UseInterceptors(FileInterceptor('logo', { storage: siteLogoStorage }))
   uploadLogo(@UploadedFile() file: any) {
     return this.siteSettingsService.updateLogo(`/uploads/site/${file.filename}`);

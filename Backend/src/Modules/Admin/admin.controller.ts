@@ -5,6 +5,7 @@ import {
   Patch,
   Post,
   Put,
+  Query,
   Req,
   Res,
   UploadedFile,
@@ -90,6 +91,17 @@ export class AdminController {
   @UseGuards(AdminAuthGuard)
   async changePassword(@Req() req: RequestWithAdmin, @Body() body: any) {
     return this.adminService.changePassword(req.admin!.id, body);
+  }
+
+  @Get('dashboard')
+  @UseGuards(AdminAuthGuard)
+  async getDashboard(
+    @Req() req: RequestWithAdmin,
+    @Query('period') period?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.adminService.getDashboard(req.admin!.id, period, from, to);
   }
 
   @Get('all')

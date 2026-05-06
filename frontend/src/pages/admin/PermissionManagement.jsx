@@ -7,625 +7,407 @@ import permissionService from '../../services/permissionService';
 import employeeService from '../../services/employeeService';
 import { useSocketEvent } from '../../context/SocketContext';
 
-// All permission keys available in this system
 const PERMISSION_OPTIONS = [
-  { key: 'stock_management',      label: 'Stock Management',      desc: 'Create, edit, and delete stock items' },
-  { key: 'create_requisition',    label: 'Create Requisition',    desc: 'Submit new requisition requests' },
-  { key: 'approve_requisition',   label: 'Approve Requisition',   desc: 'Approve or reject pending requisitions' },
-  { key: 'receive_requisition',   label: 'Receive Requisition',   desc: 'Record physical receipt of requisition items' },
-  { key: 'supplier_management',   label: 'Supplier Management',   desc: 'Manage supplier records' },
-  { key: 'category_management',   label: 'Category Management',   desc: 'Manage stock categories' },
-  { key: 'site_management',       label: 'Site Management',       desc: 'View and manage construction sites' },
-  { key: 'reports_view',          label: 'Reports & Analytics',   desc: 'Access dashboard reports and analytics' },
+  { key: 'stock_management',    label: 'Stock Management',    desc: 'Create, edit, and delete stock items' },
+  { key: 'create_requisition',  label: 'Create Requisition',  desc: 'Submit new requisition requests' },
+  { key: 'approve_requisition', label: 'Approve Requisition', desc: 'Approve or reject pending requisitions' },
+  { key: 'receive_requisition', label: 'Receive Requisition', desc: 'Record physical receipt of requisition items' },
+  { key: 'supplier_management', label: 'Supplier Management', desc: 'Manage supplier records' },
+  { key: 'category_management', label: 'Category Management', desc: 'Manage stock categories' },
+  { key: 'site_management',     label: 'Site Management',     desc: 'View and manage construction sites' },
+  { key: 'reports_view',        label: 'Reports & Analytics', desc: 'Access dashboard reports and analytics' },
+  { key: 'record_direct_stock', label: 'Direct Stock Receipt',desc: 'Record items received at site without a prior requisition' },
 ];
 
-function Toast({ toast }) {
-  if (!toast) return null;
-  return (
-    <div className={`fixed top-6 right-6 z-[100] px-4 py-3 rounded-xl shadow-lg text-sm font-semibold text-white flex items-center gap-2 ${toast.type === 'error' ? 'bg-red-500' : 'bg-emerald-500'}`}>
-      {toast.type === 'error' ? <AlertCircle size={15} /> : <CheckCircle size={15} />}
-      {toast.msg}
-    </div>
-  );
-}
+const permLabel = (name) => PERMISSION_OPTIONS.find(o => o.key === name)?.label || name.replace(/_/g, ' ');
 
 export default function PermissionManagement() {
-  const [tab, setTab] = useState('permissions'); // 'permissions' | 'employees'
+  const [tab, setTab] = useState('permissions');
   const [permissions, setPermissions] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [toast, setToast] = useState(null);
 
-  // Modal state
   const [createModal, setCreateModal] = useState(false);
-  const [editTarget, setEditTarget] = useState(null);   // permission object
-  const [deleteTarget, setDeleteTarget] = useState(null); // permission object
-  const [assignModal, setAssignModal] = useState(null);  // { permission?, employee? }
-
-  // Form fields
+  const [editTarget, setEditTarget] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [assignModal, setAssignModal] = useState(null);
   const [formName, setFormName] = useState('');
   const [formDesc, setFormDesc] = useState('');
   const [acting, setActing] = useState(false);
 
-  const showToast = (msg, type = 'success') => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3200);
-  };
-
-  // ── Data loaders ──────────────────────────────────────────────────────
+  const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3200); };
 
   const loadPermissions = async () => {
-    try {
-      const data = await permissionService.getAll();
-      setPermissions(data);
-    } catch {
-      showToast('Failed to load permissions', 'error');
-    }
+    try { setPermissions(await permissionService.getAll()); }
+    catch { showToast('Failed to load permissions', 'error'); }
   };
 
   const loadEmployees = async () => {
     setLoading(true);
     try {
       const data = await employeeService.getAllEmployees();
-      // Load each employee's permissions in parallel
-      const withPerms = await Promise.all(
-        data.map(async (emp) => {
-          try {
-            const perms = await permissionService.getByEmployee(emp.id);
-            return { ...emp, permissions: perms };
-          } catch {
-            return { ...emp, permissions: [] };
-          }
-        })
-      );
+      const withPerms = await Promise.all(data.map(async emp => {
+        try { return { ...emp, permissions: await permissionService.getByEmployee(emp.id) }; }
+        catch { return { ...emp, permissions: [] }; }
+      }));
       setEmployees(withPerms);
-    } catch {
-      showToast('Failed to load employees', 'error');
-    } finally {
-      setLoading(false);
-    }
+    } catch { showToast('Failed to load employees', 'error'); }
+    finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    loadPermissions();
-    loadEmployees();
-  }, []);
-
-  // Real-time: refresh employee permission badges when any assign/revoke happens
+  useEffect(() => { loadPermissions(); loadEmployees(); }, []);
   useSocketEvent('permissionAssigned', () => loadEmployees());
   useSocketEvent('permissionRemoved', () => loadEmployees());
 
-  // Which permission keys haven't been created yet
-  const availableKeys = PERMISSION_OPTIONS.filter(
-    (opt) => !permissions.some((p) => p.name === opt.key)
-  );
-
-  // ── CRUD handlers ─────────────────────────────────────────────────────
+  const availableKeys = PERMISSION_OPTIONS.filter(opt => !permissions.some(p => p.name === opt.key));
 
   const handleCreate = async () => {
     if (!formName) { showToast('Select a permission type', 'error'); return; }
     setActing(true);
     try {
       const p = await permissionService.create({ name: formName, description: formDesc.trim() || undefined });
-      setPermissions((prev) => [p, ...prev]);
+      setPermissions(prev => [p, ...prev]);
       showToast('Permission created');
-      setCreateModal(false);
-      setFormName('');
-      setFormDesc('');
-    } catch (err) {
-      showToast(err.response?.data?.message || 'Failed to create permission', 'error');
-    } finally {
-      setActing(false);
-    }
+      setCreateModal(false); setFormName(''); setFormDesc('');
+    } catch (err) { showToast(err.response?.data?.message || 'Failed to create', 'error'); }
+    finally { setActing(false); }
   };
 
   const handleUpdate = async () => {
     if (!formName.trim()) { showToast('Name is required', 'error'); return; }
     setActing(true);
     try {
-      const updated = await permissionService.update(editTarget.id, {
-        name: formName.trim(),
-        description: formDesc.trim() || undefined,
-      });
-      setPermissions((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-      showToast('Permission updated');
-      setEditTarget(null);
-    } catch (err) {
-      showToast(err.response?.data?.message || 'Update failed', 'error');
-    } finally {
-      setActing(false);
-    }
+      const updated = await permissionService.update(editTarget.id, { name: formName.trim(), description: formDesc.trim() || undefined });
+      setPermissions(prev => prev.map(p => p.id === updated.id ? updated : p));
+      showToast('Permission updated'); setEditTarget(null);
+    } catch (err) { showToast(err.response?.data?.message || 'Update failed', 'error'); }
+    finally { setActing(false); }
   };
 
   const handleDelete = async () => {
     setActing(true);
     try {
       await permissionService.remove(deleteTarget.id);
-      setPermissions((prev) => prev.filter((p) => p.id !== deleteTarget.id));
-      // Strip that permission from all employees in state
-      setEmployees((prev) =>
-        prev.map((emp) => ({
-          ...emp,
-          permissions: emp.permissions?.filter((ep) => ep.permissionId !== deleteTarget.id),
-        }))
-      );
-      showToast('Permission deleted');
-      setDeleteTarget(null);
-    } catch (err) {
-      showToast(err.response?.data?.message || 'Delete failed', 'error');
-    } finally {
-      setActing(false);
-    }
+      setPermissions(prev => prev.filter(p => p.id !== deleteTarget.id));
+      setEmployees(prev => prev.map(emp => ({ ...emp, permissions: emp.permissions?.filter(ep => ep.permissionId !== deleteTarget.id) })));
+      showToast('Permission deleted'); setDeleteTarget(null);
+    } catch (err) { showToast(err.response?.data?.message || 'Delete failed', 'error'); }
+    finally { setActing(false); }
   };
 
   const handleAssign = async (employeeId, permissionId) => {
     setActing(true);
     try {
       await permissionService.assign(employeeId, permissionId);
-      showToast('Permission assigned');
-      setAssignModal(null);
-      await loadEmployees();
-    } catch (err) {
-      showToast(err.response?.data?.message || 'Already assigned or failed', 'error');
-    } finally {
-      setActing(false);
-    }
+      showToast('Permission assigned'); setAssignModal(null); await loadEmployees();
+    } catch (err) { showToast(err.response?.data?.message || 'Already assigned or failed', 'error'); }
+    finally { setActing(false); }
   };
 
   const handleRevoke = async (employeeId, permissionId) => {
     try {
       await permissionService.revoke(employeeId, permissionId);
-      setEmployees((prev) =>
-        prev.map((emp) => {
-          if (emp.id !== employeeId) return emp;
-          return { ...emp, permissions: emp.permissions.filter((ep) => ep.permissionId !== permissionId) };
-        })
-      );
+      setEmployees(prev => prev.map(emp => emp.id !== employeeId ? emp : { ...emp, permissions: emp.permissions.filter(ep => ep.permissionId !== permissionId) }));
       showToast('Permission removed');
-    } catch (err) {
-      showToast(err.response?.data?.message || 'Remove failed', 'error');
-    }
+    } catch (err) { showToast(err.response?.data?.message || 'Remove failed', 'error'); }
   };
 
-  // ── Helpers ──────────────────────────────────────────────────────────
-
-  const openEdit = (p) => {
-    setEditTarget(p);
-    setFormName(p.name);
-    setFormDesc(p.description || '');
-  };
-
-  const filteredEmployees = employees.filter((emp) => {
-    const full = `${emp.firstName} ${emp.lastName} ${emp.email} ${emp.position}`.toLowerCase();
-    return full.includes(search.toLowerCase());
-  });
-
-  const permLabel = (name) =>
-    PERMISSION_OPTIONS.find((o) => o.key === name)?.label || name.replace(/_/g, ' ');
-
-  // ── Render ────────────────────────────────────────────────────────────
+  const openEdit = (p) => { setEditTarget(p); setFormName(p.name); setFormDesc(p.description || ''); };
+  const filteredEmployees = employees.filter(emp => `${emp.firstName} ${emp.lastName} ${emp.email} ${emp.position}`.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div className="p-6 space-y-5">
-      <Toast toast={toast} />
+    <div style={{ padding: '20px 24px 40px' }}>
+      {toast && (
+        <div className={`stoq-toast ${toast.type === 'error' ? 'stoq-toast--error' : 'stoq-toast--success'}`}
+          style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {toast.type === 'error' ? <AlertCircle size={13} /> : <CheckCircle size={13} />}
+          {toast.msg}
+        </div>
+      )}
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="page-head">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-800 flex items-center gap-2">
-            <Shield size={22} className="text-primary" /> Permission Management
+          <h1 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Shield size={16} style={{ color: 'var(--accent-soft-fg)' }} /> Permission Management
           </h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            Control what employees can access within the system.
-          </p>
+          <div className="page-head__sub">Control what employees can access within the system</div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm">
-        <div className="flex border-b border-slate-100">
-          {[
-            { key: 'permissions', icon: Shield, label: `Permissions (${permissions.length})` },
-            { key: 'employees',   icon: Users,  label: `Employees (${employees.length})` },
-          ].map(({ key, icon: Icon, label }) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className={`flex items-center gap-2 px-6 py-4 text-sm font-bold border-b-2 transition-all -mb-px ${
-                tab === key
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              <Icon size={15} /> {label}
-            </button>
-          ))}
-        </div>
-
-        {/* ── PERMISSIONS TAB ─────────────────────────────── */}
-        {tab === 'permissions' && (
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-5">
-              <p className="text-sm font-semibold text-slate-600">All system permissions</p>
-              {availableKeys.length > 0 && (
-                <button
-                  onClick={() => { setCreateModal(true); setFormName(''); setFormDesc(''); }}
-                  className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold hover:opacity-90 shadow"
-                >
-                  <Plus size={15} /> Add Permission
-                </button>
-              )}
-            </div>
-
-            {permissions.length === 0 ? (
-              <div className="text-center py-16">
-                <Shield size={48} className="mx-auto text-slate-200 mb-3" />
-                <p className="font-semibold text-slate-400">No permissions created yet</p>
-                <button
-                  onClick={() => setCreateModal(true)}
-                  className="mt-3 text-sm font-bold text-primary hover:underline"
-                >
-                  Create your first permission
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {permissions.map((p) => {
-                  const opt = PERMISSION_OPTIONS.find((o) => o.key === p.name);
-                  return (
-                    <div key={p.id} className="border border-slate-100 rounded-2xl p-5 hover:shadow-md transition group">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                            <Shield size={15} className="text-primary" />
-                          </div>
-                          <div>
-                            <p className="font-bold text-slate-800 text-sm">{permLabel(p.name)}</p>
-                            <p className="text-xs font-mono text-slate-400">{p.name}</p>
-                          </div>
-                        </div>
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition">
-                          <button onClick={() => openEdit(p)}
-                            className="p-1.5 rounded-lg hover:bg-primary/10 text-primary">
-                            <Edit2 size={13} />
-                          </button>
-                          <button onClick={() => setDeleteTarget(p)}
-                            className="p-1.5 rounded-lg hover:bg-red-50 text-red-400">
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      </div>
-
-                      {(p.description || opt?.desc) && (
-                        <p className="text-xs text-slate-500 mb-3 leading-relaxed">
-                          {p.description || opt?.desc}
-                        </p>
-                      )}
-
-                      <button
-                        onClick={() => setAssignModal({ permission: p })}
-                        className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border border-primary/20 text-primary text-xs font-bold hover:bg-primary/5 transition"
-                      >
-                        <UserPlus size={13} /> Assign to Employee
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── EMPLOYEES TAB ───────────────────────────────── */}
-        {tab === 'employees' && (
-          <div className="p-6">
-            <div className="mb-5">
-              <div className="relative">
-                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search by name, email, or position..."
-                  className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                />
-              </div>
-            </div>
-
-            {loading ? (
-              <div className="flex justify-center py-16">
-                <Loader2 size={28} className="animate-spin text-primary" />
-              </div>
-            ) : filteredEmployees.length === 0 ? (
-              <div className="text-center py-16">
-                <Users size={48} className="mx-auto text-slate-200 mb-3" />
-                <p className="font-semibold text-slate-400">
-                  {search ? 'No employees match your search' : 'No employees found'}
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {filteredEmployees.map((emp) => (
-                  <div key={emp.id} className="border border-slate-100 rounded-2xl p-4 hover:shadow-sm transition">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-extrabold text-sm">
-                          {emp.firstName?.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <p className="font-bold text-slate-800">
-                            {emp.firstName} {emp.lastName}
-                          </p>
-                          <p className="text-xs text-slate-500">{emp.email}</p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-xs text-slate-400">{emp.position}</span>
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
-                              emp.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
-                            }`}>
-                              {emp.status}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => setAssignModal({ employee: emp })}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-primary/20 text-primary text-xs font-bold hover:bg-primary/5 transition"
-                      >
-                        <Plus size={13} /> Add Permission
-                      </button>
-                    </div>
-
-                    {/* Permission badges */}
-                    <div className="flex flex-wrap gap-2">
-                      {emp.permissions?.length > 0 ? (
-                        emp.permissions.map((ep) => (
-                          <div
-                            key={ep.id}
-                            className="flex items-center gap-1.5 bg-primary/8 border border-primary/15 text-primary px-2.5 py-1 rounded-full text-xs font-semibold"
-                          >
-                            <Shield size={10} />
-                            <span>{permLabel(ep.permission?.name)}</span>
-                            <button
-                              onClick={() => handleRevoke(emp.id, ep.permissionId)}
-                              className="text-primary/50 hover:text-red-500 transition ml-0.5"
-                            >
-                              <X size={10} />
-                            </button>
-                          </div>
-                        ))
-                      ) : (
-                        <span className="text-xs text-slate-400 italic">No permissions assigned</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+      <div className="stoq-tabs" style={{ marginBottom: 14 }}>
+        {[
+          { key: 'permissions', icon: Shield, label: `Permissions (${permissions.length})` },
+          { key: 'employees', icon: Users, label: `Employees (${employees.length})` },
+        ].map(({ key, icon: Icon, label }) => (
+          <button key={key} className="stoq-tab" data-active={tab === key ? 'true' : 'false'} onClick={() => setTab(key)}>
+            <Icon size={13} /> {label}
+          </button>
+        ))}
       </div>
 
-      {/* ── CREATE MODAL ──────────────────────────────────── */}
+      {/* ── PERMISSIONS TAB ── */}
+      {tab === 'permissions' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>All system permissions</span>
+            {availableKeys.length > 0 && (
+              <button className="stoq-btn stoq-btn--primary" onClick={() => { setCreateModal(true); setFormName(''); setFormDesc(''); }}>
+                <Plus size={13} /> Add Permission
+              </button>
+            )}
+          </div>
+
+          {permissions.length === 0 ? (
+            <div className="stoq-empty">
+              <Shield size={28} className="stoq-empty__icon" />
+              <div className="stoq-empty__title">No permissions created yet</div>
+              <button className="stoq-btn stoq-btn--primary" style={{ marginTop: 10 }} onClick={() => setCreateModal(true)}>
+                Create first permission
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
+              {permissions.map(p => {
+                const opt = PERMISSION_OPTIONS.find(o => o.key === p.name);
+                return (
+                  <div key={p.id} className="stoq-panel" style={{ padding: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span className="kpi__icon"><Shield size={13} /></span>
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg)' }}>{permLabel(p.name)}</div>
+                          <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--fg-subtle)' }}>{p.name}</div>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 2 }}>
+                        <button className="icon-btn" onClick={() => openEdit(p)}><Edit2 size={12} /></button>
+                        <button className="icon-btn" style={{ color: 'var(--danger)' }} onClick={() => setDeleteTarget(p)}><Trash2 size={12} /></button>
+                      </div>
+                    </div>
+                    {(p.description || opt?.desc) && (
+                      <p style={{ fontSize: 11, color: 'var(--fg-subtle)', marginBottom: 10, lineHeight: 1.5 }}>{p.description || opt?.desc}</p>
+                    )}
+                    <button className="stoq-btn stoq-btn--sm" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setAssignModal({ permission: p })}>
+                      <UserPlus size={12} /> Assign to Employee
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── EMPLOYEES TAB ── */}
+      {tab === 'employees' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className="stoq-toolbar">
+            <div className="stoq-toolbar__search" style={{ position: 'relative' }}>
+              <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-subtle)', pointerEvents: 'none' }} />
+              <input className="stoq-input stoq-input--search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name, email, or position…" />
+            </div>
+          </div>
+
+          {loading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
+              <Loader2 size={22} style={{ animation: 'spin 1s linear infinite', color: 'var(--accent)' }} />
+            </div>
+          ) : filteredEmployees.length === 0 ? (
+            <div className="stoq-empty">
+              <Users size={28} className="stoq-empty__icon" />
+              <div className="stoq-empty__title">{search ? 'No employees match your search' : 'No employees found'}</div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {filteredEmployees.map(emp => (
+                <div key={emp.id} className="stoq-panel" style={{ padding: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 'var(--r-sm)', background: 'var(--accent)', color: 'var(--accent-fg)', display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
+                        {emp.firstName?.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)' }}>{emp.firstName} {emp.lastName}</div>
+                        <div style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>{emp.email} · {emp.position}</div>
+                        <span className={`stoq-badge ${emp.status === 'ACTIVE' ? 'stoq-badge--success' : 'stoq-badge'}`} style={{ marginTop: 4 }}>{emp.status}</span>
+                      </div>
+                    </div>
+                    <button className="stoq-btn stoq-btn--sm" onClick={() => setAssignModal({ employee: emp })}>
+                      <Plus size={12} /> Add Permission
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {emp.permissions?.length > 0 ? emp.permissions.map(ep => (
+                      <div key={ep.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', background: 'var(--accent-soft)', borderRadius: 'var(--r-xs)', fontSize: 11, fontWeight: 600, color: 'var(--accent-soft-fg)' }}>
+                        <Shield size={10} />
+                        {permLabel(ep.permission?.name)}
+                        <button onClick={() => handleRevoke(emp.id, ep.permissionId)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-soft-fg)', opacity: 0.6, padding: 0, lineHeight: 1, display: 'flex' }}
+                          onMouseEnter={e => e.currentTarget.style.color = 'var(--danger)'}
+                          onMouseLeave={e => e.currentTarget.style.color = 'var(--accent-soft-fg)'}>
+                          <X size={10} />
+                        </button>
+                      </div>
+                    )) : (
+                      <span style={{ fontSize: 11, color: 'var(--fg-subtle)', fontStyle: 'italic' }}>No permissions assigned</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── CREATE MODAL ── */}
       {createModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold text-slate-800">Add Permission</h2>
-              <button onClick={() => setCreateModal(false)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400">
-                <X size={18} />
-              </button>
+        <div className="stoq-modal-backdrop">
+          <div className="stoq-modal" style={{ maxWidth: 440 }}>
+            <div className="stoq-modal__head">
+              <div className="stoq-modal__title">Add Permission</div>
+              <button className="icon-btn" onClick={() => setCreateModal(false)}><X size={14} /></button>
             </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-semibold text-slate-600 mb-1.5 block">
-                  Permission Type <span className="text-red-400">*</span>
-                </label>
-                <select
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                >
+            <div className="stoq-modal__body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div className="stoq-field">
+                <label className="stoq-field__label">Permission Type <span style={{ color: 'var(--danger)' }}>*</span></label>
+                <select className="stoq-select" value={formName} onChange={e => setFormName(e.target.value)} style={{ width: '100%' }}>
                   <option value="">— Select a permission —</option>
-                  {availableKeys.map((opt) => (
-                    <option key={opt.key} value={opt.key}>{opt.label}</option>
-                  ))}
+                  {availableKeys.map(opt => <option key={opt.key} value={opt.key}>{opt.label}</option>)}
                 </select>
-                {formName && (
-                  <p className="text-xs text-slate-400 mt-1">
-                    {PERMISSION_OPTIONS.find((o) => o.key === formName)?.desc}
-                  </p>
-                )}
+                {formName && <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>{PERMISSION_OPTIONS.find(o => o.key === formName)?.desc}</span>}
               </div>
-
-              <div>
-                <label className="text-sm font-semibold text-slate-600 mb-1.5 block">
-                  Description <span className="text-slate-400 font-normal">(optional)</span>
-                </label>
-                <textarea
-                  value={formDesc}
-                  onChange={(e) => setFormDesc(e.target.value)}
-                  rows={3}
-                  placeholder="Add a custom description..."
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
-                />
+              <div className="stoq-field">
+                <label className="stoq-field__label">Description <span style={{ color: 'var(--fg-subtle)', fontWeight: 400 }}>(optional)</span></label>
+                <textarea className="stoq-input" value={formDesc} onChange={e => setFormDesc(e.target.value)} rows={3}
+                  placeholder="Custom description…" style={{ height: 'auto', padding: '8px 10px', resize: 'none' }} />
               </div>
             </div>
-
-            <div className="flex gap-3 mt-5">
-              <button onClick={() => setCreateModal(false)} disabled={acting}
-                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold hover:bg-slate-50">
-                Cancel
-              </button>
-              <button onClick={handleCreate} disabled={acting || !formName}
-                className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-bold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
-                {acting ? <><Loader2 size={14} className="animate-spin" /> Creating...</> : 'Create Permission'}
+            <div className="stoq-modal__foot">
+              <button className="stoq-btn" onClick={() => setCreateModal(false)}>Cancel</button>
+              <button className="stoq-btn stoq-btn--primary" disabled={acting || !formName} onClick={handleCreate}
+                style={{ opacity: acting || !formName ? 0.6 : 1 }}>
+                {acting ? <><Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> Creating…</> : 'Create Permission'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── EDIT MODAL ────────────────────────────────────── */}
+      {/* ── EDIT MODAL ── */}
       {editTarget && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold text-slate-800">Edit Permission</h2>
-              <button onClick={() => setEditTarget(null)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400">
-                <X size={18} />
-              </button>
+        <div className="stoq-modal-backdrop">
+          <div className="stoq-modal" style={{ maxWidth: 440 }}>
+            <div className="stoq-modal__head">
+              <div className="stoq-modal__title">Edit Permission</div>
+              <button className="icon-btn" onClick={() => setEditTarget(null)}><X size={14} /></button>
             </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-semibold text-slate-600 mb-1.5 block">Name</label>
-                <input
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                />
+            <div className="stoq-modal__body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div className="stoq-field">
+                <label className="stoq-field__label">Name</label>
+                <input className="stoq-input" value={formName} onChange={e => setFormName(e.target.value)} />
               </div>
-              <div>
-                <label className="text-sm font-semibold text-slate-600 mb-1.5 block">Description</label>
-                <textarea
-                  value={formDesc}
-                  onChange={(e) => setFormDesc(e.target.value)}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
-                />
+              <div className="stoq-field">
+                <label className="stoq-field__label">Description</label>
+                <textarea className="stoq-input" value={formDesc} onChange={e => setFormDesc(e.target.value)} rows={3}
+                  style={{ height: 'auto', padding: '8px 10px', resize: 'none' }} />
               </div>
             </div>
-
-            <div className="flex gap-3 mt-5">
-              <button onClick={() => setEditTarget(null)} disabled={acting}
-                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold hover:bg-slate-50">
-                Cancel
-              </button>
-              <button onClick={handleUpdate} disabled={acting || !formName.trim()}
-                className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-bold hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
-                {acting ? <><Loader2 size={14} className="animate-spin" /> Saving...</> : 'Save Changes'}
+            <div className="stoq-modal__foot">
+              <button className="stoq-btn" onClick={() => setEditTarget(null)}>Cancel</button>
+              <button className="stoq-btn stoq-btn--primary" disabled={acting || !formName.trim()} onClick={handleUpdate}
+                style={{ opacity: acting ? 0.6 : 1 }}>
+                {acting ? <><Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> Saving…</> : 'Save Changes'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── DELETE MODAL ──────────────────────────────────── */}
+      {/* ── DELETE MODAL ── */}
       {deleteTarget && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
-            <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Trash2 size={22} className="text-red-500" />
+        <div className="stoq-modal-backdrop">
+          <div className="stoq-modal" style={{ maxWidth: 380, textAlign: 'center' }}>
+            <div className="stoq-modal__head" style={{ justifyContent: 'center', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--danger-soft)', display: 'grid', placeItems: 'center', color: 'var(--danger)' }}>
+                <Trash2 size={18} />
+              </div>
+              <div className="stoq-modal__title">Delete Permission</div>
             </div>
-            <h2 className="text-lg font-bold text-slate-800 mb-1">Delete Permission</h2>
-            <p className="text-sm text-slate-500 mb-2">
-              Delete <strong className="text-slate-700">{permLabel(deleteTarget.name)}</strong>?
-            </p>
-            <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2 mb-5">
-              This will remove the permission from all employees who have it.
-            </p>
-            <div className="flex gap-3">
-              <button onClick={() => setDeleteTarget(null)} disabled={acting}
-                className="flex-1 py-2 rounded-xl border border-slate-200 text-sm font-semibold hover:bg-slate-50">
-                Cancel
-              </button>
-              <button onClick={handleDelete} disabled={acting}
-                className="flex-1 py-2 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 disabled:opacity-60 flex items-center justify-center gap-2">
-                {acting ? <><Loader2 size={13} className="animate-spin" /> Deleting...</> : 'Delete'}
+            <div className="stoq-modal__body">
+              <p style={{ fontSize: 12, color: 'var(--fg-muted)', marginBottom: 10 }}>
+                Delete <strong>{permLabel(deleteTarget.name)}</strong>?
+              </p>
+              <div style={{ padding: '8px 12px', background: 'var(--warning-soft)', borderRadius: 'var(--r-sm)', fontSize: 11, color: 'var(--warning)' }}>
+                This will remove the permission from all employees who have it.
+              </div>
+            </div>
+            <div className="stoq-modal__foot">
+              <button className="stoq-btn" onClick={() => setDeleteTarget(null)}>Cancel</button>
+              <button className="stoq-btn stoq-btn--primary" disabled={acting} onClick={handleDelete}
+                style={{ background: 'var(--danger)', opacity: acting ? 0.6 : 1 }}>
+                {acting ? <><Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> Deleting…</> : 'Delete'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── ASSIGN MODAL ──────────────────────────────────── */}
+      {/* ── ASSIGN MODAL ── */}
       {assignModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold text-slate-800">Assign Permission</h2>
-              <button onClick={() => setAssignModal(null)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400">
-                <X size={18} />
-              </button>
+        <div className="stoq-modal-backdrop">
+          <div className="stoq-modal" style={{ maxWidth: 440 }}>
+            <div className="stoq-modal__head">
+              <div className="stoq-modal__title">Assign Permission</div>
+              <button className="icon-btn" onClick={() => setAssignModal(null)}><X size={14} /></button>
             </div>
-
-            {/* Show the locked side */}
-            {assignModal.permission && (
-              <div className="mb-4 p-3 bg-primary/5 border border-primary/15 rounded-xl flex items-center gap-2">
-                <Shield size={15} className="text-primary" />
-                <div>
-                  <p className="text-sm font-bold text-primary">{permLabel(assignModal.permission.name)}</p>
-                  {assignModal.permission.description && (
-                    <p className="text-xs text-slate-500">{assignModal.permission.description}</p>
-                  )}
+            <div className="stoq-modal__body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {assignModal.permission && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--accent-soft)', borderRadius: 'var(--r-sm)' }}>
+                  <Shield size={14} style={{ color: 'var(--accent-soft-fg)' }} />
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-soft-fg)' }}>{permLabel(assignModal.permission.name)}</div>
+                    {assignModal.permission.description && <div style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>{assignModal.permission.description}</div>}
+                  </div>
                 </div>
-              </div>
-            )}
-
-            {assignModal.employee && (
-              <div className="mb-4 p-3 bg-slate-50 border border-slate-100 rounded-xl flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
-                  {assignModal.employee.firstName?.charAt(0)}
+              )}
+              {assignModal.employee && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--bg-sunk)', borderRadius: 'var(--r-sm)' }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 'var(--r-xs)', background: 'var(--accent)', color: 'var(--accent-fg)', display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: 12 }}>
+                    {assignModal.employee.firstName?.charAt(0)}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)' }}>{assignModal.employee.firstName} {assignModal.employee.lastName}</div>
+                    <div style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>{assignModal.employee.email} · {assignModal.employee.position}</div>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-bold text-slate-800">
-                    {assignModal.employee.firstName} {assignModal.employee.lastName}
-                  </p>
-                  <p className="text-xs text-slate-500">{assignModal.employee.email} · {assignModal.employee.position}</p>
-                </div>
-              </div>
-            )}
-
-            {/* Dropdown for the other side */}
-            <div className="mb-5">
-              <label className="text-sm font-semibold text-slate-600 mb-1.5 block">
-                {assignModal.permission ? 'Select Employee' : 'Select Permission'}
-              </label>
-              <select
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                defaultValue=""
-                onChange={(e) => {
-                  const id = e.target.value;
-                  if (!id) return;
-                  if (assignModal.permission) {
-                    handleAssign(id, assignModal.permission.id);
-                  } else {
-                    handleAssign(assignModal.employee.id, id);
-                  }
-                }}
-                disabled={acting}
-              >
-                <option value="">— {assignModal.permission ? 'Choose an employee' : 'Choose a permission'} —</option>
-
-                {assignModal.permission &&
-                  employees.map((emp) => {
-                    const already = emp.permissions?.some((ep) => ep.permissionId === assignModal.permission.id);
-                    return (
-                      <option key={emp.id} value={emp.id} disabled={already}>
-                        {emp.firstName} {emp.lastName} — {emp.position}
-                        {already ? ' (already assigned)' : ''}
-                      </option>
-                    );
+              )}
+              <div className="stoq-field">
+                <label className="stoq-field__label">{assignModal.permission ? 'Select Employee' : 'Select Permission'}</label>
+                <select className="stoq-select" defaultValue="" disabled={acting} style={{ width: '100%' }}
+                  onChange={e => {
+                    const id = e.target.value;
+                    if (!id) return;
+                    if (assignModal.permission) handleAssign(id, assignModal.permission.id);
+                    else handleAssign(assignModal.employee.id, id);
+                  }}>
+                  <option value="">— {assignModal.permission ? 'Choose an employee' : 'Choose a permission'} —</option>
+                  {assignModal.permission && employees.map(emp => {
+                    const already = emp.permissions?.some(ep => ep.permissionId === assignModal.permission.id);
+                    return <option key={emp.id} value={emp.id} disabled={already}>{emp.firstName} {emp.lastName} — {emp.position}{already ? ' (already assigned)' : ''}</option>;
                   })}
-
-                {assignModal.employee &&
-                  permissions.map((perm) => {
-                    const already = assignModal.employee.permissions?.some((ep) => ep.permissionId === perm.id);
-                    return (
-                      <option key={perm.id} value={perm.id} disabled={already}>
-                        {permLabel(perm.name)}
-                        {already ? ' (already assigned)' : ''}
-                      </option>
-                    );
+                  {assignModal.employee && permissions.map(perm => {
+                    const already = assignModal.employee.permissions?.some(ep => ep.permissionId === perm.id);
+                    return <option key={perm.id} value={perm.id} disabled={already}>{permLabel(perm.name)}{already ? ' (already assigned)' : ''}</option>;
                   })}
-              </select>
+                </select>
+              </div>
             </div>
-
-            <button onClick={() => setAssignModal(null)} disabled={acting}
-              className="w-full py-2.5 rounded-xl border border-slate-200 text-sm font-semibold hover:bg-slate-50">
-              Close
-            </button>
+            <div className="stoq-modal__foot">
+              <button className="stoq-btn" onClick={() => setAssignModal(null)}>Close</button>
+            </div>
           </div>
         </div>
       )}

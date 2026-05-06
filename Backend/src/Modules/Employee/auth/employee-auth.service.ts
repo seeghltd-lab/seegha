@@ -165,4 +165,50 @@ export class EmployeeAuthService {
     const { password: _, ...employeeWithoutPassword } = updated;
     return employeeWithoutPassword;
   }
+
+  async getEmployeeDashboard(employeeId: string) {
+    const [total, pending, approved, partiallyReceived, fullyReceived, rejected] =
+      await Promise.all([
+        this.prisma.requisition.count({ where: { employeeId } }),
+        this.prisma.requisition.count({ where: { employeeId, status: 'PENDING' } }),
+        this.prisma.requisition.count({ where: { employeeId, status: 'APPROVED' } }),
+        this.prisma.requisition.count({ where: { employeeId, status: 'PARTIALLY_RECEIVED' } }),
+        this.prisma.requisition.count({ where: { employeeId, status: 'FULLY_RECEIVED' } }),
+        this.prisma.requisition.count({ where: { employeeId, status: 'REJECTED' } }),
+      ]);
+
+    const recentRequisitions = await this.prisma.requisition.findMany({
+      where: { employeeId },
+      include: {
+        _count: { select: { items: true } },
+        supplier: { select: { id: true, name: true, code: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    });
+
+    const recentActivity = await this.prisma.activityLog.findMany({
+      where: { performedById: employeeId, performedByType: 'EMPLOYEE' },
+      orderBy: { createdAt: 'desc' },
+      take: 8,
+    });
+
+    return {
+      kpi: {
+        total,
+        pending,
+        approved,
+        inProgress: partiallyReceived + fullyReceived,
+        rejected,
+      },
+      recentRequisitions: recentRequisitions.map((r) => ({
+        id: r.id,
+        status: r.status,
+        itemCount: r._count.items,
+        supplier: r.supplier,
+        createdAt: r.createdAt,
+      })),
+      recentActivity,
+    };
+  }
 }

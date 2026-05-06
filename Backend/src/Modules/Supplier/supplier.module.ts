@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { SupplierService } from './supplier.service';
 import { SupplierController } from './supplier.controller';
-import { AdminAuthGuard } from '../../Guards/admin-auth.guard';
+import { ActivityLogModule } from '../ActivityLog/activity-log.module';
 
 @Module({
+  imports: [ActivityLogModule],
   controllers: [SupplierController],
-  providers: [SupplierService, AdminAuthGuard],
+  providers: [SupplierService],
   exports: [SupplierService],
 })
 export class SupplierModule {}

@@ -8,6 +8,16 @@ class StockService {
     return data;
   }
 
+  async batchCreate(items) {
+    const { data } = await api.post('/stock/batch', { items });
+    return data;
+  }
+
+  async directReceipt(items) {
+    const { data } = await api.post('/stock/direct-receipt', { items });
+    return data;
+  }
+
   async getAll(params = {}) {
     const { data } = await api.get('/stock', { params });
     return data;
@@ -23,13 +33,13 @@ class StockService {
     return data;
   }
 
-  async getHistory() {
-    const { data } = await api.get('/stock/history');
+  async getHistory(params = {}) {
+    const { data } = await api.get('/stock/history', { params });
     return data;
   }
 
-  async getHistoryByStock(stockId) {
-    const { data } = await api.get(`/stock/history/${stockId}`);
+  async getHistoryByStock(stockId, params = {}) {
+    const { data } = await api.get(`/stock/history/${stockId}`, { params });
     return data;
   }
 
@@ -42,6 +52,16 @@ class StockService {
 
   async remove(id) {
     const { data } = await api.delete(`/stock/${id}`);
+    return data;
+  }
+
+  async recordPayment(stockId, paymentData) {
+    const { data } = await api.post(`/stock/${stockId}/payments`, paymentData);
+    return data;
+  }
+
+  async getStockPayments(stockId) {
+    const { data } = await api.get(`/stock/${stockId}/payments`);
     return data;
   }
 }

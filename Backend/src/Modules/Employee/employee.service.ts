@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../Prisma/prisma.service';
 import { EmailService } from '../../Global/email/email.service';
+import { ActivityLogService } from '../ActivityLog/activity-log.service';
 import { generatePassword } from '../../common/utils/generate-password.util';
 import { deleteFile } from '../../common/utils/file-upload.util';
 import * as bcrypt from 'bcryptjs';
@@ -14,16 +15,21 @@ export class EmployeeService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
+    private readonly activityLog: ActivityLogService,
   ) {}
 
-  async create(data: {
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone: string;
-    position: string;
-    status?: any;
-  }) {
+  async create(
+    data: {
+      firstName: string;
+      lastName: string;
+      email: string;
+      phone: string;
+      position: string;
+      status?: any;
+    },
+    actorId?: string,
+    actorName?: string,
+  ) {
     const existing = await this.prisma.employee.findUnique({
       where: { email: data.email },
     });
@@ -60,6 +66,18 @@ export class EmployeeService {
     }
 
     const { password: _, ...employeeWithoutPassword } = employee;
+
+    this.activityLog.log({
+      action: 'EMPLOYEE_CREATED',
+      entityType: 'Employee',
+      entityId: employee.id,
+      entityLabel: `${employee.firstName} ${employee.lastName}`,
+      performedById: actorId ?? 'system',
+      performedByType: 'ADMIN',
+      performedByName: actorName,
+      metadata: { email: employee.email, position: employee.position, status: employee.status },
+    });
+
     return employeeWithoutPassword;
   }
 
@@ -128,6 +146,8 @@ export class EmployeeService {
       status: any;
       profilePicture: string;
     }>,
+    actorId?: string,
+    actorName?: string,
   ) {
     const employee = await this.prisma.employee.findUnique({ where: { id } });
     if (!employee) throw new NotFoundException('Employee not found');
@@ -149,10 +169,22 @@ export class EmployeeService {
     });
 
     const { password: _, ...employeeWithoutPassword } = updated;
+
+    this.activityLog.log({
+      action: 'EMPLOYEE_UPDATED',
+      entityType: 'Employee',
+      entityId: id,
+      entityLabel: `${updated.firstName} ${updated.lastName}`,
+      performedById: actorId ?? 'system',
+      performedByType: 'ADMIN',
+      performedByName: actorName,
+      metadata: { changes: data },
+    });
+
     return employeeWithoutPassword;
   }
 
-  async remove(id: string) {
+  async remove(id: string, actorId?: string, actorName?: string) {
     const employee = await this.prisma.employee.findUnique({ where: { id } });
     if (!employee) throw new NotFoundException('Employee not found');
 
@@ -161,6 +193,17 @@ export class EmployeeService {
     }
 
     await this.prisma.employee.delete({ where: { id } });
+
+    this.activityLog.log({
+      action: 'EMPLOYEE_DELETED',
+      entityType: 'Employee',
+      entityId: id,
+      entityLabel: `${employee.firstName} ${employee.lastName}`,
+      performedById: actorId ?? 'system',
+      performedByType: 'ADMIN',
+      performedByName: actorName,
+    });
+
     return { message: 'Employee deleted successfully' };
   }
 }

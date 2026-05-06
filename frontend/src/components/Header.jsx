@@ -1,19 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { 
-  Menu, 
-  Search, 
-  LogOut, 
-  User, 
-  ChevronDown,
-  Maximize2
-} from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Menu, LogOut, User, Search } from 'lucide-react';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import { useEmployeeAuth } from '../context/EmployeeAuthContext';
 import NotificationBell from './NotificationBell';
 
+const ChevR = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="9 18 15 12 9 6" />
+  </svg>
+);
+
 const Header = ({ onToggleSidebar, role }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -27,9 +27,32 @@ const Header = ({ onToggleSidebar, role }) => {
     navigate(role === 'admin' ? '/admin/login' : '/login');
   };
 
+  const getPageName = () => {
+    const path = location.pathname;
+    const segments = path.split('/').filter(Boolean);
+    // Skip 'admin' prefix segment
+    const relevant = segments.filter(s => s !== 'admin');
+    const last = relevant[relevant.length - 1];
+    if (!last || last === 'dashboard') return 'Dashboard';
+    // Map known slugs to readable names
+    const nameMap = {
+      'employees': 'Employees', 'stock': 'Stock', 'suppliers': 'Suppliers',
+      'categories': 'Categories', 'requisitions': 'Requisitions',
+      'requisition-management': 'Requisitions', 'permissions': 'Permissions',
+      'notifications': 'Notifications', 'profile': 'Profile',
+      'site-management': 'Sites', 'sites': 'Sites',
+      'activity-log': 'Activity Log', 'history': 'Stock History',
+      'direct-receipt': 'Direct Receipt', 'add': 'Add', 'new': 'New',
+      'approve': 'Approve', 'receive': 'Receive', 'create': 'Create',
+    };
+    return nameMap[last] || last.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  };
+
+  const getSection = () => role === 'admin' ? 'Admin' : 'Staff';
+
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setIsProfileOpen(false);
       }
     };
@@ -37,96 +60,132 @@ const Header = ({ onToggleSidebar, role }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const userName = user?.names || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'User';
+  const userInitial = userName.charAt(0).toUpperCase();
+
   return (
-    <header className="sticky top-0 right-0 left-0 lg:left-64 h-20 z-30 px-6 sm:px-10 flex items-center justify-between border-b border-outline-variant/30 bg-white shadow-sm">
-      {/* Mobile Toggle & Desktop Breadcrumb */}
-      <div className="flex items-center gap-5">
-        <button 
-          onClick={onToggleSidebar}
-          className="lg:hidden p-2.5 rounded-xl bg-surface-container-low border border-outline-variant/20 text-secondary hover:text-primary transition-all active:scale-95 shadow-sm"
-        >
-          <Menu size={22} />
-        </button>
-        
-        <div className="hidden sm:block">
-          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-secondary opacity-60 mb-0.5">
-            <span>Main</span>
-            <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-            <span>Dashboard</span>
-          </div>
-          <h1 className="text-xl font-black text-on-surface tracking-tight">
-            System <span className="text-primary opacity-80">Workspace</span>
-          </h1>
-        </div>
+    <header className="stoq-topbar">
+      {/* Mobile toggle */}
+      <button
+        onClick={onToggleSidebar}
+        className="icon-btn"
+        style={{ display: 'none' }}
+        id="stoq-menu-btn"
+      >
+        <Menu size={16} />
+      </button>
+      {/* Mobile toggle visible via CSS */}
+      <button
+        onClick={onToggleSidebar}
+        className="stoq-mobile-menu-btn icon-btn"
+        aria-label="Toggle menu"
+      >
+        <Menu size={16} />
+      </button>
+
+      {/* Breadcrumb */}
+      <div className="stoq-crumbs">
+        <span>{getSection()}</span>
+        <span className="stoq-crumbs__sep">/</span>
+        <span className="stoq-crumbs__current">{getPageName()}</span>
       </div>
 
-      {/* Right Actions */}
-      <div className="flex items-center gap-4 sm:gap-8">
-        {/* Search - Desktop */}
-        <div className="hidden md:flex items-center relative group">
-          <Search className="absolute left-3.5 text-slate-400 group-focus-within:text-primary transition-colors" size={17} />
-          <input 
-            type="text" 
-            placeholder="Search assets..." 
-            className="pl-11 pr-5 py-2.5 bg-surface-container-lowest border border-outline-variant/20 rounded-xl text-sm ring-2 ring-transparent focus:ring-primary/10 focus:border-primary transition-all w-72 outline-none shadow-sm"
-          />
-        </div>
+      {/* Search */}
+      <div className="stoq-topbar__search">
+        <Search size={13} style={{ color: 'var(--fg-subtle)', flexShrink: 0 }} />
+        <span style={{ flex: 1, color: 'var(--fg-subtle)', fontSize: 12 }}>Search assets…</span>
+        <kbd>⌘K</kbd>
+      </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-3 pr-4 border-r border-outline-variant/20">
-          <button className="p-2.5 text-secondary hover:text-primary hover:bg-surface-container rounded-xl transition-all hidden xs:flex">
-            <Maximize2 size={19} />
-          </button>
-          <NotificationBell />
-        </div>
+      {/* Right actions */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {/* Notification bell */}
+        <NotificationBell />
 
-        {/* Profile Dropdown */}
-        <div className="relative" ref={dropdownRef}>
-          <button 
+        {/* Profile dropdown */}
+        <div style={{ position: 'relative' }} ref={dropdownRef}>
+          <button
             onClick={() => setIsProfileOpen(!isProfileOpen)}
-            className="flex items-center gap-3 p-1 rounded-xl hover:bg-surface transition-all group"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              background: 'none', border: 'none', cursor: 'pointer',
+              padding: '4px 6px', borderRadius: 'var(--r-sm)',
+              color: 'var(--fg)',
+            }}
+            className="user-card"
           >
-             <div className="w-10 h-10 rounded-xl primary-gradient flex items-center justify-center text-white text-base font-black shadow-lg">
-              {(user?.names || user?.firstName || 'U').charAt(0).toUpperCase()}
+            <div className="stoq-avatar">{userInitial}</div>
+            <div style={{ textAlign: 'left', display: 'none' }} className="stoq-profile-name">
+              <div style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.2 }}>{userName}</div>
+              <div style={{ fontSize: 10, color: 'var(--fg-subtle)', textTransform: 'capitalize' }}>{role}</div>
             </div>
-            <div className="hidden lg:block text-left">
-              <p className="text-[13px] font-black text-on-surface leading-tight">
-                {user?.names || user?.firstName || 'User'}
-              </p>
-              <p className="text-[10px] font-bold text-emerald-600 mt-0.5 uppercase tracking-wide">
-                Authorized
-              </p>
-            </div>
-            <ChevronDown size={14} className={`text-slate-400 ml-1 transition-transform duration-300 ${isProfileOpen ? 'rotate-180' : ''}`} />
+            <ChevR />
           </button>
 
-          {/* User Dropdown Menu */}
           {isProfileOpen && (
-            <div className="absolute right-0 mt-4 w-60 bg-white rounded-2xl shadow-2xl border border-outline-variant/20 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150 origin-top-right">
-              <div className="p-5 border-b border-surface-container bg-surface/30">
-                <p className="text-sm font-black text-on-surface truncate">{user?.names || `${user?.firstName || ''} ${user?.lastName || ''}`.trim()}</p>
-                <p className="text-[11px] font-medium text-secondary truncate mt-1">{user?.email}</p>
+            <div style={{
+              position: 'absolute', right: 0, top: 'calc(100% + 8px)',
+              width: 220,
+              background: 'var(--bg-elev)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--r-md)',
+              boxShadow: 'var(--shadow-lg)',
+              overflow: 'hidden',
+              zIndex: 50,
+              animation: 'stoqSlide 140ms ease-out',
+            }}>
+              <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ fontSize: 12, fontWeight: 600 }}>{userName}</div>
+                <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginTop: 2 }}>{user?.email}</div>
               </div>
-              <div className="py-2.5 p-2">
-                <button onClick={() => {
-                    setIsProfileOpen(false);
-                    navigate(role === 'admin' ? '/admin/profile' : '/profile');
+              <div style={{ padding: 6 }}>
+                <button
+                  onClick={() => { setIsProfileOpen(false); navigate(role === 'admin' ? '/admin/profile' : '/profile'); }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    width: '100%', padding: '7px 10px',
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    borderRadius: 'var(--r-sm)', fontSize: 12,
+                    color: 'var(--fg-muted)', textAlign: 'left',
                   }}
-                  className="flex items-center gap-3 w-full px-4 py-2.5 text-sm font-bold text-secondary hover:bg-surface-container hover:text-primary rounded-xl transition-colors">
-                  <User size={18} /> My Account
-                </button>
-                <div className="h-px bg-surface-container-high my-2 mx-2"></div>
-                <button 
-                  onClick={handleLogout}
-                  className="flex items-center gap-3 w-full px-4 py-3 text-sm font-black text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
+                  onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-sunk)'; e.currentTarget.style.color = 'var(--fg)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--fg-muted)'; }}
                 >
-                  <LogOut size={18} /> Sign Out
+                  <User size={14} /> My Profile
+                </button>
+                <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+                <button
+                  onClick={handleLogout}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    width: '100%', padding: '7px 10px',
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    borderRadius: 'var(--r-sm)', fontSize: 12,
+                    color: 'var(--danger)', textAlign: 'left',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--danger-soft)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                >
+                  <LogOut size={14} /> Sign Out
                 </button>
               </div>
             </div>
           )}
         </div>
       </div>
+
+      <style>{`
+        @keyframes stoqSlide { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        @media (max-width: 768px) {
+          .stoq-mobile-menu-btn { display: grid !important; }
+          .stoq-crumbs { display: none; }
+          .stoq-profile-name { display: block !important; }
+        }
+        @media (min-width: 769px) {
+          .stoq-mobile-menu-btn { display: none !important; }
+          .stoq-profile-name { display: block !important; }
+        }
+      `}</style>
     </header>
   );
 };

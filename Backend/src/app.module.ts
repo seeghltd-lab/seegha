@@ -17,6 +17,8 @@ import { CategoryModule } from './Modules/Category/category.module';
 import { SiteSettingsModule } from './Modules/SiteSettings/site-settings.module';
 import { SiteModule } from './Modules/Site/site.module';
 import { RequisitionModule } from './Modules/Requisition/requisition.module';
+import { UnitModule } from './Modules/Unit/unit.module';
+import { ActivityLogModule } from './Modules/ActivityLog/activity-log.module';
 
 @Module({
   imports: [
@@ -38,6 +40,8 @@ import { RequisitionModule } from './Modules/Requisition/requisition.module';
     SiteSettingsModule,
     SiteModule,
     RequisitionModule,
+    UnitModule,
+    ActivityLogModule,
   ],
   controllers: [],
   providers: [],

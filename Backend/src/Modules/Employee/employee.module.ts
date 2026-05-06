@@ -4,6 +4,7 @@ import { EmployeeService } from './employee.service';
 import { EmployeeController } from './employee.controller';
 import { EmployeeAuthModule } from './auth/employee-auth.module';
 import { AdminAuthGuard } from '../../Guards/admin-auth.guard';
+import { ActivityLogModule } from '../ActivityLog/activity-log.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { AdminAuthGuard } from '../../Guards/admin-auth.guard';
       secret: process.env.JWT_SECRET,
       signOptions: { expiresIn: '7d' },
     }),
+    ActivityLogModule,
   ],
   controllers: [EmployeeController],
   providers: [EmployeeService, AdminAuthGuard],

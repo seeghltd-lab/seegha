@@ -5,7 +5,9 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../Prisma/prisma.service';
-import { SupplierStatus } from '@prisma/client';
+import { ActivityLogService } from '../ActivityLog/activity-log.service';
+import { SupplierStatus, PaymentType } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 
 interface CreateSupplierDto {
   name: string;
@@ -28,9 +30,22 @@ interface SupplierFilters {
   limit?: number;
 }
 
+interface AddPaymentDto {
+  type: PaymentType;
+  amount: number;
+  quantity?: number;
+  stockId?: string;
+  reference?: string;
+  notes?: string;
+  date?: string;
+}
+
 @Injectable()
 export class SupplierService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly activityLog: ActivityLogService,
+  ) {}
 
   private generateCode(): string {
     const chars = '0123456789ABCDEF';
@@ -49,10 +64,16 @@ export class SupplierService {
     return code;
   }
 
-  async create(data: CreateSupplierDto, adminId: string) {
+  async create(
+    data: CreateSupplierDto,
+    callerId: string,
+    callerName?: string,
+    callerType: 'ADMIN' | 'EMPLOYEE' = 'ADMIN',
+  ) {
     if (data.email) {
+      // Check email uniqueness globally (not scoped to adminId)
       const existing = await this.prisma.supplier.findFirst({
-        where: { email: data.email, adminId },
+        where: { email: data.email },
       });
       if (existing) {
         throw new ConflictException(
@@ -62,6 +83,7 @@ export class SupplierService {
     }
 
     const code = await this.uniqueCode();
+    const adminId = callerType === 'ADMIN' ? callerId : null;
 
     return this.prisma.supplier.create({
       data: {
@@ -79,14 +101,27 @@ export class SupplierService {
         status: data.status ?? 'ACTIVE',
         notes: data.notes,
       },
+    }).then((supplier) => {
+      this.activityLog.log({
+        action: 'SUPPLIER_CREATED',
+        entityType: 'Supplier',
+        entityId: supplier.id,
+        entityLabel: supplier.name,
+        performedById: callerId,
+        performedByType: callerType,
+        performedByName: callerName,
+        metadata: { code: supplier.code, status: supplier.status },
+      });
+      return supplier;
     });
   }
 
-  async findAll(adminId: string, filters: SupplierFilters = {}) {
+  async findAll(adminId: string | undefined, filters: SupplierFilters = {}) {
     const { search, status, page = 1, limit = 10 } = filters;
     const skip = (page - 1) * limit;
 
-    const where: any = { adminId };
+    // No adminId scoping — employees see everything
+    const where: any = {};
     if (status) where.status = status;
     if (search) {
       where.OR = [
@@ -120,39 +155,131 @@ export class SupplierService {
   }
 
   async findOne(id: string) {
-    const supplier = await this.prisma.supplier.findUnique({
+    const supplier = await (this.prisma.supplier.findUnique as any)({
       where: { id },
       include: {
         stocks: {
-          select: { id: true, sku: true, itemName: true, quantity: true },
-          take: 10,
-          orderBy: { createdAt: 'desc' },
+          orderBy: { receivedDate: 'desc' },
+          include: {
+            category: { select: { id: true, name: true } },
+            site: { select: { id: true, name: true } },
+          },
+        },
+        payments: {
+          orderBy: { date: 'desc' },
+          include: {
+            stock: { select: { id: true, sku: true, itemName: true } },
+            requisitionItem: {
+              select: {
+                id: true,
+                itemName: true,
+                quantity: true,
+                unit: true,
+                requisitionId: true,
+                requisition: { select: { id: true, createdAt: true, status: true } },
+              },
+            },
+          },
         },
         _count: { select: { stocks: true } },
       },
     });
     if (!supplier) throw new NotFoundException('Supplier not found');
-    return supplier;
+
+    const allPayments: any[] = supplier.payments ?? [];
+
+    // Compute payment summary
+    let totalCredit = new Decimal(0);
+    let totalDebit = new Decimal(0);
+    for (const p of allPayments) {
+      if (p.type === 'CREDIT') totalCredit = totalCredit.plus(p.amount);
+      else totalDebit = totalDebit.plus(p.amount);
+    }
+    const balance = totalCredit.minus(totalDebit);
+
+    // Split payments into normal and requisition-linked
+    const normalPayments = allPayments.filter((p: any) => !p.requisitionItemId);
+    const reqPayments = allPayments.filter((p: any) => !!p.requisitionItemId);
+    const reqGroups: Record<string, { requisitionId: string; requisition: any; items: any[] }> = {};
+    for (const p of reqPayments) {
+      const reqId = p.requisitionItem?.requisitionId ?? 'unknown';
+      if (!reqGroups[reqId]) {
+        reqGroups[reqId] = {
+          requisitionId: reqId,
+          requisition: p.requisitionItem?.requisition,
+          items: [],
+        };
+      }
+      reqGroups[reqId].items.push(p);
+    }
+
+    // Aggregate total stock value
+    const totalStockValue = supplier.stocks.reduce(
+      (sum, s) => sum.plus(s.totalValue),
+      new Decimal(0),
+    );
+
+    // Fetch related requisitions (those containing items from this supplier's stocks)
+    const stockIds = supplier.stocks.map((s) => s.id);
+    const requisitions = stockIds.length
+      ? await this.prisma.requisition.findMany({
+          where: { items: { some: { stockId: { in: stockIds } } } },
+          orderBy: { createdAt: 'desc' },
+          include: {
+            employee: { select: { firstName: true, lastName: true } },
+            items: {
+              where: { stockId: { in: stockIds } },
+              select: { id: true, itemName: true, quantity: true, unit: true, costPrice: true, receivingStatus: true },
+            },
+            _count: { select: { items: true } },
+          },
+        })
+      : [];
+
+    return {
+      ...supplier,
+      normalPayments,
+      requisitionGroups: Object.values(reqGroups),
+      paymentSummary: {
+        totalCredit: totalCredit.toNumber(),
+        totalDebit: totalDebit.toNumber(),
+        balance: balance.toNumber(),
+      },
+      totalStockValue: totalStockValue.toNumber(),
+      requisitions,
+    };
   }
 
-  async findForSelect(adminId: string) {
+  async findForSelect(_adminId?: string) {
+    // No scoping — return all active suppliers visible to anyone with access
     return this.prisma.supplier.findMany({
-      where: { adminId, status: 'ACTIVE' },
+      where: { status: 'ACTIVE' },
       select: { id: true, name: true, code: true },
       orderBy: { name: 'asc' },
     });
   }
 
-  async update(id: string, data: Partial<CreateSupplierDto>) {
+  async update(id: string, data: Partial<CreateSupplierDto>, adminId?: string, adminName?: string) {
     const supplier = await this.prisma.supplier.findUnique({ where: { id } });
     if (!supplier) throw new NotFoundException('Supplier not found');
-    return this.prisma.supplier.update({ where: { id }, data });
+    const updated = await this.prisma.supplier.update({ where: { id }, data });
+    this.activityLog.log({
+      action: 'SUPPLIER_UPDATED',
+      entityType: 'Supplier',
+      entityId: id,
+      entityLabel: updated.name,
+      performedById: adminId ?? 'system',
+      performedByType: 'ADMIN',
+      performedByName: adminName,
+      metadata: { changes: data },
+    });
+    return updated;
   }
 
-  async remove(id: string) {
+  async remove(id: string, adminId?: string, adminName?: string) {
     const supplier = await this.prisma.supplier.findUnique({
       where: { id },
-      include: { _count: { select: { stocks: true } } },
+      include: { _count: { select: { stocks: true, payments: true } } },
     });
     if (!supplier) throw new NotFoundException('Supplier not found');
     if (supplier._count.stocks > 0) {
@@ -160,6 +287,156 @@ export class SupplierService {
         `Cannot delete supplier with ${supplier._count.stocks} linked stock item(s). Reassign or remove them first.`,
       );
     }
-    return this.prisma.supplier.delete({ where: { id } });
+    if (supplier._count.payments > 0) {
+      throw new BadRequestException(
+        `Cannot delete supplier with ${supplier._count.payments} payment record(s). Clear payment history first.`,
+      );
+    }
+    await this.prisma.supplier.delete({ where: { id } });
+    this.activityLog.log({
+      action: 'SUPPLIER_DELETED',
+      entityType: 'Supplier',
+      entityId: id,
+      entityLabel: supplier.name,
+      performedById: adminId ?? 'system',
+      performedByType: 'ADMIN',
+      performedByName: adminName,
+    });
+    return { message: 'Supplier deleted' };
+  }
+
+  async addPayment(supplierId: string, data: AddPaymentDto, adminId: string) {
+    const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId } });
+    if (!supplier) throw new NotFoundException('Supplier not found');
+
+    return this.prisma.supplierPayment.create({
+      data: {
+        supplierId,
+        stockId: data.stockId || null,
+        type: data.type,
+        quantity: data.quantity != null ? new Decimal(data.quantity) : null,
+        amount: new Decimal(data.amount),
+        reference: data.reference || null,
+        notes: data.notes || null,
+        date: data.date ? new Date(data.date) : new Date(),
+        adminId,
+      },
+    });
+  }
+
+  async getPayments(supplierId: string) {
+    const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId } });
+    if (!supplier) throw new NotFoundException('Supplier not found');
+
+    const payments: any[] = await this.prisma.supplierPayment.findMany({
+      where: { supplierId },
+      orderBy: { date: 'desc' },
+      include: {
+        stock: { select: { id: true, sku: true, itemName: true } },
+        requisitionItem: {
+          select: {
+            id: true,
+            itemName: true,
+            quantity: true,
+            unit: true,
+            requisitionId: true,
+            requisition: { select: { id: true, createdAt: true, status: true } },
+          },
+        },
+      },
+    } as any);
+
+    const normalPayments = payments.filter((p: any) => !p.requisitionItemId);
+    const reqPayments = payments.filter((p: any) => !!p.requisitionItemId);
+
+    // Group reqPayments by requisitionId
+    const reqGroups: Record<string, { requisitionId: string; requisition: any; items: any[] }> = {};
+    for (const p of reqPayments) {
+      const reqId = p.requisitionItem?.requisitionId ?? 'unknown';
+      if (!reqGroups[reqId]) {
+        reqGroups[reqId] = {
+          requisitionId: reqId,
+          requisition: p.requisitionItem?.requisition,
+          items: [],
+        };
+      }
+      reqGroups[reqId].items.push(p);
+    }
+
+    // Compute summary over ALL payments
+    let totalCredit = new Decimal(0);
+    let totalDebit = new Decimal(0);
+    let totalQtyCredit = new Decimal(0);
+    let totalQtyDebit = new Decimal(0);
+    for (const p of payments) {
+      if (p.type === 'CREDIT') {
+        totalCredit = totalCredit.plus(p.amount);
+        totalQtyCredit = totalQtyCredit.plus(p.quantity ?? 0);
+      } else {
+        totalDebit = totalDebit.plus(p.amount);
+        totalQtyDebit = totalQtyDebit.plus(p.quantity ?? 0);
+      }
+    }
+
+    return {
+      normalPayments,
+      requisitionGroups: Object.values(reqGroups),
+      summary: {
+        totalCredit: totalCredit.toNumber(),
+        totalDebit: totalDebit.toNumber(),
+        balance: totalCredit.minus(totalDebit).toNumber(),
+        totalQtyCredit: totalQtyCredit.toNumber(),
+        totalQtyDebit: totalQtyDebit.toNumber(),
+      },
+    };
+  }
+
+  async addStockPayment(stockId: string, data: AddPaymentDto, adminId: string) {
+    const stock = await this.prisma.stock.findUnique({
+      where: { id: stockId },
+      select: { id: true, supplierId: true },
+    });
+    if (!stock) throw new NotFoundException('Stock not found');
+    if (!stock.supplierId) throw new BadRequestException('This stock item has no linked supplier');
+
+    return this.prisma.supplierPayment.create({
+      data: {
+        supplierId: stock.supplierId,
+        stockId,
+        type: data.type,
+        quantity: data.quantity != null ? new Decimal(data.quantity) : null,
+        amount: new Decimal(data.amount),
+        reference: data.reference || null,
+        notes: data.notes || null,
+        date: data.date ? new Date(data.date) : new Date(),
+        adminId,
+      },
+    });
+  }
+
+  async getStockPayments(stockId: string) {
+    const stock = await this.prisma.stock.findUnique({ where: { id: stockId } });
+    if (!stock) throw new NotFoundException('Stock not found');
+
+    const payments = await this.prisma.supplierPayment.findMany({
+      where: { stockId },
+      orderBy: { date: 'desc' },
+    });
+
+    let totalCredit = new Decimal(0);
+    let totalDebit = new Decimal(0);
+    for (const p of payments) {
+      if (p.type === 'CREDIT') totalCredit = totalCredit.plus(p.amount);
+      else totalDebit = totalDebit.plus(p.amount);
+    }
+
+    return {
+      payments,
+      summary: {
+        totalCredit: totalCredit.toNumber(),
+        totalDebit: totalDebit.toNumber(),
+        balance: totalCredit.minus(totalDebit).toNumber(),
+      },
+    };
   }
 }

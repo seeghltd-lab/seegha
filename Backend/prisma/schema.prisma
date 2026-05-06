@@ -64,6 +64,11 @@ enum SiteStatus {
   COMPLETED
 }
 
+enum PaymentType {
+  CREDIT
+  DEBIT
+}
+
 // ─── ADMIN ──────────────────────────────────────────
 
 model Admin {
@@ -92,14 +97,52 @@ model Site {
   startDate   DateTime?
   endDate     DateTime?
   image       String?
-  adminId     String
+  adminId     String?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
-  stocks Stock[]
+  stocks        Stock[]
+  workerRecords SiteWorkerRecord[]
+  expenses      SiteExpense[]
+  requisitions  Requisition[]
 
   @@index([adminId])
   @@map("Site")
+}
+
+model SiteWorkerRecord {
+  id          String   @id @default(cuid())
+  siteId      String
+  date        DateTime @default(now())
+  workerCount Int
+  notes       String?  @db.Text
+  recordedBy  String
+  adminId     String?
+  createdAt   DateTime @default(now())
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([siteId])
+  @@map("SiteWorkerRecord")
+}
+
+model SiteExpense {
+  id          String   @id @default(cuid())
+  siteId      String
+  description String
+  amount      Decimal  @db.Decimal(14, 2)
+  category    String?
+  date        DateTime @default(now())
+  reference   String?
+  notes       String?  @db.Text
+  adminId     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([siteId])
+  @@map("SiteExpense")
 }
 
 model SiteSetting {
@@ -149,11 +192,13 @@ model Supplier {
   rating        Float?         @default(0)
   status        SupplierStatus @default(ACTIVE)
   notes         String?        @db.Text
-  adminId       String
+  adminId       String?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
-  stocks Stock[]
+  stocks       Stock[]
+  payments     SupplierPayment[]
+  requisitions Requisition[]
 
   @@index([adminId])
   @@map("Supplier")
@@ -165,7 +210,7 @@ model Category {
   id          String   @id @default(cuid())
   name        String
   description String?
-  adminId     String
+  adminId     String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -187,7 +232,7 @@ model Stock {
   quantity          Int       @default(0)
   unitCost          Decimal   @db.Decimal(12, 2)
   totalValue        Decimal   @db.Decimal(14, 2)
-  warehouseLocation String
+  warehouseLocation String?
   receivedDate      DateTime
   reorderLevel      Int       @default(5)
   expiryDate        DateTime?
@@ -203,6 +248,7 @@ model Stock {
   site             Site?            @relation(fields: [siteId], references: [id])
   history          StockHistory[]
   requisitionItems RequisitionItem[]
+  payments         SupplierPayment[]
 
   @@index([adminId])
   @@index([categoryId])
@@ -235,18 +281,26 @@ model StockHistory {
 // ─── REQUISITION ────────────────────────────────────
 
 model Requisition {
-  id           String            @id @default(cuid())
-  status       RequisitionStatus @default(PENDING)
-  description  String?
-  rejectReason String?
-  employeeId   String
-  approvedAt   DateTime?
-  completedAt  DateTime?
-  employee     Employee          @relation(fields: [employeeId], references: [id])
-  items        RequisitionItem[]
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  id               String            @id @default(cuid())
+  status           RequisitionStatus @default(PENDING)
+  description      String?
+  rejectReason     String?
+  employeeId       String?
+  createdByAdminId String?
+  supplierId       String?
+  siteId           String?
+  approvedAt       DateTime?
+  completedAt      DateTime?
+  employee         Employee?         @relation(fields: [employeeId], references: [id])
+  supplier         Supplier?         @relation(fields: [supplierId], references: [id])
+  site             Site?             @relation(fields: [siteId], references: [id])
+  items            RequisitionItem[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 
+  @@index([supplierId])
+  @@index([employeeId])
+  @@index([siteId])
   @@map("Requisition")
 }
 
@@ -265,10 +319,12 @@ model RequisitionItem {
   costPrice       Float?
   receivedQty     Float           @default(0)
   receivingStatus ReceivingStatus @default(NOT_RECEIVED)
+  paymentType     String          @default("NONE")
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
   receivingLogs   ReceivingLog[]
+  payments        SupplierPayment[]
 
   @@map("RequisitionItem")
 }
@@ -326,6 +382,68 @@ model Notification {
   createdAt  DateTime    @default(now())
 
   @@map("Notification")
+}
+
+// ─── UNITS ──────────────────────────────────────────
+
+model Unit {
+  id        String   @id @default(cuid())
+  name      String
+  adminId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name, adminId])
+  @@index([adminId])
+  @@map("Unit")
+}
+
+// ─── SUPPLIER PAYMENTS ──────────────────────────────
+
+model SupplierPayment {
+  id                  String      @id @default(cuid())
+  supplierId          String
+  stockId             String?
+  requisitionItemId   String?
+  type                PaymentType
+  amount              Decimal     @db.Decimal(14, 2)
+  quantity            Decimal?    @db.Decimal(14, 4)
+  reference           String?
+  notes               String?     @db.Text
+  date                DateTime    @default(now())
+  adminId             String
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  supplier        Supplier         @relation(fields: [supplierId], references: [id])
+  stock           Stock?           @relation(fields: [stockId], references: [id])
+  requisitionItem RequisitionItem? @relation(fields: [requisitionItemId], references: [id])
+
+  @@index([supplierId])
+  @@index([stockId])
+  @@index([requisitionItemId])
+  @@map("SupplierPayment")
+}
+
+// ─── ACTIVITY LOG ───────────────────────────────────
+
+model ActivityLog {
+  id              String   @id @default(cuid())
+  action          String   // e.g. STOCK_CREATED, REQUISITION_APPROVED
+  entityType      String   // e.g. Stock, Employee, Requisition
+  entityId        String?
+  entityLabel     String?  // human-readable name/title of the entity
+  performedById   String
+  performedByType String   // ADMIN | EMPLOYEE
+  performedByName String?
+  metadata        Json?    // extra context (before/after values, counts, etc.)
+  ipAddress       String?
+  createdAt       DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([performedById])
+  @@index([createdAt])
+  @@map("ActivityLog")
 }
 
 // ─── PUSH SUBSCRIPTIONS ─────────────────────────────

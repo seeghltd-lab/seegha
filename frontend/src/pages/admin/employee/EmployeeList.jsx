@@ -1,22 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { 
-  Plus, 
-  Search, 
-  Filter, 
-  MoreVertical, 
-  Eye, 
-  Pencil, 
-  Trash2, 
-  Mail, 
-  Phone,
-  Users,
-  UserCheck,
-  UserMinus,
-  AlertCircle
-} from 'lucide-react';
+import { Plus, Search, Eye, Pencil, Trash2, Mail, Users, UserCheck, UserMinus, AlertCircle, RefreshCw, LayoutGrid, List } from 'lucide-react';
 import employeeService from '../../../services/employeeService';
-import { useNotification } from '../../../context/NotificationContext';
+import Sparkline, { genSpark } from '../../../components/Sparkline';
+import { useViewMode } from '../../../hooks/useViewMode';
 
 const EmployeeList = () => {
   const [employees, setEmployees] = useState([]);
@@ -24,234 +11,208 @@ const EmployeeList = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [isDeleting, setIsDeleting] = useState(null);
-  
+  const [viewMode, setViewMode, isSmallScreen] = useViewMode('employees');
   const navigate = useNavigate();
-  const { setRecipient } = useNotification();
 
-  useEffect(() => {
-    fetchEmployees();
-  }, []);
+  useEffect(() => { fetchEmployees(); }, []);
 
   const fetchEmployees = async () => {
     try {
       setIsLoading(true);
       const data = await employeeService.getAllEmployees();
       setEmployees(data);
-    } catch (error) {
-      console.error('Failed to fetch employees:', error);
-    } finally {
-      setIsLoading(false);
-    }
+    } catch { } finally { setIsLoading(false); }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to remove this employee? This action cannot be undone.')) return;
-    
+    if (!window.confirm('Remove this employee? This cannot be undone.')) return;
     try {
       setIsDeleting(id);
       await employeeService.deleteEmployee(id);
       setEmployees(employees.filter(emp => emp.id !== id));
-    } catch (error) {
-      alert('Failed to delete employee: ' + error.message);
-    } finally {
-      setIsDeleting(null);
-    }
+    } catch (err) {
+      alert('Failed to delete: ' + err.message);
+    } finally { setIsDeleting(null); }
   };
 
-  const filteredEmployees = employees.filter(emp => {
-    const matchesSearch = 
-      `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.position.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === 'ALL' || emp.status === statusFilter;
-    
-    return matchesSearch && matchesStatus;
+  const filtered = employees.filter(emp => {
+    const matchSearch = `${emp.firstName} ${emp.lastName} ${emp.email} ${emp.position}`.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchStatus = statusFilter === 'ALL' || emp.status === statusFilter;
+    return matchSearch && matchStatus;
   });
 
+  const active = employees.filter(e => e.status === 'ACTIVE').length;
+  const inactive = employees.filter(e => e.status !== 'ACTIVE' || e.isLocked).length;
+
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
+    <div>
+      {/* Page head */}
+      <div className="page-head">
         <div>
-          <h1 className="text-3xl font-black text-on-surface tracking-tighter">Personnel Repository</h1>
-          <p className="text-sm text-secondary font-bold opacity-70 mt-1">Manage staff credentials and access levels</p>
+          <h1>Employees</h1>
+          <div className="page-head__sub">Manage staff accounts and access levels</div>
         </div>
-        <Link 
-          to="/admin/employees/new"
-          className="flex items-center justify-center gap-2 px-6 py-3 primary-gradient text-white rounded-xl font-black text-sm shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all active:scale-95"
-        >
-          <Plus size={18} />
-          <span>Onboard Employee</span>
-        </Link>
-      </div>
-
-      {/* Stats Quick Look */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white p-5 rounded-2xl border border-outline-variant/20 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-black text-secondary uppercase tracking-widest opacity-60">Total Force</p>
-            <p className="text-2xl font-black text-on-surface">{employees.length}</p>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-            <Users size={20} className="text-blue-600" />
-          </div>
-        </div>
-        <div className="bg-white p-5 rounded-2xl border border-outline-variant/20 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-black text-secondary uppercase tracking-widest opacity-60">Active Now</p>
-            <p className="text-2xl font-black text-emerald-600">{employees.filter(e => e.status === 'ACTIVE').length}</p>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
-            <UserCheck size={20} className="text-emerald-600" />
-          </div>
-        </div>
-        <div className="bg-white p-5 rounded-2xl border border-outline-variant/20 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-black text-secondary uppercase tracking-widest opacity-60">Locked/Inactive</p>
-            <p className="text-2xl font-black text-rose-600">{employees.filter(e => e.status !== 'ACTIVE' || e.isLocked).length}</p>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center">
-            <UserMinus size={20} className="text-rose-600" />
-          </div>
+        <div className="page-head__actions">
+          <Link to="/admin/employees/new" className="stoq-btn stoq-btn--primary" style={{ textDecoration: 'none' }}>
+            <Plus size={13} /> Add Employee
+          </Link>
         </div>
       </div>
 
-      {/* Filters Area */}
-      <div className="bg-white p-4 rounded-2xl border border-outline-variant/20 shadow-sm mb-6 flex flex-col md:flex-row gap-4 items-center">
-        <div className="relative flex-1 w-full">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-          <input 
-            type="text" 
-            placeholder="Search by name, email or position..."
-            className="w-full pl-12 pr-4 py-3 bg-surface border-0 rounded-xl text-sm font-bold text-on-surface ring-1 ring-outline-variant/20 focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-slate-400"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+      {/* KPI row */}
+      <div className="kpi-grid kpi-grid--3" style={{ marginBottom: 'var(--gap-card)' }}>
+        <div className="kpi">
+          <div className="kpi__label"><span className="kpi__icon"><Users size={12} /></span>Total employees</div>
+          <div className="kpi__value">{employees.length}</div>
+          <div className="kpi__foot"><span>registered staff</span><span className="kpi__delta kpi__delta--up">+2</span></div>
+          <Sparkline data={genSpark(1, 14, 0.3)} />
         </div>
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <div className="flex items-center gap-2 px-4 py-3 bg-surface border border-outline-variant/20 rounded-xl min-w-[160px]">
-            <Filter size={16} className="text-slate-400" />
-            <select 
-              className="bg-transparent text-xs font-black text-on-surface uppercase outline-none flex-1 appearance-none cursor-pointer"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="ALL">All Status</option>
-              <option value="ACTIVE">Active</option>
-              <option value="INACTIVE">Inactive</option>
-            </select>
-          </div>
+        <div className="kpi">
+          <div className="kpi__label"><span className="kpi__icon"><UserCheck size={12} /></span>Active</div>
+          <div className="kpi__value" style={{ color: 'var(--success)' }}>{active}</div>
+          <div className="kpi__foot"><span>currently active</span></div>
+          <Sparkline data={genSpark(3, 14, 0.2)} />
+        </div>
+        <div className="kpi">
+          <div className="kpi__label"><span className="kpi__icon" data-tone="warning"><UserMinus size={12} /></span>Inactive / Locked</div>
+          <div className="kpi__value" style={{ color: inactive > 0 ? 'var(--danger)' : 'var(--fg)' }}>{inactive}</div>
+          <div className="kpi__foot"><span>needs review</span></div>
+          <Sparkline data={genSpark(8, 14, 0)} color="var(--warning)" />
         </div>
       </div>
 
-      {/* Table Section */}
-      <div className="bg-white rounded-2xl border border-outline-variant/20 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-surface/50 border-b border-outline-variant/20">
-                <th className="px-6 py-4 text-[10px] font-black text-secondary uppercase tracking-widest">Employee Information</th>
-                <th className="px-6 py-4 text-[10px] font-black text-secondary uppercase tracking-widest">Status</th>
-                <th className="px-6 py-4 text-[10px] font-black text-secondary uppercase tracking-widest">Role/Position</th>
-                <th className="px-6 py-4 text-[10px] font-black text-secondary uppercase tracking-widest">Onboarded</th>
-                <th className="px-6 py-4 text-[10px] font-black text-secondary uppercase tracking-widest text-right">Control</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-outline-variant/10">
-              {isLoading ? (
+      {/* Panel */}
+      <div className="stoq-panel">
+        {/* Toolbar */}
+        <div className="stoq-toolbar">
+          <div className="stoq-toolbar__search">
+            <input className="stoq-input stoq-input--search" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search by name, email, position…" />
+          </div>
+          <div className="stoq-segment">
+            {[['ALL', 'All'], ['ACTIVE', 'Active'], ['PROBATION', 'Probation'], ['TERMINATED', 'Terminated'], ['RESIGNED', 'Resigned']].map(([val, label]) => (
+              <button key={val} data-active={statusFilter === val ? 'true' : undefined} onClick={() => setStatusFilter(val)}>{label}</button>
+            ))}
+          </div>
+          <div style={{ flex: 1 }} />
+          {!isSmallScreen && (
+            <div className="stoq-segment">
+              <button data-active={viewMode === 'table' ? 'true' : undefined} onClick={() => setViewMode('table')} title="Table"><List size={13} /></button>
+              <button data-active={viewMode === 'grid' ? 'true' : undefined} onClick={() => setViewMode('grid')} title="Grid"><LayoutGrid size={13} /></button>
+            </div>
+          )}
+        </div>
+
+        {/* Table view */}
+        {viewMode === 'table' && (
+          <div className="table-wrap">
+            <table className="stoq-tbl">
+              <thead>
                 <tr>
-                  <td colSpan="5" className="px-6 py-20 text-center">
-                    <div className="flex flex-col items-center">
-                      <div className="w-10 h-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin mb-4"></div>
-                      <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">Retrieving Records...</p>
-                    </div>
-                  </td>
+                  <th className="no-sort">Employee</th>
+                  <th className="no-sort">Status</th>
+                  <th className="no-sort">Position</th>
+                  <th className="no-sort">Joined</th>
+                  <th className="no-sort col-actions"></th>
                 </tr>
-              ) : filteredEmployees.length > 0 ? (
-                filteredEmployees.map((emp) => (
-                  <tr key={emp.id} className="hover:bg-surface/30 transition-colors group">
-                    <td className="px-6 py-5">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-xl bg-surface-container border border-outline-variant/30 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm group-hover:shadow-md transition-shadow">
-                          {emp.profilePicture ? (
-                            <img 
-                              src={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/${emp.profilePicture}`} 
-                              alt={emp.firstName}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <span className="text-lg font-black text-primary uppercase">{emp.firstName.charAt(0)}</span>
-                          )}
+              </thead>
+              <tbody>
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '48px 0' }}>
+                      <RefreshCw size={20} style={{ animation: 'spin 1s linear infinite', color: 'var(--fg-subtle)', margin: '0 auto' }} />
+                    </td>
+                  </tr>
+                ) : filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '48px 0', color: 'var(--fg-subtle)' }}>
+                      <AlertCircle size={24} style={{ margin: '0 auto 8px', display: 'block' }} />
+                      <div style={{ fontSize: 12 }}>No employees found</div>
+                    </td>
+                  </tr>
+                ) : filtered.map(emp => (
+                  <tr key={emp.id} onClick={() => navigate(`/admin/employees/${emp.id}`)} style={{ cursor: 'pointer' }}>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ width: 32, height: 32, borderRadius: 'var(--r-sm)', background: 'var(--accent)', color: 'var(--accent-fg)', display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: 12, flexShrink: 0, overflow: 'hidden' }}>
+                          {emp.profilePicture
+                            ? <img src={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/${emp.profilePicture}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            : emp.firstName.charAt(0).toUpperCase()}
                         </div>
-                        <div className="min-w-0">
-                          <p className="text-[13px] font-black text-on-surface truncate leading-none mb-1.5">{emp.firstName} {emp.lastName}</p>
-                          <div className="flex items-center gap-3 text-[11px] font-bold text-secondary opacity-70">
-                            <span className="flex items-center gap-1"><Mail size={12} /> {emp.email}</span>
-                          </div>
+                        <div>
+                          <span className="cell-stack__main">{emp.firstName} {emp.lastName}</span>
+                          <span className="cell-stack__sub" style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                            <Mail size={10} /> {emp.email}
+                          </span>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-5">
-                      <span className={`
-                        inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest
-                        ${emp.status === 'ACTIVE' 
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
-                          : 'bg-rose-50 text-rose-700 border border-rose-200'}
-                      `}>
-                        <span className={`w-1.5 h-1.5 rounded-full mr-2 ${emp.status === 'ACTIVE' ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                    <td>
+                      <span className={`stoq-badge ${emp.status === 'ACTIVE' ? 'stoq-badge--success' : 'stoq-badge--danger'}`}>
                         {emp.status}
                       </span>
+                      {emp.isLocked && <span className="stoq-badge stoq-badge--warning" style={{ marginLeft: 4 }}>Locked</span>}
                     </td>
-                    <td className="px-6 py-5">
-                      <p className="text-[13px] font-bold text-on-surface uppercase tracking-tight">{emp.position}</p>
-                      <p className="text-[10px] font-bold text-secondary opacity-60">System Operator</p>
+                    <td style={{ color: 'var(--fg-muted)' }}>{emp.position}</td>
+                    <td style={{ color: 'var(--fg-subtle)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+                      {new Date(emp.createdAt).toLocaleDateString('en-GB')}
                     </td>
-                    <td className="px-6 py-5">
-                      <p className="text-[12px] font-bold text-secondary">{new Date(emp.createdAt).toLocaleDateString('en-GB')}</p>
-                    </td>
-                    <td className="px-6 py-5">
-                      <div className="flex items-center justify-end gap-2">
-                        <Link 
-                          to={`/admin/employees/${emp.id}`}
-                          className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
-                          title="View Details"
-                        >
-                          <Eye size={18} />
-                        </Link>
-                        <Link 
-                          to={`/admin/employees/edit/${emp.id}`}
-                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                          title="Edit Profile"
-                        >
-                          <Pencil size={18} />
-                        </Link>
-                        <button 
-                          className={`p-2 rounded-lg transition-all ${isDeleting === emp.id ? 'bg-rose-100 text-rose-600 animate-pulse' : 'text-slate-400 hover:text-rose-600 hover:bg-rose-50'}`}
-                          title="Remove Employee"
+                    <td onClick={e => e.stopPropagation()}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2 }}>
+                        <Link to={`/admin/employees/${emp.id}`} className="icon-btn" title="View" style={{ textDecoration: 'none' }}><Eye size={13} /></Link>
+                        <Link to={`/admin/employees/edit/${emp.id}`} className="icon-btn" title="Edit" style={{ textDecoration: 'none' }}><Pencil size={13} /></Link>
+                        <button className="icon-btn" title="Delete" disabled={isDeleting === emp.id}
                           onClick={() => handleDelete(emp.id)}
-                          disabled={isDeleting === emp.id}
-                        >
-                          <Trash2 size={18} />
+                          style={{ color: 'var(--danger)', opacity: isDeleting === emp.id ? 0.5 : 1 }}>
+                          <Trash2 size={13} />
                         </button>
                       </div>
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                   <td colSpan="5" className="px-6 py-20 text-center">
-                    <div className="flex flex-col items-center">
-                      <AlertCircle className="w-12 h-12 text-slate-300 mb-4" />
-                      <p className="text-base font-black text-on-surface uppercase">No Employees Found</p>
-                      <p className="text-sm text-secondary font-bold opacity-60 mt-1">Try adjusting your search or filters</p>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Grid view */}
+        {viewMode === 'grid' && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12, padding: 14 }}>
+            {isLoading ? (
+              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 32, color: 'var(--fg-subtle)' }}>
+                <RefreshCw size={18} style={{ animation: 'spin 1s linear infinite' }} />
+              </div>
+            ) : filtered.length === 0 ? (
+              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 32, color: 'var(--fg-subtle)', fontSize: 12 }}>No employees found</div>
+            ) : filtered.map(emp => (
+              <div key={emp.id} onClick={() => navigate(`/admin/employees/${emp.id}`)}
+                style={{ border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', padding: 14, cursor: 'pointer', background: 'var(--panel)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 'var(--r-sm)', background: 'var(--accent)', color: 'var(--accent-fg)', display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: 14, flexShrink: 0, overflow: 'hidden' }}>
+                    {emp.profilePicture
+                      ? <img src={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/${emp.profilePicture}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : emp.firstName.charAt(0).toUpperCase()}
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{emp.firstName} {emp.lastName}</div>
+                    <div style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>{emp.position}</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span className={`stoq-badge ${emp.status === 'ACTIVE' ? 'stoq-badge--success' : 'stoq-badge--danger'}`}>{emp.status}</span>
+                  {emp.isLocked && <span className="stoq-badge stoq-badge--warning">Locked</span>}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--fg-subtle)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Mail size={10} /> {emp.email}
+                </div>
+                <div style={{ display: 'flex', gap: 4, borderTop: '1px solid var(--border)', paddingTop: 8 }} onClick={e => e.stopPropagation()}>
+                  <Link to={`/admin/employees/${emp.id}`} className="stoq-btn stoq-btn--ghost stoq-btn--sm" style={{ textDecoration: 'none', flex: 1, justifyContent: 'center' }}><Eye size={12} /></Link>
+                  <Link to={`/admin/employees/edit/${emp.id}`} className="stoq-btn stoq-btn--ghost stoq-btn--sm" style={{ textDecoration: 'none', flex: 1, justifyContent: 'center' }}><Pencil size={12} /></Link>
+                  <button className="stoq-btn stoq-btn--ghost stoq-btn--sm" style={{ flex: 1, color: 'var(--danger)', justifyContent: 'center' }} disabled={isDeleting === emp.id} onClick={() => handleDelete(emp.id)}><Trash2 size={12} /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

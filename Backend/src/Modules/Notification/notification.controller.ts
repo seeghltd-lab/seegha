@@ -11,7 +11,6 @@ import {
 } from '@nestjs/common';
 import { NotificationService } from './notification.service';
 import { DualAuthGuard } from '../../Guards/dual-auth.guard';
-import { AdminAuthGuard } from '../../Guards/admin-auth.guard';
 import { SenderType } from '@prisma/client';
 
 @Controller('notifications')
@@ -20,15 +19,10 @@ export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}
 
   @Post()
-  @UseGuards(AdminAuthGuard)
   async create(@Body() body: any, @Req() req: any) {
-    const senderId = req.admin?.id;
-    const senderType: SenderType = 'ADMIN';
-    return this.notificationService.createNotification({
-      ...body,
-      senderId,
-      senderType,
-    });
+    const senderId = req.admin?.id ?? req.employee?.id;
+    const senderType: SenderType = req.admin ? 'ADMIN' : 'EMPLOYEE';
+    return this.notificationService.createNotification({ ...body, senderId, senderType });
   }
 
   @Get()
@@ -66,7 +60,7 @@ export class NotificationController {
 
   @Put(':id/read')
   async markAsRead(@Param('id') id: string, @Req() req: any) {
-    const recipientId = req.admin?.id || req.employee?.id;
+    const recipientId = req.admin?.id ?? req.employee?.id;
     return this.notificationService.markAsRead(id, recipientId);
   }
 }

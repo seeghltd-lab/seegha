@@ -6,11 +6,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
     <title>AMZA Ledger</title>
   </head>
   <body class="bg-[#f8f9ff] text-[#05345c] font-sans antialiased">
+    <!-- Apply saved theme/density before React hydrates to avoid flash -->
+    <script>
+      (function(){
+        var t=localStorage.getItem('stoq.theme')||'light';
+        var d=localStorage.getItem('stoq.density')||'dense';
+        var ah=localStorage.getItem('stoq.accent-h');
+        var ac=localStorage.getItem('stoq.accent-c');
+        var al=localStorage.getItem('stoq.accent-l');
+        document.documentElement.dataset.theme=t;
+        document.documentElement.dataset.density=d;
+        if(ah) document.documentElement.style.setProperty('--accent-h',ah);
+        if(ac) document.documentElement.style.setProperty('--accent-c',ac);
+        if(al) document.documentElement.style.setProperty('--accent-l',al);
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

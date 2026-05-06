@@ -74,6 +74,12 @@ export class EmployeeAuthController {
     return this.employeeAuthService.unlockEmployee(body.employeeId);
   }
 
+  @Get('dashboard')
+  @UseGuards(EmployeeAuthGuard)
+  async getEmployeeDashboard(@Req() req: RequestWithEmployee) {
+    return this.employeeAuthService.getEmployeeDashboard(req.employee!.id);
+  }
+
   @Put('profile')
   @UseGuards(EmployeeAuthGuard)
   @UseInterceptors(

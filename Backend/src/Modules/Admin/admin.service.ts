@@ -174,4 +174,191 @@ export class AdminService {
     });
     return admins;
   }
+
+  private getPeriodRange(
+    period: string,
+    fromStr?: string,
+    toStr?: string,
+  ): { start: Date; end: Date } {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    switch (period) {
+      case 'today':
+        return { start: today, end: tomorrow };
+      case 'week': {
+        const s = new Date(today);
+        s.setDate(today.getDate() - 7);
+        return { start: s, end: tomorrow };
+      }
+      case 'month': {
+        const s = new Date(today);
+        s.setDate(today.getDate() - 30);
+        return { start: s, end: tomorrow };
+      }
+      case 'year': {
+        const s = new Date(today);
+        s.setFullYear(today.getFullYear() - 1);
+        return { start: s, end: tomorrow };
+      }
+      case 'custom':
+        return {
+          start: fromStr ? new Date(fromStr) : today,
+          end: toStr
+            ? new Date(new Date(toStr).getTime() + 86_400_000)
+            : tomorrow,
+        };
+      default:
+        return { start: today, end: tomorrow };
+    }
+  }
+
+  async getDashboard(
+    adminId: string,
+    period = 'today',
+    fromDate?: string,
+    toDate?: string,
+  ) {
+    const { start, end } = this.getPeriodRange(period, fromDate, toDate);
+
+    const [
+      stockAgg,
+      pendingReqCount,
+      totalEmployees,
+      activeEmployees,
+      totalSuppliers,
+      totalSites,
+      totalCategories,
+    ] = await Promise.all([
+      this.prisma.stock.aggregate({
+        where: { adminId },
+        _sum: { totalValue: true },
+        _count: { id: true },
+      }),
+      this.prisma.requisition.count({ where: { status: 'PENDING' } }),
+      this.prisma.employee.count(),
+      this.prisma.employee.count({ where: { status: 'ACTIVE' } }),
+      this.prisma.supplier.count({ where: { adminId } }),
+      this.prisma.site.count({ where: { adminId } }),
+      this.prisma.category.count({ where: { adminId } }),
+    ]);
+
+    const lowStockResult = await this.prisma.$queryRaw<[{ count: bigint }]>`
+      SELECT COUNT(*) as count FROM Stock
+      WHERE adminId = ${adminId} AND quantity <= reorderLevel
+    `;
+    const lowStockCount = Number(lowStockResult[0].count);
+
+    // Movements in period grouped by day
+    const rawMovements = await this.prisma.$queryRaw<
+      { date: Date; movementType: string; qty: bigint }[]
+    >`
+      SELECT DATE(sh.createdAt) as date, sh.movementType,
+             SUM(ABS(sh.qtyChange)) as qty
+      FROM StockHistory sh
+      JOIN Stock s ON sh.stockId = s.id
+      WHERE s.adminId = ${adminId}
+        AND sh.createdAt >= ${start}
+        AND sh.createdAt < ${end}
+      GROUP BY DATE(sh.createdAt), sh.movementType
+      ORDER BY DATE(sh.createdAt) ASC
+    `;
+
+    const movementMap = new Map<string, { in: number; out: number }>();
+    for (const m of rawMovements) {
+      const dateStr = new Date(m.date).toISOString().slice(0, 10);
+      if (!movementMap.has(dateStr)) movementMap.set(dateStr, { in: 0, out: 0 });
+      const entry = movementMap.get(dateStr)!;
+      if (m.movementType === 'IN') entry.in += Number(m.qty);
+      if (m.movementType === 'OUT') entry.out += Number(m.qty);
+    }
+    const movements = Array.from(movementMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, vals]) => ({ date, ...vals }));
+
+    // Recent activity in period
+    const recentActivity = await this.prisma.activityLog.findMany({
+      where: { createdAt: { gte: start, lt: end } },
+      orderBy: { createdAt: 'desc' },
+      take: 15,
+    });
+
+    // Site utilization
+    const sites = await this.prisma.site.findMany({
+      where: { adminId },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        _count: { select: { stocks: true } },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    const siteValueRows = await this.prisma.$queryRaw<
+      { siteId: string; total: number }[]
+    >`
+      SELECT siteId, SUM(CAST(totalValue AS DECIMAL(14,2))) as total
+      FROM Stock WHERE adminId = ${adminId} AND siteId IS NOT NULL
+      GROUP BY siteId
+    `;
+    const siteValueMap = new Map(
+      siteValueRows.map((r) => [r.siteId, Number(r.total)]),
+    );
+
+    const siteUtilization = sites.map((s) => ({
+      id: s.id,
+      name: s.name,
+      status: s.status,
+      stockCount: s._count.stocks,
+      totalValue: siteValueMap.get(s.id) || 0,
+    }));
+
+    // Pending approvals queue
+    const approvalsQueue = await this.prisma.requisition.findMany({
+      where: { status: 'PENDING' },
+      include: {
+        employee: {
+          select: { id: true, firstName: true, lastName: true, position: true },
+        },
+        _count: { select: { items: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 5,
+    });
+
+    return {
+      period: { label: period, from: start.toISOString(), to: end.toISOString() },
+      kpi: {
+        inventoryValue: Number(stockAgg._sum.totalValue ?? 0),
+        totalSKUs: stockAgg._count.id,
+        pendingRequisitions: pendingReqCount,
+        lowStockCount,
+        totalEmployees,
+        activeEmployees,
+        totalSuppliers,
+        totalSites,
+        totalCategories,
+      },
+      movements,
+      recentActivity: recentActivity.map((a) => ({
+        id: a.id,
+        action: a.action,
+        entityType: a.entityType,
+        entityLabel: a.entityLabel,
+        performedByName: a.performedByName,
+        performedByType: a.performedByType,
+        createdAt: a.createdAt,
+      })),
+      siteUtilization,
+      approvalsQueue: approvalsQueue.map((r) => ({
+        id: r.id,
+        employee: r.employee,
+        itemCount: r._count.items,
+        createdAt: r.createdAt,
+      })),
+    };
+  }
 }

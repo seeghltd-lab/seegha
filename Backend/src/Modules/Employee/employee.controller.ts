@@ -28,12 +28,17 @@ export class EmployeeController {
   async create(
     @Body() body: any,
     @UploadedFiles() files: { profileImg?: any[] },
+    @Req() req: any,
   ) {
     const profilePicture = files?.profileImg?.[0]
       ? `uploads/profile/${files.profileImg[0].filename}`
       : undefined;
 
-    return this.employeeService.create({ ...body, profilePicture });
+    return this.employeeService.create(
+      { ...body, profilePicture },
+      req.admin?.id,
+      req.admin?.names ?? req.admin?.email,
+    );
   }
 
   @Get()
@@ -54,16 +59,22 @@ export class EmployeeController {
     @Param('id') id: string,
     @Body() body: any,
     @UploadedFiles() files: { profileImg?: any[] },
+    @Req() req: any,
   ) {
     const profilePicture = files?.profileImg?.[0]
       ? `uploads/profile/${files.profileImg[0].filename}`
       : undefined;
 
-    return this.employeeService.update(id, { ...body, profilePicture });
+    return this.employeeService.update(
+      id,
+      { ...body, profilePicture },
+      req.admin?.id,
+      req.admin?.names ?? req.admin?.email,
+    );
   }
 
   @Delete(':id')
-  async remove(@Param('id') id: string) {
-    return this.employeeService.remove(id);
+  async remove(@Param('id') id: string, @Req() req: any) {
+    return this.employeeService.remove(id, req.admin?.id, req.admin?.names ?? req.admin?.email);
   }
 }

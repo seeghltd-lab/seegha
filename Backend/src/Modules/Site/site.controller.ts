@@ -17,7 +17,6 @@ import { SiteService, CreateSiteDto } from './site.service';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { mkdirSync } from 'fs';
-import { AdminAuthGuard } from '../../Guards/admin-auth.guard';
 import { DualAuthGuard } from '../../Guards/dual-auth.guard';
 
 mkdirSync('./uploads/sites', { recursive: true });
@@ -34,34 +33,30 @@ const siteImageStorage = diskStorage({
 export class SiteController {
   constructor(private readonly siteService: SiteService) {}
 
+  @Get('stats')
+  @UseGuards(DualAuthGuard)
+  async getStats(@Req() req: any) {
+    const callerId = req.admin?.id ?? req.employee?.id;
+    const callerType: 'ADMIN' | 'EMPLOYEE' = req.admin ? 'ADMIN' : 'EMPLOYEE';
+    return this.siteService.getStats(callerId, callerType);
+  }
+
   @Post()
-  @UseGuards(AdminAuthGuard)
+  @UseGuards(DualAuthGuard)
   @UseInterceptors(FileInterceptor('image', { storage: siteImageStorage }))
-  async create(
-    @Body() data: CreateSiteDto,
-    @Req() req: any,
-    @UploadedFile() file: any,
-  ) {
-    const adminId = req.admin?.id;
+  async create(@Body() data: CreateSiteDto, @Req() req: any, @UploadedFile() file: any) {
+    const callerId = req.admin?.id ?? req.employee?.id;
+    const callerType: 'ADMIN' | 'EMPLOYEE' = req.admin ? 'ADMIN' : 'EMPLOYEE';
+    const callerName = req.admin?.names ?? req.admin?.email ?? req.employee?.firstName ?? req.employee?.email;
     const siteData = { ...data };
-    if (file) {
-      siteData.image = `/uploads/sites/${file.filename}`;
-    }
-    return this.siteService.create(siteData, adminId);
+    if (file) siteData.image = `/uploads/sites/${file.filename}`;
+    return this.siteService.create(siteData, callerId, callerType, callerName);
   }
 
   @Get()
   @UseGuards(DualAuthGuard)
   async findAll(@Req() req: any, @Query() filters: any) {
-    const adminId = req.admin?.id;
-    return this.siteService.findAll(adminId, filters);
-  }
-
-  @Get('stats')
-  @UseGuards(AdminAuthGuard)
-  async getStats(@Req() req: any) {
-    const adminId = req.admin?.id;
-    return this.siteService.getStats(adminId);
+    return this.siteService.findAll(filters);
   }
 
   @Get(':id')
@@ -71,23 +66,71 @@ export class SiteController {
   }
 
   @Put(':id')
-  @UseGuards(AdminAuthGuard)
+  @UseGuards(DualAuthGuard)
   @UseInterceptors(FileInterceptor('image', { storage: siteImageStorage }))
-  async update(
-    @Param('id') id: string,
-    @Body() data: Partial<CreateSiteDto>,
-    @UploadedFile() file: any,
-  ) {
+  async update(@Param('id') id: string, @Body() data: Partial<CreateSiteDto>, @Req() req: any, @UploadedFile() file: any) {
+    const callerId = req.admin?.id ?? req.employee?.id;
+    const callerType: 'ADMIN' | 'EMPLOYEE' = req.admin ? 'ADMIN' : 'EMPLOYEE';
+    const callerName = req.admin?.names ?? req.admin?.email ?? req.employee?.firstName ?? req.employee?.email;
     const siteData = { ...data };
-    if (file) {
-      siteData.image = `/uploads/sites/${file.filename}`;
-    }
-    return this.siteService.update(id, siteData);
+    if (file) siteData.image = `/uploads/sites/${file.filename}`;
+    return this.siteService.update(id, siteData, callerId, callerType, callerName);
   }
 
   @Delete(':id')
-  @UseGuards(AdminAuthGuard)
-  async remove(@Param('id') id: string) {
-    return this.siteService.remove(id);
+  @UseGuards(DualAuthGuard)
+  async remove(@Param('id') id: string, @Req() req: any) {
+    const callerId = req.admin?.id ?? req.employee?.id;
+    const callerType: 'ADMIN' | 'EMPLOYEE' = req.admin ? 'ADMIN' : 'EMPLOYEE';
+    const callerName = req.admin?.names ?? req.admin?.email ?? req.employee?.firstName ?? req.employee?.email;
+    return this.siteService.remove(id, callerId, callerType, callerName);
+  }
+
+  @Post(':id/workers')
+  @UseGuards(DualAuthGuard)
+  async addWorkerRecord(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+    const callerId = req.admin?.id ?? req.employee?.id;
+    const callerType: 'ADMIN' | 'EMPLOYEE' = req.admin ? 'ADMIN' : 'EMPLOYEE';
+    const callerName = req.admin?.names ?? req.admin?.email ?? req.employee?.firstName ?? req.employee?.email ?? 'Unknown';
+    return this.siteService.addWorkerRecord(id, body, callerId, callerName, callerType);
+  }
+
+  @Get(':id/workers')
+  @UseGuards(DualAuthGuard)
+  async getWorkerRecords(@Param('id') id: string) {
+    return this.siteService.getWorkerRecords(id);
+  }
+
+  @Delete(':id/workers/:recordId')
+  @UseGuards(DualAuthGuard)
+  async removeWorkerRecord(@Param('recordId') recordId: string, @Req() req: any) {
+    const callerId = req.admin?.id ?? req.employee?.id;
+    const callerType: 'ADMIN' | 'EMPLOYEE' = req.admin ? 'ADMIN' : 'EMPLOYEE';
+    const callerName = req.admin?.names ?? req.admin?.email ?? req.employee?.firstName ?? req.employee?.email;
+    return this.siteService.removeWorkerRecord(recordId, callerId, callerType, callerName);
+  }
+
+  @Post(':id/expenses')
+  @UseGuards(DualAuthGuard)
+  async addExpense(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+    const callerId = req.admin?.id ?? req.employee?.id;
+    const callerType: 'ADMIN' | 'EMPLOYEE' = req.admin ? 'ADMIN' : 'EMPLOYEE';
+    const callerName = req.admin?.names ?? req.admin?.email ?? req.employee?.firstName ?? req.employee?.email;
+    return this.siteService.addExpense(id, body, callerId, callerType, callerName);
+  }
+
+  @Get(':id/expenses')
+  @UseGuards(DualAuthGuard)
+  async getExpenses(@Param('id') id: string) {
+    return this.siteService.getExpenses(id);
+  }
+
+  @Delete(':id/expenses/:expenseId')
+  @UseGuards(DualAuthGuard)
+  async removeExpense(@Param('expenseId') expenseId: string, @Req() req: any) {
+    const callerId = req.admin?.id ?? req.employee?.id;
+    const callerType: 'ADMIN' | 'EMPLOYEE' = req.admin ? 'ADMIN' : 'EMPLOYEE';
+    const callerName = req.admin?.names ?? req.admin?.email ?? req.employee?.firstName ?? req.employee?.email;
+    return this.siteService.removeExpense(expenseId, callerId, callerType, callerName);
   }
 }

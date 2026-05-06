@@ -11,25 +11,54 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { SupplierService } from './supplier.service';
-import { AdminAuthGuard } from '../../Guards/admin-auth.guard';
+import { DualAuthGuard } from '../../Guards/dual-auth.guard';
 import { SupplierStatus } from '@prisma/client';
 
 @Controller('suppliers')
-@UseGuards(AdminAuthGuard)
 export class SupplierController {
   constructor(private readonly supplierService: SupplierService) {}
 
   @Post()
+  @UseGuards(DualAuthGuard)
   create(@Body() body: any, @Req() req: any) {
-    return this.supplierService.create(body, req.admin.id);
+    const isAdmin = !!req.admin;
+    const callerId = req.admin?.id ?? req.employee?.id;
+    const callerName = req.admin?.names ?? req.admin?.email ?? req.employee?.firstName ?? req.employee?.email;
+    const callerType: 'ADMIN' | 'EMPLOYEE' = isAdmin ? 'ADMIN' : 'EMPLOYEE';
+    return this.supplierService.create(body, callerId, callerName, callerType);
+  }
+
+  @Put(':id')
+  @UseGuards(DualAuthGuard)
+  update(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+    const callerId = req.admin?.id ?? req.employee?.id;
+    const callerName = req.admin?.names ?? req.admin?.email ?? req.employee?.firstName ?? req.employee?.email;
+    return this.supplierService.update(id, body, callerId, callerName);
+  }
+
+  @Delete(':id')
+  @UseGuards(DualAuthGuard)
+  remove(@Param('id') id: string, @Req() req: any) {
+    const callerId = req.admin?.id ?? req.employee?.id;
+    const callerName = req.admin?.names ?? req.admin?.email ?? req.employee?.firstName ?? req.employee?.email;
+    return this.supplierService.remove(id, callerId, callerName);
+  }
+
+  @Post(':id/payments')
+  @UseGuards(DualAuthGuard)
+  addPayment(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+    const callerId = req.admin?.id ?? req.employee?.id;
+    return this.supplierService.addPayment(id, body, callerId);
   }
 
   @Get('select')
+  @UseGuards(DualAuthGuard)
   findForSelect(@Req() req: any) {
-    return this.supplierService.findForSelect(req.admin.id);
+    return this.supplierService.findForSelect(req.admin?.id);
   }
 
   @Get()
+  @UseGuards(DualAuthGuard)
   findAll(
     @Req() req: any,
     @Query('search') search?: string,
@@ -37,7 +66,7 @@ export class SupplierController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
-    return this.supplierService.findAll(req.admin.id, {
+    return this.supplierService.findAll(req.admin?.id, {
       search,
       status,
       page: parseInt(page ?? '1') || 1,
@@ -45,18 +74,15 @@ export class SupplierController {
     });
   }
 
+  @Get(':id/payments')
+  @UseGuards(DualAuthGuard)
+  getPayments(@Param('id') id: string) {
+    return this.supplierService.getPayments(id);
+  }
+
   @Get(':id')
+  @UseGuards(DualAuthGuard)
   findOne(@Param('id') id: string) {
     return this.supplierService.findOne(id);
-  }
-
-  @Put(':id')
-  update(@Param('id') id: string, @Body() body: any) {
-    return this.supplierService.update(id, body);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.supplierService.remove(id);
   }
 }

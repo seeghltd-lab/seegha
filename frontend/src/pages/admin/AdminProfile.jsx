@@ -1,6 +1,29 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Camera, Save, Lock, User, Mail, Phone, RefreshCw } from 'lucide-react';
+import { Camera, Save, Lock, User, Mail, Phone, RefreshCw, AlertCircle, CheckCircle, ShieldCheck } from 'lucide-react';
 import adminAuthService from '../../services/adminAuthService';
+
+function Field({ label, error, children }) {
+  return (
+    <div className="stoq-field">
+      <label className="stoq-field__label">{label}</label>
+      {children}
+      {error && (
+        <span style={{ fontSize: 11, color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <AlertCircle size={11} /> {error}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function IconInput({ icon: Icon, ...props }) {
+  return (
+    <div style={{ position: 'relative' }}>
+      <Icon size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-subtle)', pointerEvents: 'none' }} />
+      <input className="stoq-input" style={{ paddingLeft: 30 }} {...props} />
+    </div>
+  );
+}
 
 export default function AdminProfile() {
   const [profile, setProfile] = useState({ names: '', email: '', phone: '' });
@@ -21,29 +44,19 @@ export default function AdminProfile() {
   useEffect(() => {
     setLoading(true);
     adminAuthService.getProfile().then(data => {
-      setProfile({
-        names: data.names || '',
-        email: data.email || '',
-        phone: data.phone || '',
-      });
-      if (data.profilePicture) {
-        setAvatarPreview(`http://localhost:3000${data.profilePicture}`);
-      }
-    }).catch(() => showToast('Failed to load profile details', 'error')).finally(() => setLoading(false));
+      setProfile({ names: data.names || '', email: data.email || '', phone: data.phone || '' });
+      if (data.profilePicture) setAvatarPreview(`http://localhost:3000${data.profilePicture}`);
+    }).catch(() => showToast('Failed to load profile', 'error')).finally(() => setLoading(false));
   }, []);
 
   const handleAvatarSelect = (e) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setAvatarFile(file);
-      setAvatarPreview(URL.createObjectURL(file));
-    }
+    if (file) { setAvatarFile(file); setAvatarPreview(URL.createObjectURL(file)); }
   };
 
   const saveProfile = async (e) => {
     e.preventDefault();
     if (!profile.names || !profile.email) return showToast('Names and Email are required', 'error');
-
     setSaving(true);
     try {
       const fd = new FormData();
@@ -51,167 +64,170 @@ export default function AdminProfile() {
       fd.append('email', profile.email);
       fd.append('phone', profile.phone);
       if (avatarFile) fd.append('profilePicture', avatarFile);
-
       await adminAuthService.editProfile(fd);
-      showToast('Profile updated successfully!');
-      
-      // Clear file target to prevent re-uploading on next save
-      setAvatarFile(null); 
+      showToast('Profile updated successfully');
+      setAvatarFile(null);
     } catch (err) {
       showToast(err.response?.data?.message || 'Failed to update profile', 'error');
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
   const savePassword = async (e) => {
     e.preventDefault();
     if (!passwords.currentPassword) return showToast('Current password required', 'error');
-    if (passwords.newPassword.length < 6) return showToast('New password too short', 'error');
+    if (passwords.newPassword.length < 6) return showToast('New password too short (min 6 chars)', 'error');
     if (passwords.newPassword !== passwords.confirmPassword) return showToast('Passwords do not match', 'error');
-
     setSaving(true);
     try {
-      await adminAuthService.changePassword({
-        currentPassword: passwords.currentPassword,
-        newPassword: passwords.newPassword,
-      });
+      await adminAuthService.changePassword({ currentPassword: passwords.currentPassword, newPassword: passwords.newPassword });
       showToast('Password changed successfully');
       setPasswords({ currentPassword: '', newPassword: '', confirmPassword: '' });
     } catch (err) {
       showToast(err.response?.data?.message || 'Failed to change password', 'error');
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
-  const inputClass = "w-full pl-10 pr-4 py-3 bg-slate-50/50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all font-medium text-slate-700";
-  const passClass = "w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400 font-medium text-slate-700 tracking-wide";
-
-  if (loading) return <div className="p-8 text-center text-slate-400 font-bold">Loading environment...</div>;
+  if (loading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40vh', gap: 10, color: 'var(--fg-subtle)' }}>
+      <RefreshCw size={18} style={{ animation: 'spin 1s linear infinite' }} />
+      <span style={{ fontSize: 12 }}>Loading profile…</span>
+    </div>
+  );
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-8">
+    <div style={{ padding: '20px 24px 40px' }}>
       {toast && (
-        <div className={`fixed top-6 right-6 z-[100] px-4 py-3 rounded-xl shadow-lg text-sm font-semibold text-white ${toast.type === 'error' ? 'bg-red-500' : 'bg-emerald-500'}`}>
+        <div className={`stoq-toast ${toast.type === 'error' ? 'stoq-toast--error' : 'stoq-toast--success'}`}
+          style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {toast.type === 'error' ? <AlertCircle size={13} /> : <CheckCircle size={13} />}
           {toast.msg}
         </div>
       )}
 
-      {/* Header Info */}
-      <h1 className="text-3xl font-black text-slate-800 tracking-tight">Account Settings</h1>
+      <div className="page-head">
+        <div>
+          <h1>Account Settings</h1>
+          <div className="page-head__sub">Manage your profile and security</div>
+        </div>
+      </div>
 
-      <div className="flex flex-col lg:flex-row gap-8">
-        
-        {/* Sidebar Nav */}
-        <div className="w-full lg:w-64 space-y-2 flex-shrink-0">
-          <button onClick={() => setActiveTab('general')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === 'general' ? 'bg-primary text-white shadow-md' : 'text-slate-500 hover:bg-slate-100'}`}>
-            <User size={18} /> General Info
-          </button>
-          <button onClick={() => setActiveTab('security')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === 'security' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500 hover:bg-slate-100'}`}>
-            <Lock size={18} /> Security
-          </button>
+      <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 14, alignItems: 'start' }}>
+        {/* Sidebar nav */}
+        <div className="stoq-panel" style={{ overflow: 'visible' }}>
+          <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {[
+              { key: 'general', icon: User, label: 'General Info' },
+              { key: 'security', icon: ShieldCheck, label: 'Security' },
+            ].map(({ key, icon: Icon, label }) => (
+              <button key={key} onClick={() => setActiveTab(key)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '8px 10px', borderRadius: 'var(--r-sm)',
+                  border: 'none', cursor: 'pointer', textAlign: 'left',
+                  fontSize: 12, fontWeight: 600,
+                  background: activeTab === key ? 'var(--accent-soft)' : 'transparent',
+                  color: activeTab === key ? 'var(--accent-soft-fg)' : 'var(--fg-muted)',
+                  transition: 'all 0.12s',
+                }}>
+                <Icon size={14} /> {label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Form Screens */}
-        <div className="flex-1">
+        {/* Content */}
+        <div>
           {activeTab === 'general' && (
-            <form onSubmit={saveProfile} className="bg-white p-7 rounded-3xl border border-slate-100 shadow-sm space-y-8">
-              
-              {/* Avatar Section */}
-              <div className="flex items-center gap-6">
-                <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-                  <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-slate-50 shadow-md bg-slate-100 flex items-center justify-center">
-                    {avatarPreview ? (
-                      <img src={avatarPreview} alt="User Avatar" className="w-full h-full object-cover" />
-                    ) : (
-                      <User size={36} className="text-slate-300" />
-                    )}
-                  </div>
-                  <div className="absolute inset-0 bg-slate-900/40 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                    <Camera className="text-white" size={24} />
-                  </div>
+            <form onSubmit={saveProfile} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Avatar */}
+              <div className="stoq-panel">
+                <div className="stoq-panel__head">
+                  <span className="stoq-panel__title">Profile Picture</span>
                 </div>
-                <div>
-                  <h3 className="font-bold text-slate-800 text-lg">Profile Picture</h3>
-                  <p className="text-xs text-slate-400 font-medium mt-0.5">Click image to upload a new avatar. JPG, PNG below 2MB.</p>
-                </div>
-                <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleAvatarSelect} />
-              </div>
-
-              {/* Text Fields */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Full Names</label>
-                  <div className="relative">
-                    <User size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 leading-none" />
-                    <input type="text" value={profile.names} onChange={e => setProfile({...profile, names: e.target.value})} className={inputClass} placeholder="Administrator" />
+                <div style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 16 }}>
+                  <div style={{ position: 'relative', cursor: 'pointer' }} onClick={() => fileInputRef.current?.click()}>
+                    <div style={{
+                      width: 72, height: 72, borderRadius: '50%',
+                      background: 'var(--accent)', color: 'var(--accent-fg)',
+                      display: 'grid', placeItems: 'center',
+                      overflow: 'hidden', border: '3px solid var(--border)',
+                    }}>
+                      {avatarPreview
+                        ? <img src={avatarPreview} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : <User size={28} />}
+                    </div>
+                    <div style={{
+                      position: 'absolute', bottom: 0, right: 0,
+                      width: 22, height: 22, borderRadius: '50%',
+                      background: 'var(--fg)', color: 'var(--bg)',
+                      display: 'grid', placeItems: 'center',
+                      border: '2px solid var(--panel)',
+                    }}>
+                      <Camera size={11} />
+                    </div>
                   </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Email Address</label>
-                   <div className="relative">
-                    <Mail size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 leading-none" />
-                    <input type="email" value={profile.email} onChange={e => setProfile({...profile, email: e.target.value})} className={inputClass} placeholder="admin@domain.com" />
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)' }}>Click to change photo</div>
+                    <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginTop: 2 }}>JPG, PNG — max 2MB</div>
                   </div>
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Phone Number</label>
-                   <div className="relative mt-1">
-                    <Phone size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 leading-none" />
-                    <input type="text" value={profile.phone} onChange={e => setProfile({...profile, phone: e.target.value})} className={inputClass} placeholder="+250..." />
-                  </div>
+                  <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleAvatarSelect} style={{ display: 'none' }} />
                 </div>
               </div>
 
-              <div className="flex justify-end pt-4 border-t border-slate-50">
-                <button type="submit" disabled={saving} className="flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-white font-bold text-sm shadow-md hover:bg-primary/95 disabled:opacity-50 transition-all active:scale-95">
-                  {saving ? <RefreshCw size={18} className="animate-spin" /> : <Save size={18} />}
-                  Save Details
+              {/* Fields */}
+              <div className="stoq-panel">
+                <div className="stoq-panel__head"><span className="stoq-panel__title">Personal Information</span></div>
+                <div style={{ padding: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <Field label="Full Name">
+                      <IconInput icon={User} value={profile.names} onChange={e => setProfile({ ...profile, names: e.target.value })} placeholder="Administrator" />
+                    </Field>
+                  </div>
+                  <Field label="Email Address">
+                    <IconInput icon={Mail} type="email" value={profile.email} onChange={e => setProfile({ ...profile, email: e.target.value })} placeholder="admin@domain.com" />
+                  </Field>
+                  <Field label="Phone Number">
+                    <IconInput icon={Phone} value={profile.phone} onChange={e => setProfile({ ...profile, phone: e.target.value })} placeholder="+250…" />
+                  </Field>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button type="submit" className="stoq-btn stoq-btn--primary" disabled={saving} style={{ opacity: saving ? 0.6 : 1 }}>
+                  {saving ? <><RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Saving…</> : <><Save size={13} /> Save Details</>}
                 </button>
               </div>
             </form>
           )}
 
           {activeTab === 'security' && (
-            <form onSubmit={savePassword} className="bg-white p-7 rounded-3xl border border-slate-100 shadow-sm space-y-6">
-              <div className="mb-4">
-                <h3 className="font-bold text-slate-800 text-lg">Change Password</h3>
-                <p className="text-xs text-slate-400 font-medium">Update your security token to protect your account standing.</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1.5">Current Password</label>
-                <div className="relative">
-                  <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input type="password" value={passwords.currentPassword} onChange={e => setPasswords({...passwords, currentPassword: e.target.value})} className={passClass} />
+            <form onSubmit={savePassword} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div className="stoq-panel">
+                <div className="stoq-panel__head">
+                  <span className="stoq-panel__title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span className="kpi__icon"><ShieldCheck size={13} /></span>
+                    Change Password
+                  </span>
                 </div>
-              </div>
-              
-              <div className="pt-2">
-                <label className="block text-sm font-bold text-slate-700 mb-1.5">New Password</label>
-                <div className="relative">
-                  <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input type="password" value={passwords.newPassword} onChange={e => setPasswords({...passwords, newPassword: e.target.value})} className={passClass} />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1.5">Confirm New Password</label>
-                <div className="relative">
-                  <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input type="password" value={passwords.confirmPassword} onChange={e => setPasswords({...passwords, confirmPassword: e.target.value})} className={passClass} />
+                <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <Field label="Current Password">
+                    <IconInput icon={Lock} type="password" value={passwords.currentPassword}
+                      onChange={e => setPasswords({ ...passwords, currentPassword: e.target.value })} />
+                  </Field>
+                  <Field label="New Password">
+                    <IconInput icon={Lock} type="password" value={passwords.newPassword}
+                      onChange={e => setPasswords({ ...passwords, newPassword: e.target.value })} />
+                  </Field>
+                  <Field label="Confirm New Password">
+                    <IconInput icon={Lock} type="password" value={passwords.confirmPassword}
+                      onChange={e => setPasswords({ ...passwords, confirmPassword: e.target.value })} />
+                  </Field>
                 </div>
               </div>
 
-              <div className="flex justify-end pt-4 border-t border-slate-50">
-                <button type="submit" disabled={saving} className="flex items-center gap-2 px-6 py-3 rounded-xl bg-slate-800 text-white font-bold text-sm shadow-md hover:bg-slate-900 disabled:opacity-50 transition-all active:scale-95">
-                  {saving ? <RefreshCw size={18} className="animate-spin" /> : <Save size={18} />}
-                  Update Password
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button type="submit" className="stoq-btn stoq-btn--primary" disabled={saving} style={{ opacity: saving ? 0.6 : 1 }}>
+                  {saving ? <><RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Saving…</> : <><Save size={13} /> Update Password</>}
                 </button>
               </div>
             </form>

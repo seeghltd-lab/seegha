@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, Navigate } from 'react-router-dom';
 import { useAdminAuth } from '../../context/AdminAuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { SITE_NAME, SITE_DESCRIPTION } from '../../config/site';
@@ -10,10 +10,15 @@ const AdminLogin = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  
-  const { login } = useAdminAuth();
+
+  const { login, isAuthenticated, isLoading: authLoading } = useAdminAuth();
   const { setRecipient } = useNotification();
   const navigate = useNavigate();
+
+  // Already authenticated → go straight to dashboard
+  if (!authLoading && isAuthenticated) {
+    return <Navigate to="/admin/dashboard" replace />;
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -30,131 +35,172 @@ const AdminLogin = () => {
     }
   };
 
+  const shortName = SITE_NAME.split(' ')[0];
+
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-surface font-sans">
-      {/* Left side - Image & Branding */}
-      <div className="hidden md:block md:w-1/2 relative overflow-hidden h-screen">
-        <img 
-          alt="Modern glass office building facade" 
-          className="absolute inset-0 w-full h-full object-cover" 
-          src="https://lh3.googleusercontent.com/aida-public/AB6AXuD1ZyRdIetrQR_ExzMbwQgJgvryhsoWmk_R3K0cPHUkFo0nzh9Cq81h3yRWgo4YznnYVjIg_7-kpSY5m8WcTVb9c9zbzvX6t1sAnLH807M8JeI8RzrpJKeqnyp_8B14sKIcuBI4oWvLMxXnteyzJvfSMKJLNNSEIYssqC31M4hLIa-YONNXVBQBkVEGJIxLLwfXVBeWWN_NGt-XbiIGFaJ3R8KCnf_hq5BULqRw41apqJ8QB1C6o9Qx9Oq8aHl52MlE0-09FO6qAwyH"
-        />
-        <div className="absolute inset-0 bg-primary/20 backdrop-multiply"></div>
-        <div className="absolute bottom-12 left-12 right-12 z-10 transition-all duration-700 delay-300">
-          <div className="bg-white/10 backdrop-blur-md p-8 rounded-xl border border-white/20 shadow-2xl">
-            <h2 className="text-3xl font-bold text-white tracking-tight mb-4 headline">Precision in Every Transaction.</h2>
-            <p className="text-blue-50 text-lg font-light leading-relaxed">
-              {SITE_DESCRIPTION}
-            </p>
+    <div className="stoq-login">
+      {/* Left — brand panel */}
+      <div className="stoq-login__brand">
+        <div className="stoq-login__brand-bg" />
+        <div className="stoq-login__grid" />
+
+        {/* Logo */}
+        <div className="stoq-login__brand-content stoq-login__logo">
+          <div className="brand-mark"><span>{shortName.charAt(0)}</span></div>
+          <div>
+            <div className="brand-name">{SITE_NAME}</div>
+            <div className="brand-meta">Management Console</div>
+          </div>
+        </div>
+
+        {/* Tagline */}
+        <div className="stoq-login__tag">
+          Every asset,<br />every transaction.<br />
+          <em>Tracked. Costed. Controlled.</em>
+        </div>
+
+        {/* Stats */}
+        <div className="stoq-login__stats">
+          <div>
+            <div className="stoq-login__stat-num num">99.9%</div>
+            <div className="stoq-login__stat-lbl">Uptime SLA</div>
+          </div>
+          <div>
+            <div className="stoq-login__stat-num num">10K+</div>
+            <div className="stoq-login__stat-lbl">Assets Tracked</div>
+          </div>
+          <div>
+            <div className="stoq-login__stat-num num">&lt;100ms</div>
+            <div className="stoq-login__stat-lbl">Response Time</div>
           </div>
         </div>
       </div>
 
-      {/* Right side - Login Form */}
-      <div className="w-full md:w-1/2 flex items-center justify-center p-6 md:p-12 bg-surface min-h-screen">
-        <div className="w-full max-w-md space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="text-center md:text-left">
-            <div className="flex items-center justify-center md:justify-start gap-2 mb-8">
-              <div className="w-10 h-10 primary-gradient rounded-lg flex items-center justify-center shadow-lg">
-                <span className="material-symbols-outlined text-white" style={{ fontVariationSettings: "'FILL' 1" }}>account_balance_wallet</span>
-              </div>
-              <span className="text-2xl font-extrabold tracking-tighter text-on-surface uppercase">{SITE_NAME}</span>
-            </div>
-            <h1 className="text-4xl font-extrabold text-on-surface tracking-tight mb-2">Admin Portal</h1>
-            <p className="text-on-surface-variant font-medium">Please enter your credentials to access the command center.</p>
+      {/* Right — form */}
+      <div className="stoq-login__form-side">
+        <div className="stoq-login__form">
+          <div className="stoq-login__chip">
+            <span className="pulse" />
+            System nominal · v1.0
+          </div>
+
+          <h2>Admin sign in</h2>
+          <div className="stoq-login__form-sub">
+            Welcome back. Enter your credentials to access the management console.
           </div>
 
           {error && (
-            <div className="p-4 text-sm text-on-error-container bg-error-container/20 border border-error/20 rounded-lg flex items-center gap-3 animate-shake">
-              <span className="material-symbols-outlined text-error">warning</span>
+            <div style={{
+              padding: '10px 14px', marginBottom: 16,
+              background: 'var(--danger-soft)',
+              border: '1px solid var(--danger)',
+              borderRadius: 'var(--r-sm)',
+              color: 'var(--danger)', fontSize: 12,
+            }}>
               {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="mt-8 space-y-6">
-            <div className="space-y-5">
-              <div className="group">
-                <label className="block text-sm font-semibold text-on-surface mb-2" htmlFor="email">Email</label>
-                <input 
-                  className="block w-full px-4 py-3 bg-surface-container-lowest border-0 rounded-lg text-on-surface ring-1 ring-outline-variant/30 focus:ring-2 focus:ring-primary transition-all placeholder:text-secondary/50 outline-none" 
-                  id="email" 
-                  name="email" 
-                  placeholder="admin@nexusledger.com" 
-                  required 
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+          <form onSubmit={handleSubmit}>
+            <div className="stoq-field">
+              <label className="stoq-field__label">Work Email</label>
+              <input
+                className="stoq-input"
+                type="email"
+                required
+                placeholder="admin@company.com"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+              />
+            </div>
+            <div className="stoq-field" style={{ marginTop: 14 }}>
+              <label className="stoq-field__label">Password</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  className="stoq-input"
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  style={{ paddingRight: 36 }}
                 />
-              </div>
-              <div className="group">
-                <label className="block text-sm font-semibold text-on-surface mb-2" htmlFor="password">Password</label>
-                <div className="relative">
-                  <input 
-                    className="block w-full px-4 py-3 bg-surface-container-lowest border-0 rounded-lg text-on-surface ring-1 ring-outline-variant/30 focus:ring-2 focus:ring-primary transition-all placeholder:text-secondary/50 outline-none" 
-                    id="password" 
-                    name="password" 
-                    placeholder="••••••••" 
-                    required 
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                  <button 
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-secondary hover:text-primary transition-colors focus:outline-none" 
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    <span className="material-symbols-outlined text-xl">
-                      {showPassword ? 'visibility_off' : 'visibility'}
-                    </span>
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute', right: 10, top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none', border: 'none',
+                    color: 'var(--fg-subtle)', cursor: 'pointer',
+                    display: 'grid', placeItems: 'center',
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    {showPassword
+                      ? <><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></>
+                      : <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>
+                    }
+                  </svg>
+                </button>
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <input className="h-4 w-4 rounded border-outline-variant text-primary focus:ring-primary accent-primary" id="remember-me" name="remember-me" type="checkbox"/>
-                <label className="ml-2 block text-sm font-medium text-on-surface-variant" htmlFor="remember-me">Remember for 30 days</label>
-              </div>
-              <div className="text-sm">
-                <a className="font-semibold text-primary hover:text-primary-dim transition-colors underline decoration-2 underline-offset-4 decoration-primary/20" href="#">Forgot password?</a>
-              </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '10px 0 18px', fontSize: 12 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--fg-muted)', cursor: 'pointer' }}>
+                <input type="checkbox" className="stoq-checkbox" defaultChecked /> Keep me signed in
+              </label>
+              <a href="#" style={{ color: 'var(--accent-soft-fg)', fontWeight: 600, textDecoration: 'none', fontSize: 12 }}>
+                Reset password
+              </a>
             </div>
 
-            <div>
-              <button 
-                className="group relative w-full flex justify-center items-center py-3.5 px-4 border border-transparent text-sm font-bold rounded-lg text-white primary-gradient hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all active:scale-95 shadow-md disabled:opacity-70 disabled:active:scale-100" 
-                type="submit"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                ) : (
-                  <>
-                    Sign in
-                    <span className="material-symbols-outlined ml-2 text-lg">login</span>
-                  </>
-                )}
-              </button>
-            </div>
+            <button
+              type="submit"
+              className="stoq-btn stoq-btn--primary"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ animation: 'spin 0.8s linear infinite' }}>
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                  </svg>
+                  Signing in…
+                </span>
+              ) : (
+                <>
+                  Continue to console
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </>
+              )}
+            </button>
 
-            <div className="relative py-4">
-              <div aria-hidden="true" class="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-surface-container-highest"></div>
-              </div>
-              <div className="relative flex justify-center text-xs uppercase tracking-widest font-bold">
-                <span className="px-2 bg-surface text-on-surface-variant">Secure Authentication</span>
-              </div>
-            </div>
+            <div className="stoq-login__divider">OR</div>
+
+            <button
+              type="button"
+              className="stoq-btn"
+              style={{ width: '100%', height: 38, justifyContent: 'center', fontSize: 13 }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+              </svg>
+              Sign in with SSO
+            </button>
           </form>
 
-          <p className="text-center text-sm font-medium text-on-surface-variant">
-            Not an admin? 
-            <Link to="/login" className="ml-1 font-bold text-primary hover:text-primary-dim underline decoration-2 underline-offset-4">Staff Login</Link>
+          <p style={{ textAlign: 'center', marginTop: 20, fontSize: 12, color: 'var(--fg-muted)' }}>
+            Not an admin?{' '}
+            <Link to="/login" style={{ color: 'var(--accent-soft-fg)', fontWeight: 600, textDecoration: 'none' }}>
+              Staff Login
+            </Link>
           </p>
         </div>
       </div>
+
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 };

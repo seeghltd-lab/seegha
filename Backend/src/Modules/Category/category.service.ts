@@ -4,20 +4,43 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../Prisma/prisma.service';
+import { ActivityLogService } from '../ActivityLog/activity-log.service';
 
 @Injectable()
 export class CategoryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly activityLog: ActivityLogService,
+  ) {}
 
-  async create(data: { name: string; description?: string }, adminId: string) {
-    return this.prisma.category.create({
-      data: { name: data.name, description: data.description, adminId },
+  async create(
+    data: { name: string; description?: string },
+    callerId: string,
+    callerType: 'ADMIN' | 'EMPLOYEE',
+    callerName?: string,
+  ) {
+    const category = await this.prisma.category.create({
+      data: {
+        name: data.name,
+        description: data.description,
+        adminId: callerType === 'ADMIN' ? callerId : null,
+      },
     });
+    this.activityLog.log({
+      action: 'CATEGORY_CREATED',
+      entityType: 'Category',
+      entityId: category.id,
+      entityLabel: category.name,
+      performedById: callerId,
+      performedByType: callerType,
+      performedByName: callerName,
+      metadata: { name: category.name, description: category.description },
+    });
+    return category;
   }
 
-  async findAll(adminId: string) {
+  async findAll() {
     return this.prisma.category.findMany({
-      where: { adminId },
       orderBy: { name: 'asc' },
       include: { _count: { select: { stocks: true } } },
     });
@@ -32,13 +55,35 @@ export class CategoryService {
     return cat;
   }
 
-  async update(id: string, data: { name?: string; description?: string }) {
+  async update(
+    id: string,
+    data: { name?: string; description?: string },
+    callerId?: string,
+    callerType?: 'ADMIN' | 'EMPLOYEE',
+    callerName?: string,
+  ) {
     const cat = await this.prisma.category.findUnique({ where: { id } });
     if (!cat) throw new NotFoundException('Category not found');
-    return this.prisma.category.update({ where: { id }, data });
+    const updated = await this.prisma.category.update({ where: { id }, data });
+    this.activityLog.log({
+      action: 'CATEGORY_UPDATED',
+      entityType: 'Category',
+      entityId: id,
+      entityLabel: updated.name,
+      performedById: callerId ?? 'system',
+      performedByType: callerType ?? 'ADMIN',
+      performedByName: callerName,
+      metadata: { changes: data },
+    });
+    return updated;
   }
 
-  async remove(id: string) {
+  async remove(
+    id: string,
+    callerId?: string,
+    callerType?: 'ADMIN' | 'EMPLOYEE',
+    callerName?: string,
+  ) {
     const cat = await this.prisma.category.findUnique({
       where: { id },
       include: { _count: { select: { stocks: true } } },
@@ -49,6 +94,16 @@ export class CategoryService {
         `Cannot delete category with ${cat._count.stocks} linked stock item(s). Reassign or remove them first.`,
       );
     }
-    return this.prisma.category.delete({ where: { id } });
+    await this.prisma.category.delete({ where: { id } });
+    this.activityLog.log({
+      action: 'CATEGORY_DELETED',
+      entityType: 'Category',
+      entityId: id,
+      entityLabel: cat.name,
+      performedById: callerId ?? 'system',
+      performedByType: callerType ?? 'ADMIN',
+      performedByName: callerName,
+    });
+    return { message: 'Category deleted' };
   }
 }

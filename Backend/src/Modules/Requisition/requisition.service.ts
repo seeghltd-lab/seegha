@@ -7,7 +7,9 @@ import {
 import { PrismaService } from '../../Prisma/prisma.service';
 import { AppSocketGateway } from '../../Global/socket/socket.gateway';
 import { NotificationService } from '../Notification/notification.service';
-import { RequisitionStatus, ReceivingStatus } from '@prisma/client';
+import { ActivityLogService } from '../ActivityLog/activity-log.service';
+import { RequisitionStatus, ReceivingStatus, PaymentType } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 
 interface CreateItemDto {
   stockId?: string;
@@ -19,7 +21,16 @@ interface CreateItemDto {
 
 interface CreateRequisitionDto {
   description?: string;
+  supplierId?: string;
+  employeeId?: string;
+  siteId?: string;
   items: CreateItemDto[];
+}
+
+interface CreatorContext {
+  type: 'ADMIN' | 'EMPLOYEE';
+  id: string;
+  name: string;
 }
 
 interface RequisitionFilters {
@@ -36,12 +47,15 @@ export class RequisitionService {
     private readonly prisma: PrismaService,
     private readonly socket: AppSocketGateway,
     private readonly notifications: NotificationService,
+    private readonly activityLog: ActivityLogService,
   ) {}
 
-  async create(data: CreateRequisitionDto, employeeId: string) {
+  async create(data: CreateRequisitionDto, creator: CreatorContext) {
     if (!data.items || data.items.length === 0) {
       throw new BadRequestException('At least one item is required');
     }
+
+    const employeeId = data.employeeId || null;
 
     const stockIds = data.items
       .map((i) => i.stockId)
@@ -60,7 +74,10 @@ export class RequisitionService {
     const requisition = await this.prisma.requisition.create({
       data: {
         description: data.description,
-        employeeId,
+        supplierId: data.supplierId || null,
+        employeeId: employeeId || null,
+        siteId: data.siteId || null,
+        createdByAdminId: creator.type === 'ADMIN' ? creator.id : null,
         items: {
           create: data.items.map((item) => ({
             stockId: item.stockId || null,
@@ -77,14 +94,32 @@ export class RequisitionService {
       },
     });
 
+    const creatorLabel = creator.type === 'ADMIN'
+      ? `Admin (${creator.name})`
+      : creator.name;
+
     this.socket.emitToAllAdmins('requisition-created', requisition);
-    await this.notifications.createNotification({
-      recipients: await this.getAllAdminRecipients(),
-      title: 'New Requisition',
-      message: `${requisition.employee.firstName} ${requisition.employee.lastName} submitted a new requisition (${requisition.items.length} item${requisition.items.length !== 1 ? 's' : ''}).`,
-      link: `/admin/requisition-management`,
-      senderId: employeeId,
-      senderType: 'EMPLOYEE',
+
+    if (creator.type === 'EMPLOYEE') {
+      await this.notifications.createNotification({
+        recipients: await this.getAllAdminRecipients(),
+        title: 'New Requisition',
+        message: `${creator.name} submitted a new requisition (${requisition.items.length} item${requisition.items.length !== 1 ? 's' : ''}).`,
+        link: `/admin/requisition-management`,
+        senderId: creator.id,
+        senderType: 'EMPLOYEE',
+      });
+    }
+
+    this.activityLog.log({
+      action: 'REQUISITION_CREATED',
+      entityType: 'Requisition',
+      entityId: requisition.id,
+      entityLabel: `REQ-${requisition.id.slice(-6).toUpperCase()}`,
+      performedById: creator.id,
+      performedByType: creator.type,
+      performedByName: creatorLabel,
+      metadata: { itemCount: requisition.items.length, description: data.description },
     });
 
     return requisition;
@@ -143,6 +178,7 @@ export class RequisitionService {
               profilePicture: true,
             },
           },
+          supplier: { select: { id: true, name: true, code: true } },
           items: {
             select: {
               id: true,
@@ -172,6 +208,7 @@ export class RequisitionService {
     const requisition = await this.prisma.requisition.findUnique({
       where: { id },
       include: {
+        supplier: { select: { id: true, name: true, code: true, phone: true } },
         employee: {
           select: {
             id: true,
@@ -216,7 +253,7 @@ export class RequisitionService {
     id: string,
     approverId: string,
     approverType: 'ADMIN' | 'EMPLOYEE',
-    body: { items?: any[]; notes?: string },
+    body: { items?: any[]; notes?: string; supplierId?: string },
   ) {
     const requisition = await this.prisma.requisition.findUnique({
       where: { id },
@@ -259,6 +296,7 @@ export class RequisitionService {
               note: i.note || null,
               stockId: i.stockId || null,
               costPrice: costPrice ?? null,
+              ...(i.paymentType !== undefined ? { paymentType: i.paymentType } : {}),
             },
           });
         } else {
@@ -271,6 +309,7 @@ export class RequisitionService {
               note: i.note || null,
               stockId: i.stockId || null,
               costPrice: costPrice ?? null,
+              ...(i.paymentType !== undefined ? { paymentType: i.paymentType } : {}),
             },
           });
         }
@@ -282,24 +321,37 @@ export class RequisitionService {
       data: {
         status: RequisitionStatus.APPROVED,
         approvedAt: new Date(),
+        ...(body.supplierId !== undefined ? { supplierId: body.supplierId || null } : {}),
       },
       include: {
+        supplier: { select: { id: true, name: true, code: true } },
         employee: { select: { id: true, firstName: true, lastName: true } },
         items: true,
         _count: { select: { items: true } },
       },
     });
 
-    this.socket.emitToEmployee(requisition.employee.id, 'requisition-updated', updated);
+    if (requisition.employee) {
+      this.socket.emitToEmployee(requisition.employee.id, 'requisition-updated', updated);
+      await this.notifications.createNotification({
+        recipients: [{ id: requisition.employee.id, type: 'EMPLOYEE' }],
+        title: 'Requisition Approved',
+        message: `Your requisition has been approved${body.notes ? `: ${body.notes}` : '.'}`,
+        link: `/requisitions`,
+        senderId: approverId,
+        senderType: approverType,
+      });
+    }
     this.socket.emitToAllAdmins('requisition-updated', updated);
 
-    await this.notifications.createNotification({
-      recipients: [{ id: requisition.employee.id, type: 'EMPLOYEE' }],
-      title: 'Requisition Approved',
-      message: `Your requisition has been approved${body.notes ? `: ${body.notes}` : '.'}`,
-      link: `/requisitions`,
-      senderId: approverId,
-      senderType: approverType,
+    this.activityLog.log({
+      action: 'REQUISITION_APPROVED',
+      entityType: 'Requisition',
+      entityId: id,
+      entityLabel: `REQ-${id.slice(-6).toUpperCase()}`,
+      performedById: approverId,
+      performedByType: approverType,
+      metadata: { notes: body.notes, supplierId: body.supplierId },
     });
 
     return updated;
@@ -334,16 +386,27 @@ export class RequisitionService {
       },
     });
 
-    this.socket.emitToEmployee(requisition.employee.id, 'requisition-updated', updated);
+    if (requisition.employee) {
+      this.socket.emitToEmployee(requisition.employee.id, 'requisition-updated', updated);
+      await this.notifications.createNotification({
+        recipients: [{ id: requisition.employee.id, type: 'EMPLOYEE' }],
+        title: 'Requisition Rejected',
+        message: `Your requisition was rejected: ${reason}`,
+        link: `/requisitions`,
+        senderId: approverId,
+        senderType: approverType,
+      });
+    }
     this.socket.emitToAllAdmins('requisition-updated', updated);
 
-    await this.notifications.createNotification({
-      recipients: [{ id: requisition.employee.id, type: 'EMPLOYEE' }],
-      title: 'Requisition Rejected',
-      message: `Your requisition was rejected: ${reason}`,
-      link: `/requisitions`,
-      senderId: approverId,
-      senderType: approverType,
+    this.activityLog.log({
+      action: 'REQUISITION_REJECTED',
+      entityType: 'Requisition',
+      entityId: id,
+      entityLabel: `REQ-${id.slice(-6).toUpperCase()}`,
+      performedById: approverId,
+      performedByType: approverType,
+      metadata: { reason },
     });
 
     return updated;
@@ -354,7 +417,22 @@ export class RequisitionService {
     receivedById: string,
     receivedByType: 'ADMIN' | 'EMPLOYEE',
     receivedByName: string,
-    items: { itemId: string; receivedQty: number; note?: string }[],
+    items: {
+      itemId: string;
+      receivedQty: number;
+      note?: string;
+      // Optional: create & link a new stock entry for unlinked items
+      newStockData?: {
+        unitCost: number;
+        siteId?: string;
+        categoryId?: string;
+        supplierId?: string;
+        warehouseLocation?: string;
+        reorderLevel?: number;
+        expiryDate?: string;
+        description?: string;
+      };
+    }[],
   ) {
     const requisition = await this.prisma.requisition.findUnique({
       where: { id: requisitionId },
@@ -372,6 +450,9 @@ export class RequisitionService {
       throw new ForbiddenException('Only approved requisitions can have items received');
     }
 
+    // Resolve adminId for stock creation (employees use site's adminId)
+    let resolvedAdminId = receivedByType === 'ADMIN' ? receivedById : null;
+
     for (const receiveData of items) {
       const item = requisition.items.find((i) => i.id === receiveData.itemId);
       if (!item) {
@@ -383,6 +464,115 @@ export class RequisitionService {
         throw new BadRequestException(
           `Cannot receive more than requested for "${item.itemName}". Requested: ${item.quantity}, Already received: ${item.receivedQty}, Trying: ${receiveData.receivedQty}`,
         );
+      }
+
+      // ── Auto-create stock if item has no stockId and newStockData is provided ──
+      let effectiveStockId = item.stockId;
+      let effectiveStock = item.stock;
+
+      if (!effectiveStockId && receiveData.newStockData) {
+        const sd = receiveData.newStockData;
+
+        // Resolve adminId from site if employee
+        if (!resolvedAdminId && sd.siteId) {
+          const site = await this.prisma.site.findUnique({
+            where: { id: sd.siteId },
+            select: { adminId: true },
+          });
+          if (site?.adminId) resolvedAdminId = site.adminId;
+        }
+
+        if (!resolvedAdminId) {
+          // Fallback: find any admin
+          const anyAdmin = await this.prisma.admin.findFirst({ select: { id: true } });
+          resolvedAdminId = anyAdmin?.id ?? receivedById;
+        }
+
+        // Generate unique SKU
+        const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        let sku = 'STK-';
+        for (let i = 0; i < 6; i++) sku += chars[Math.floor(Math.random() * chars.length)];
+        while (await this.prisma.stock.findUnique({ where: { sku } })) {
+          sku = 'STK-';
+          for (let i = 0; i < 6; i++) sku += chars[Math.floor(Math.random() * chars.length)];
+        }
+
+        const unitCost = new Decimal(sd.unitCost);
+        const totalValue = unitCost.times(receiveData.receivedQty);
+
+        const newStock = await this.prisma.stock.create({
+          data: {
+            sku,
+            adminId: resolvedAdminId,
+            itemName: item.itemName,
+            unit: item.unit,
+            quantity: receiveData.receivedQty,
+            unitCost,
+            totalValue,
+            categoryId: sd.categoryId || null,
+            supplierId: sd.supplierId || (requisition as any).supplierId || null,
+            // Use siteId from newStockData, fall back to the requisition's own siteId
+            siteId: sd.siteId || (requisition as any).siteId || null,
+            warehouseLocation: sd.warehouseLocation || null,
+            receivedDate: new Date(),
+            reorderLevel: sd.reorderLevel ?? 5,
+            expiryDate: sd.expiryDate ? new Date(sd.expiryDate) : null,
+            description: sd.description || `Created from requisition REQ-${requisitionId.slice(-6).toUpperCase()}`,
+          },
+        });
+
+        await this.prisma.stockHistory.create({
+          data: {
+            stockId: newStock.id,
+            movementType: 'IN',
+            qtyBefore: 0,
+            qtyChange: receiveData.receivedQty,
+            qtyAfter: receiveData.receivedQty,
+            unitPrice: unitCost,
+            notes: `Created & received via requisition REQ-${requisitionId.slice(-6).toUpperCase()}`,
+            createdByAdminId: receivedByType === 'ADMIN' ? receivedById : null,
+            createdByEmployeeId: receivedByType === 'EMPLOYEE' ? receivedById : null,
+          },
+        });
+
+        // Link the RequisitionItem to the new stock
+        await this.prisma.requisitionItem.update({
+          where: { id: item.id },
+          data: { stockId: newStock.id, costPrice: sd.unitCost },
+        });
+
+        effectiveStockId = newStock.id;
+        effectiveStock = newStock as any;
+
+        // Auto-create payment if paymentType is set
+        const paymentType = item.paymentType ?? 'NONE';
+        const supplierId = sd.supplierId || (requisition as any).supplierId;
+        if (paymentType !== 'NONE' && supplierId) {
+          await this.prisma.supplierPayment.create({
+            data: {
+              supplierId,
+              stockId: newStock.id,
+              requisitionItemId: item.id,
+              type: paymentType as PaymentType,
+              quantity: receiveData.receivedQty,
+              amount: receiveData.receivedQty * sd.unitCost,
+              reference: `REQ-${requisitionId.slice(-6).toUpperCase()}`,
+              notes: `New stock created & received via requisition`,
+              adminId: resolvedAdminId,
+            },
+          });
+        }
+
+        this.activityLog.log({
+          action: 'STOCK_CREATED',
+          entityType: 'Stock',
+          entityId: newStock.id,
+          entityLabel: `${newStock.itemName} (${newStock.sku})`,
+          performedById: receivedById,
+          performedByType: receivedByType,
+          performedByName: receivedByName,
+          metadata: { sku: newStock.sku, quantity: receiveData.receivedQty, source: 'requisition-receive' },
+        });
       }
 
       // Create receiving log
@@ -412,31 +602,47 @@ export class RequisitionService {
         data: { receivedQty: newReceivedQty, receivingStatus },
       });
 
-      // Deduct stock if linked
-      if (item.stockId && item.stock) {
-        const qtyBefore = item.stock.quantity;
-        const qtyAfter = Math.max(0, qtyBefore - receiveData.receivedQty);
-        const unitCost = item.costPrice ?? Number(item.stock.unitCost);
+      // Add received qty to existing stock if linked (and not just created above)
+      if (effectiveStockId && effectiveStock && item.stockId) {
+        const qtyBefore = (effectiveStock as any).quantity;
+        const qtyAfter = qtyBefore + receiveData.receivedQty;
+        const unitCost = item.costPrice ?? Number((effectiveStock as any).unitCost);
+        const totalValue = qtyAfter * unitCost;
 
         await this.prisma.stock.update({
-          where: { id: item.stockId },
-          data: {
-            quantity: qtyAfter,
-            totalValue: qtyAfter * unitCost,
-          },
+          where: { id: effectiveStockId },
+          data: { quantity: qtyAfter, totalValue },
         });
 
         await this.prisma.stockHistory.create({
           data: {
-            stockId: item.stockId,
-            movementType: 'OUT',
+            stockId: effectiveStockId,
+            movementType: 'IN',
             qtyBefore,
             qtyChange: receiveData.receivedQty,
             qtyAfter,
             notes: `Received via requisition #${requisitionId.slice(-6).toUpperCase()}`,
-            createdByAdminId: receivedById,
+            createdByAdminId: receivedByType === 'ADMIN' ? receivedById : null,
           },
         });
+
+        // Auto-create payment if paymentType is set and supplier is linked
+        const paymentType = item.paymentType ?? 'NONE';
+        if (paymentType !== 'NONE' && (effectiveStock as any).supplierId) {
+          await this.prisma.supplierPayment.create({
+            data: {
+              supplierId: (effectiveStock as any).supplierId,
+              stockId: effectiveStockId,
+              requisitionItemId: item.id,
+              type: paymentType as PaymentType,
+              quantity: receiveData.receivedQty,
+              amount: receiveData.receivedQty * unitCost,
+              reference: `REQ-${requisitionId.slice(-6).toUpperCase()}`,
+              notes: `Stock received via requisition`,
+              adminId: receivedById,
+            },
+          });
+        }
       }
     }
 
@@ -480,19 +686,31 @@ export class RequisitionService {
       },
     });
 
-    this.socket.emitToEmployee(requisition.employee.id, 'requisition-updated', updated);
     this.socket.emitToAllAdmins('requisition-updated', updated);
-
-    if (allFullyReceived) {
-      await this.notifications.createNotification({
-        recipients: [{ id: requisition.employee.id, type: 'EMPLOYEE' }],
-        title: 'Requisition Fully Received',
-        message: 'All items in your requisition have been received.',
-        link: `/requisitions`,
-        senderId: receivedById,
-        senderType: 'ADMIN',
-      });
+    if (requisition.employee) {
+      this.socket.emitToEmployee(requisition.employee.id, 'requisition-updated', updated);
+      if (allFullyReceived) {
+        await this.notifications.createNotification({
+          recipients: [{ id: requisition.employee.id, type: 'EMPLOYEE' }],
+          title: 'Requisition Fully Received',
+          message: 'All items in your requisition have been received.',
+          link: `/requisitions`,
+          senderId: receivedById,
+          senderType: 'ADMIN',
+        });
+      }
     }
+
+    this.activityLog.log({
+      action: allFullyReceived ? 'REQUISITION_FULLY_RECEIVED' : 'REQUISITION_PARTIALLY_RECEIVED',
+      entityType: 'Requisition',
+      entityId: requisitionId,
+      entityLabel: `REQ-${requisitionId.slice(-6).toUpperCase()}`,
+      performedById: receivedById,
+      performedByType: receivedByType,
+      performedByName: receivedByName,
+      metadata: { itemsReceived: items.length, newStatus },
+    });
 
     return updated;
   }
@@ -537,6 +755,16 @@ export class RequisitionService {
 
     await this.prisma.requisition.delete({ where: { id } });
     this.socket.emitToAllAdmins('requisition-deleted', { id });
+
+    this.activityLog.log({
+      action: 'REQUISITION_DELETED',
+      entityType: 'Requisition',
+      entityId: id,
+      entityLabel: `REQ-${id.slice(-6).toUpperCase()}`,
+      performedById: callerId,
+      performedByType: callerRole,
+    });
+
     return { message: 'Requisition deleted' };
   }
 

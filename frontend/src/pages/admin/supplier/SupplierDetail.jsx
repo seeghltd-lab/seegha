@@ -1,0 +1,1033 @@
+﻿import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import {
+  ArrowLeft, Star, Mail, Phone, MapPin, Building2, FileText,
+  Package, CreditCard, ArrowUpCircle, ArrowDownCircle, ChevronDown,
+  X, RefreshCw, Plus, AlertCircle, CheckCircle,
+  TrendingDown, Edit2, List, LayoutGrid, ChevronLeft, ChevronRight, Calendar,
+} from 'lucide-react';
+import supplierService from '../../../services/supplierService';
+import { useRole } from '../../../hooks/useRole';
+import ReceiptModal, { buildPaymentReceipt } from '../../../components/ReceiptModal';
+
+// â"€â"€â"€ Helpers â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+
+const fmt = (n) => `RWF ${parseFloat(n || 0).toLocaleString()}`;
+const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'â€"';
+const fmtDateGroup = (d) => d ? new Date(d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' }) : 'â€"';
+
+const STATUS_BADGE = {
+  ACTIVE: 'stoq-badge stoq-badge--success',
+  INACTIVE: 'stoq-badge',
+  SUSPENDED: 'stoq-badge stoq-badge--danger',
+};
+
+const REQ_BADGE = {
+  PENDING: 'stoq-badge stoq-badge--warning',
+  APPROVED: 'stoq-badge stoq-badge--accent',
+  PARTIALLY_RECEIVED: 'stoq-badge stoq-badge--warning',
+  FULLY_RECEIVED: 'stoq-badge stoq-badge--success',
+  REJECTED: 'stoq-badge stoq-badge--danger',
+};
+
+// â"€â"€â"€ Date filter helpers â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+
+const DATE_PRESETS = [
+  { label: 'All time', value: '' },
+  { label: 'Today',    value: 'today' },
+  { label: 'Week',     value: 'week' },
+  { label: 'Month',    value: 'month' },
+  { label: 'Custom',   value: 'custom' },
+];
+
+function getDateRange(preset, customFrom, customTo) {
+  const now = new Date();
+  if (preset === 'today') {
+    const s = new Date(now); s.setHours(0, 0, 0, 0);
+    return { from: s, to: now };
+  }
+  if (preset === 'week') {
+    const s = new Date(now); s.setDate(now.getDate() - 7);
+    return { from: s, to: now };
+  }
+  if (preset === 'month') {
+    const s = new Date(now); s.setDate(1); s.setHours(0, 0, 0, 0);
+    return { from: s, to: now };
+  }
+  if (preset === 'custom' && customFrom) {
+    return { from: new Date(customFrom), to: customTo ? new Date(customTo + 'T23:59:59') : now };
+  }
+  return null;
+}
+
+function inRange(dateStr, range) {
+  if (!range) return true;
+  const d = new Date(dateStr);
+  return d >= range.from && d <= range.to;
+}
+
+// â"€â"€â"€ Pagination helper â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+
+function Pagination({ page, totalPages, total, onPage, label = 'items' }) {
+  if (totalPages <= 1) return null;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderTop: '1px solid var(--border)', background: 'var(--bg-sunk)' }}>
+      <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>
+        Page {page} of {totalPages} Â· {total} {label}
+      </span>
+      <div style={{ display: 'flex', gap: 4 }}>
+        <button className="stoq-btn stoq-btn--icon" disabled={page <= 1} style={{ opacity: page <= 1 ? 0.4 : 1 }} onClick={() => onPage(page - 1)}>
+          <ChevronLeft size={13} />
+        </button>
+        <button className="stoq-btn stoq-btn--icon" disabled={page >= totalPages} style={{ opacity: page >= totalPages ? 0.4 : 1 }} onClick={() => onPage(page + 1)}>
+          <ChevronRight size={13} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// â"€â"€â"€ Date Filter Bar â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+
+function DateFilterBar({ preset, customFrom, customTo, onPreset, onCustomFrom, onCustomTo }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '8px 0', marginBottom: 12 }}>
+      <Calendar size={13} style={{ color: 'var(--fg-subtle)', flexShrink: 0 }} />
+      <div className="stoq-segment">
+        {DATE_PRESETS.map(p => (
+          <button key={p.value} data-active={preset === p.value ? 'true' : undefined} onClick={() => onPreset(p.value)}>
+            {p.label}
+          </button>
+        ))}
+      </div>
+      {preset === 'custom' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <input type="date" className="stoq-input" value={customFrom} onChange={e => onCustomFrom(e.target.value)}
+            style={{ width: 140, height: 28, fontSize: 11 }} />
+          <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>â†'</span>
+          <input type="date" className="stoq-input" value={customTo} onChange={e => onCustomTo(e.target.value)}
+            style={{ width: 140, height: 28, fontSize: 11 }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StarRating({ rating }) {
+  const r = Math.round(rating || 0);
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+      {[1, 2, 3, 4, 5].map(i => (
+        <Star key={i} size={12}
+          style={{ color: i <= r ? 'var(--warning)' : 'var(--border-strong)', fill: i <= r ? 'var(--warning)' : 'var(--border-strong)' }} />
+      ))}
+      <span style={{ fontSize: 11, color: 'var(--fg-subtle)', marginLeft: 4, fontFamily: 'var(--font-mono)' }}>
+        {Number(rating || 0).toFixed(1)}
+      </span>
+    </div>
+  );
+}
+
+// â"€â"€â"€ Payment Modal â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+
+function PaymentModal({ supplierId, stocks, onClose, onSuccess }) {
+  const [type, setType] = useState('DEBIT');
+  const [amount, setAmount] = useState('');
+  const [stockId, setStockId] = useState('');
+  const [reference, setReference] = useState('');
+  const [notes, setNotes] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!amount || parseFloat(amount) <= 0) { setError('Please enter a valid amount'); return; }
+    setError('');
+    setSubmitting(true);
+    try {
+      await supplierService.addPayment(supplierId, { type, amount: parseFloat(amount), stockId: stockId || undefined, reference, notes, date });
+      onSuccess(type === 'CREDIT' ? 'Invoice recorded' : 'Payment recorded');
+      onClose();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to record payment');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="stoq-modal-backdrop">
+      <div className="stoq-modal">
+        <div className="stoq-modal__head">
+          <div>
+            <div className="stoq-modal__title">Record Transaction</div>
+            <div className="stoq-modal__sub">Track financial activity with this supplier</div>
+          </div>
+          <button className="icon-btn" onClick={onClose}><X size={14} /></button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="stoq-modal__body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Type selector */}
+          <div className="stoq-field">
+            <label className="stoq-field__label">Transaction Type</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {[
+                { val: 'CREDIT', Icon: ArrowUpCircle, label: 'Credit', sub: 'Invoice Â· We owe', color: 'var(--warning)' },
+                { val: 'DEBIT', Icon: ArrowDownCircle, label: 'Debit', sub: 'Payment Â· We paid', color: 'var(--success)' },
+              ].map(({ val, Icon, label, sub, color }) => (
+                <button key={val} type="button" onClick={() => setType(val)}
+                  style={{
+                    padding: '10px 12px', borderRadius: 'var(--r-md)', textAlign: 'left',
+                    border: `1.5px solid ${type === val ? color : 'var(--border)'}`,
+                    background: type === val ? `color-mix(in oklch, ${color} 8%, var(--panel))` : 'var(--panel)',
+                    cursor: 'pointer', transition: 'all 0.15s',
+                  }}>
+                  <Icon size={16} style={{ color: type === val ? color : 'var(--fg-subtle)', marginBottom: 4 }} />
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg)' }}>{label}</div>
+                  <div style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>{sub}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Amount */}
+          <div className="stoq-field">
+            <label className="stoq-field__label">Amount (RWF) <span style={{ color: 'var(--danger)' }}>*</span></label>
+            <input type="number" min="0.01" step="0.01" value={amount} onChange={e => setAmount(e.target.value)}
+              className="stoq-input" placeholder="0.00" />
+          </div>
+
+          {/* Linked stock */}
+          {stocks?.length > 0 && (
+            <div className="stoq-field">
+              <label className="stoq-field__label">Linked Stock Item (optional)</label>
+              <select value={stockId} onChange={e => setStockId(e.target.value)} className="stoq-select" style={{ width: '100%' }}>
+                <option value="">â€" No specific item â€"</option>
+                {stocks.map(s => <option key={s.id} value={s.id}>{s.itemName} ({s.sku})</option>)}
+              </select>
+            </div>
+          )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div className="stoq-field">
+              <label className="stoq-field__label">Reference / Invoice #</label>
+              <input value={reference} onChange={e => setReference(e.target.value)}
+                className="stoq-input" placeholder="INV-001" />
+            </div>
+            <div className="stoq-field">
+              <label className="stoq-field__label">Date</label>
+              <input type="date" value={date} onChange={e => setDate(e.target.value)} className="stoq-input" />
+            </div>
+          </div>
+
+          <div className="stoq-field">
+            <label className="stoq-field__label">Notes</label>
+            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
+              className="stoq-input" style={{ height: 'auto', padding: '8px 10px', resize: 'none' }}
+              placeholder="Optional notes..." />
+          </div>
+
+          {error && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--danger-soft)', borderRadius: 'var(--r-sm)', fontSize: 12, color: 'var(--danger)' }}>
+              <AlertCircle size={13} /> {error}
+            </div>
+          )}
+        </form>
+
+        <div className="stoq-modal__foot">
+          <button type="button" className="stoq-btn" onClick={onClose}>Cancel</button>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="stoq-btn stoq-btn--primary"
+            style={{ opacity: submitting ? 0.6 : 1 }}>
+            {submitting && <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} />}
+            {type === 'CREDIT' ? 'Record Invoice' : 'Record Payment'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// â"€â"€â"€ Tab: Info â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+
+function TabInfo({ supplier }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Contact details grid */}
+      <div>
+        <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', color: 'var(--fg-subtle)', textTransform: 'uppercase', marginBottom: 10 }}>
+          Contact Details
+        </div>
+        <div className="detail-grid">
+          {supplier.contactPerson && (
+            <div className="detail-cell">
+              <div className="detail-cell__label"><Building2 size={11} /> Contact Person</div>
+              <div className="detail-cell__value">{supplier.contactPerson}</div>
+            </div>
+          )}
+          {supplier.email && (
+            <div className="detail-cell">
+              <div className="detail-cell__label"><Mail size={11} /> Email</div>
+              <div className="detail-cell__value">{supplier.email}</div>
+            </div>
+          )}
+          {supplier.phone && (
+            <div className="detail-cell">
+              <div className="detail-cell__label"><Phone size={11} /> Phone</div>
+              <div className="detail-cell__value">{supplier.phone}</div>
+            </div>
+          )}
+          {supplier.city && (
+            <div className="detail-cell">
+              <div className="detail-cell__label"><MapPin size={11} /> City</div>
+              <div className="detail-cell__value">{supplier.city}</div>
+            </div>
+          )}
+          {supplier.address && (
+            <div className="detail-cell">
+              <div className="detail-cell__label"><MapPin size={11} /> Address</div>
+              <div className="detail-cell__value">{supplier.address}</div>
+            </div>
+          )}
+          {supplier.country && (
+            <div className="detail-cell">
+              <div className="detail-cell__label"><Building2 size={11} /> Country</div>
+              <div className="detail-cell__value">{supplier.country}</div>
+            </div>
+          )}
+          {supplier.paymentTerms && (
+            <div className="detail-cell">
+              <div className="detail-cell__label"><CreditCard size={11} /> Payment Terms</div>
+              <div className="detail-cell__value">{supplier.paymentTerms}</div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Notes */}
+      {supplier.notes && (
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', color: 'var(--fg-subtle)', textTransform: 'uppercase', marginBottom: 10 }}>
+            Notes
+          </div>
+          <div style={{ padding: '12px 14px', background: 'var(--warning-soft)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', fontSize: 12, color: 'var(--fg)', lineHeight: 1.6 }}>
+            {supplier.notes}
+          </div>
+        </div>
+      )}
+
+      {/* KPI row */}
+      <div>
+        <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', color: 'var(--fg-subtle)', textTransform: 'uppercase', marginBottom: 10 }}>
+          Quick Stats
+        </div>
+        <div className="kpi-grid kpi-grid--3">
+          <div className="kpi">
+            <div className="kpi__label">
+              <span className="kpi__icon"><Package size={12} /></span>
+              Total Items
+            </div>
+            <div className="kpi__value">{supplier._count?.stocks ?? supplier.stocks?.length ?? 0}</div>
+          </div>
+          <div className="kpi">
+            <div className="kpi__label">
+              <span className="kpi__icon"><TrendingDown size={12} /></span>
+              Stock Value
+            </div>
+            <div className="kpi__value" style={{ fontSize: 18 }}>{fmt(supplier.totalStockValue)}</div>
+          </div>
+          <div className="kpi">
+            <div className="kpi__label">
+              <span className="kpi__icon" data-tone={supplier.paymentSummary?.balance > 0 ? 'warning' : undefined}>
+                <CreditCard size={12} />
+              </span>
+              Balance Due
+            </div>
+            <div className="kpi__value" style={{ fontSize: 18, color: supplier.paymentSummary?.balance > 0 ? 'var(--danger)' : 'var(--fg)' }}>
+              {fmt(supplier.paymentSummary?.balance)}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// â"€â"€â"€ Tab: Items & Requisitions â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+
+function TabItems({ supplier, datePreset, customFrom, customTo }) {
+  const [expandedDates, setExpandedDates] = useState({});
+  const [stockView, setStockView] = useState('table');
+  const [stockPage, setStockPage] = useState(1);
+  const [reqPage, setReqPage] = useState(1);
+  const PAGE = 10;
+
+  const dateRange = getDateRange(datePreset, customFrom, customTo);
+
+  // Filter stocks by receivedDate
+  const allStocks = (supplier.stocks || []).filter(s =>
+    inRange(s.receivedDate || s.createdAt, dateRange)
+  );
+
+  // Paginate stocks
+  const stockTotal = allStocks.length;
+  const stockTotalPages = Math.max(1, Math.ceil(stockTotal / PAGE));
+  const pagedStocks = allStocks.slice((stockPage - 1) * PAGE, stockPage * PAGE);
+
+  // Group paged stocks by date
+  const grouped = pagedStocks.reduce((acc, s) => {
+    const key = s.receivedDate ? new Date(s.receivedDate).toISOString().slice(0, 10) : 'unknown';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(s);
+    return acc;
+  }, {});
+  const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+  const toggleDate = (k) => setExpandedDates(p => ({ ...p, [k]: !p[k] }));
+
+  useEffect(() => {
+    if (sortedDates.length > 0) setExpandedDates({ [sortedDates[0]]: true });
+  }, [stockPage, datePreset]);
+
+  // Reset pages when filter changes
+  useEffect(() => { setStockPage(1); setReqPage(1); }, [datePreset, customFrom, customTo]);
+
+  // Filter requisitions by createdAt
+  const allReqs = (supplier.requisitions || []).filter(r =>
+    inRange(r.createdAt, dateRange)
+  );
+  const reqTotal = allReqs.length;
+  const reqTotalPages = Math.max(1, Math.ceil(reqTotal / PAGE));
+  const pagedReqs = allReqs.slice((reqPage - 1) * PAGE, reqPage * PAGE);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* â"€â"€ Stock Items â"€â"€ */}
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', color: 'var(--fg-subtle)', textTransform: 'uppercase' }}>Stock Items</span>
+            <span style={{ fontSize: 11, color: 'var(--fg-subtle)', fontFamily: 'var(--font-mono)' }}>{stockTotal} items</span>
+          </div>
+          <div className="stoq-segment">
+            <button data-active={stockView === 'table' ? 'true' : undefined} onClick={() => setStockView('table')} title="Table"><List size={13} /></button>
+            <button data-active={stockView === 'cards' ? 'true' : undefined} onClick={() => setStockView('cards')} title="Cards"><LayoutGrid size={13} /></button>
+          </div>
+        </div>
+
+        {allStocks.length === 0 ? (
+          <div className="stoq-empty stoq-panel">
+            <div className="stoq-empty__icon"><Package size={28} /></div>
+            <div className="stoq-empty__title">No stock items{datePreset ? ' in this period' : ' yet'}</div>
+          </div>
+
+        ) : stockView === 'table' ? (
+          <div className="stoq-panel">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+              {sortedDates.map(dateKey => {
+                const items = grouped[dateKey];
+                const isOpen = !!expandedDates[dateKey];
+                const groupTotal = items.reduce((s, i) => s + parseFloat(i.totalValue || 0), 0);
+                return (
+                  <div key={dateKey} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <button type="button" onClick={() => toggleDate(dateKey)}
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'transparent', border: 'none', cursor: 'pointer', gap: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: isOpen ? 'var(--accent)' : 'var(--border-strong)', flexShrink: 0, display: 'inline-block' }} />
+                        <span style={{ fontSize: 12, fontWeight: 600 }}>{fmtDateGroup(dateKey)}</span>
+                        <span className="stoq-badge stoq-badge--plain">{items.length} item{items.length !== 1 ? 's' : ''}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg-muted)', fontFamily: 'var(--font-mono)' }}>{fmt(groupTotal)}</span>
+                        <ChevronDown size={14} style={{ color: 'var(--fg-subtle)', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+                      </div>
+                    </button>
+                    {isOpen && (
+                      <div className="table-wrap" style={{ borderTop: '1px solid var(--border)' }}>
+                        <table className="stoq-tbl">
+                          <thead>
+                            <tr>{['SKU', 'Item Name', 'Qty', 'Unit', 'Unit Cost', 'Total', 'Site'].map(h => <th key={h} className="no-sort">{h}</th>)}</tr>
+                          </thead>
+                          <tbody>
+                            {items.map(item => (
+                              <tr key={item.id}>
+                                <td><span className="cell-stack__sub" style={{ display: 'inline' }}>{item.sku}</span></td>
+                                <td><span className="cell-stack__main">{item.itemName}</span></td>
+                                <td>{item.quantity}</td>
+                                <td style={{ color: 'var(--fg-subtle)' }}>{item.unit}</td>
+                                <td className="num-cell">{fmt(item.unitCost)}</td>
+                                <td className="num-cell" style={{ fontWeight: 700 }}>{fmt(item.totalValue)}</td>
+                                <td style={{ color: 'var(--fg-subtle)' }}>{item.site?.name || 'â€"'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <Pagination page={stockPage} totalPages={stockTotalPages} total={stockTotal} onPage={setStockPage} label="items" />
+          </div>
+
+        ) : (
+          <div className="stoq-panel">
+            <div style={{ padding: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 'var(--gap-card)' }}>
+              {pagedStocks.map(item => (
+                <div key={item.id} style={{ background: 'var(--bg-sunk)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', padding: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-subtle)' }}>{item.sku}</span>
+                    {item.quantity === 0
+                      ? <span className="stoq-badge stoq-badge--danger">Out</span>
+                      : item.quantity <= (item.reorderLevel ?? 0)
+                        ? <span className="stoq-badge stoq-badge--warning">Low</span>
+                        : null}
+                  </div>
+                  <div style={{ fontWeight: 600, fontSize: 12, lineHeight: 1.3, marginBottom: 4 }}>{item.itemName}</div>
+                  <div style={{ fontSize: 10, color: 'var(--fg-subtle)', marginBottom: 10 }}>{item.category?.name || 'â€"'} Â· {item.site?.name || 'â€"'}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em' }}>
+                      {item.quantity} <span style={{ fontSize: 10, color: 'var(--fg-subtle)', fontWeight: 400 }}>{item.unit}</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--fg-muted)', fontFamily: 'var(--font-mono)' }}>{fmt(item.totalValue)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <Pagination page={stockPage} totalPages={stockTotalPages} total={stockTotal} onPage={setStockPage} label="items" />
+          </div>
+        )}
+      </div>
+
+      {/* â"€â"€ Requisitions â"€â"€ */}
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', color: 'var(--fg-subtle)', textTransform: 'uppercase' }}>Linked Requisitions</span>
+          <span style={{ fontSize: 11, color: 'var(--fg-subtle)', fontFamily: 'var(--font-mono)' }}>{reqTotal} total</span>
+        </div>
+
+        {allReqs.length === 0 ? (
+          <div className="stoq-empty stoq-panel">
+            <div className="stoq-empty__icon"><FileText size={28} /></div>
+            <div className="stoq-empty__title">No requisitions{datePreset ? ' in this period' : ' linked'}</div>
+          </div>
+        ) : (
+          <div className="stoq-panel">
+            <div className="table-wrap">
+              <table className="stoq-tbl">
+                <thead>
+                  <tr>{['ID', 'Date', 'Employee', 'Items', 'Status'].map(h => <th key={h} className="no-sort">{h}</th>)}</tr>
+                </thead>
+                <tbody>
+                  {pagedReqs.map(req => {
+                    const badgeCls = REQ_BADGE[req.status] || 'stoq-badge';
+                    const label = { PENDING: 'Pending', APPROVED: 'Approved', PARTIALLY_RECEIVED: 'Partial', FULLY_RECEIVED: 'Received', REJECTED: 'Rejected' }[req.status] || req.status;
+                    return (
+                      <tr key={req.id}>
+                        <td><span className="cell-stack__sub" style={{ display: 'inline' }}>#{req.id.slice(-6).toUpperCase()}</span></td>
+                        <td>{fmtDate(req.createdAt)}</td>
+                        <td><span className="cell-stack__main">{req.employee ? `${req.employee.firstName} ${req.employee.lastName}` : 'â€"'}</span></td>
+                        <td>{req.items?.length ?? req._count?.items ?? 0}</td>
+                        <td><span className={badgeCls}>{label}</span></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <Pagination page={reqPage} totalPages={reqTotalPages} total={reqTotal} onPage={setReqPage} label="requisitions" />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// â"€â"€â"€ Tab: Finance â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+
+const PAGE_SIZE = 20;
+
+function groupByDate(payments) {
+  const groups = {};
+  for (const p of payments) {
+    const key = new Date(p.date).toISOString().slice(0, 10);
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(p);
+  }
+  return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
+}
+
+// ── Payment row (shared between both sub-tabs) ────────────────────────────────
+function PaymentRow({ p, supplier, onReceipt }) {
+  const isCredit = p.type === 'CREDIT';
+  return (
+    <tr key={p.id}>
+      <td style={{ width: 70 }}>
+        <span className={isCredit ? 'stoq-badge stoq-badge--warning' : 'stoq-badge stoq-badge--success'}>
+          {isCredit ? 'Credit' : 'Debit'}
+        </span>
+      </td>
+      <td>
+        {p.reference && <span className="cell-stack__main">{p.reference}</span>}
+        {p.notes && <span className="cell-stack__sub">{p.notes}</span>}
+        {!p.reference && !p.notes && <span style={{ color: 'var(--fg-subtle)', fontStyle: 'italic' }}>No reference</span>}
+      </td>
+      <td style={{ width: 120 }}>
+        {p.stock
+          ? <span className="stoq-badge stoq-badge--plain" style={{ fontFamily: 'var(--font-mono)' }}>{p.stock.sku}</span>
+          : p.requisitionItem
+            ? <span style={{ fontSize: 11, color: 'var(--fg-muted)' }}>{p.requisitionItem.itemName}</span>
+            : <span style={{ color: 'var(--fg-subtle)' }}>—</span>}
+      </td>
+      <td className="num-cell" style={{ width: 130, fontWeight: 700, color: isCredit ? 'var(--warning)' : 'var(--success)' }}>
+        {isCredit ? '+' : '−'} {fmt(p.amount)}
+      </td>
+      <td style={{ width: 36 }}>
+        <button className="stoq-btn stoq-btn--sm stoq-btn--icon" title="View Receipt"
+          onClick={() => onReceipt(buildPaymentReceipt(p, supplier.name))}>
+          <FileText size={12} />
+        </button>
+      </td>
+    </tr>
+  );
+}
+
+function TabFinance({ supplier, onRecordPayment }) {
+  const summary = supplier.paymentSummary || { totalCredit: 0, totalDebit: 0, balance: 0 };
+  const balance = summary.balance;
+  const [receipt, setReceipt] = useState(null);
+  const [financeTab, setFinanceTab] = useState('payments'); // 'payments' | 'requisitions'
+  const [page, setPage] = useState(1);
+
+  // Use new split data from backend; fall back to legacy `payments` array
+  const normalPayments = supplier.normalPayments || supplier.payments || [];
+  const requisitionGroups = supplier.requisitionGroups || [];
+
+  // Reset page when switching sub-tabs
+  const switchTab = (t) => { setFinanceTab(t); setPage(1); };
+
+  // Paginate normal payments
+  const totalPages = Math.max(1, Math.ceil(normalPayments.length / PAGE_SIZE));
+  const paged = normalPayments.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const groups = groupByDate(paged);
+
+  return (
+    <>
+      {receipt && <ReceiptModal data={receipt} onClose={() => setReceipt(null)} />}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+        {/* KPI summary */}
+        <div className="kpi-grid kpi-grid--3">
+          <div className="kpi">
+            <div className="kpi__label">
+              <span className="kpi__icon" data-tone="warning"><ArrowUpCircle size={12} /></span>
+              Total Invoiced
+            </div>
+            <div className="kpi__value" style={{ fontSize: 20 }}>{fmt(summary.totalCredit)}</div>
+            <div className="kpi__foot">Amount owed to supplier</div>
+          </div>
+          <div className="kpi">
+            <div className="kpi__label">
+              <span className="kpi__icon"><ArrowDownCircle size={12} /></span>
+              Total Paid
+            </div>
+            <div className="kpi__value" style={{ fontSize: 20 }}>{fmt(summary.totalDebit)}</div>
+            <div className="kpi__foot">Payments made to date</div>
+          </div>
+          <div className="kpi">
+            <div className="kpi__label">
+              <span className="kpi__icon" data-tone={balance > 0 ? 'warning' : undefined}><CreditCard size={12} /></span>
+              Balance Remaining
+            </div>
+            <div className="kpi__value" style={{ fontSize: 20, color: balance > 0 ? 'var(--danger)' : balance < 0 ? 'var(--success)' : 'var(--fg)' }}>
+              {fmt(balance)}
+            </div>
+            <div className="kpi__foot">
+              {balance > 0 ? 'Still owed to supplier' : balance < 0 ? 'Overpaid / Credit' : 'Fully settled'}
+            </div>
+          </div>
+        </div>
+
+        {/* Sub-tab header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+          <div className="stoq-segment">
+            <button data-active={financeTab === 'payments' ? 'true' : undefined} onClick={() => switchTab('payments')}>
+              Stock Payments
+              <span style={{ marginLeft: 5, fontSize: 10, color: 'var(--fg-subtle)' }}>({normalPayments.length})</span>
+            </button>
+            <button data-active={financeTab === 'requisitions' ? 'true' : undefined} onClick={() => switchTab('requisitions')}>
+              Requisitions
+              <span style={{ marginLeft: 5, fontSize: 10, color: 'var(--fg-subtle)' }}>({requisitionGroups.length})</span>
+            </button>
+          </div>
+          <button className="stoq-btn stoq-btn--primary stoq-btn--sm" onClick={onRecordPayment}>
+            <Plus size={12} /> Record Transaction
+          </button>
+        </div>
+
+        {/* ── STOCK PAYMENTS SUB-TAB ── */}
+        {financeTab === 'payments' && (
+          normalPayments.length === 0 ? (
+            <div className="stoq-empty" style={{ border: '1px dashed var(--border)', borderRadius: 'var(--r-md)' }}>
+              <CreditCard size={28} className="stoq-empty__icon" />
+              <div className="stoq-empty__title">No stock payments yet</div>
+              <div>Record an invoice or payment to start tracking</div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {groups.map(([dateKey, items]) => {
+                const dayCredit = items.filter(p => p.type === 'CREDIT').reduce((s, p) => s + parseFloat(p.amount), 0);
+                const dayDebit  = items.filter(p => p.type === 'DEBIT').reduce((s, p) => s + parseFloat(p.amount), 0);
+                return (
+                  <div key={dateKey} className="stoq-panel">
+                    <div style={{ padding: '8px 14px', borderBottom: '1px solid var(--border)', background: 'var(--bg-sunk)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg)' }}>{fmtDateGroup(dateKey)}</span>
+                      <div style={{ display: 'flex', gap: 12, fontSize: 11 }}>
+                        {dayCredit > 0 && <span style={{ color: 'var(--warning)', fontWeight: 600 }}>+{fmt(dayCredit)}</span>}
+                        {dayDebit > 0  && <span style={{ color: 'var(--success)', fontWeight: 600 }}>−{fmt(dayDebit)}</span>}
+                      </div>
+                    </div>
+                    <div className="table-wrap">
+                      <table className="stoq-tbl">
+                        <tbody>
+                          {items.map(p => <PaymentRow key={p.id} p={p} supplier={supplier} onReceipt={setReceipt} />)}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0' }}>
+                  <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>
+                    Page {page} of {totalPages} · {normalPayments.length} transactions
+                  </span>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button className="stoq-btn stoq-btn--icon" disabled={page <= 1} style={{ opacity: page <= 1 ? 0.4 : 1 }} onClick={() => setPage(p => p - 1)}>
+                      <ChevronLeft size={13} />
+                    </button>
+                    <button className="stoq-btn stoq-btn--icon" disabled={page >= totalPages} style={{ opacity: page >= totalPages ? 0.4 : 1 }} onClick={() => setPage(p => p + 1)}>
+                      <ChevronRight size={13} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Net balance footer */}
+              <div style={{ padding: '10px 14px', borderRadius: 'var(--r-md)', border: '1px solid var(--border)', background: 'var(--bg-sunk)', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>Net Balance</span>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, color: balance > 0 ? 'var(--danger)' : 'var(--success)' }}>
+                  {fmt(balance)}
+                </span>
+              </div>
+            </div>
+          )
+        )}
+
+        {/* ── REQUISITIONS SUB-TAB ── */}
+        {financeTab === 'requisitions' && (
+          requisitionGroups.length === 0 ? (
+            <div className="stoq-empty" style={{ border: '1px dashed var(--border)', borderRadius: 'var(--r-md)' }}>
+              <FileText size={28} className="stoq-empty__icon" />
+              <div className="stoq-empty__title">No requisition payments yet</div>
+              <div>Payments are created automatically when requisition items are received</div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {requisitionGroups.map(group => {
+                const groupTotal = group.items.reduce((s, p) => {
+                  return p.type === 'CREDIT' ? s + parseFloat(p.amount) : s - parseFloat(p.amount);
+                }, 0);
+                const reqLabel = `REQ-${(group.requisitionId || '').slice(-6).toUpperCase()}`;
+                const reqStatus = group.requisition?.status;
+                const REQ_BADGE_MAP = {
+                  PENDING: 'stoq-badge stoq-badge--warning',
+                  APPROVED: 'stoq-badge stoq-badge--accent',
+                  PARTIALLY_RECEIVED: 'stoq-badge stoq-badge--warning',
+                  FULLY_RECEIVED: 'stoq-badge stoq-badge--success',
+                  REJECTED: 'stoq-badge stoq-badge--danger',
+                };
+                return (
+                  <div key={group.requisitionId} className="stoq-panel">
+                    {/* Requisition group header */}
+                    <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', background: 'var(--bg-sunk)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 13, color: 'var(--fg)' }}>
+                          {reqLabel}
+                        </span>
+                        {reqStatus && (
+                          <span className={REQ_BADGE_MAP[reqStatus] || 'stoq-badge'}>
+                            {reqStatus.replace(/_/g, ' ')}
+                          </span>
+                        )}
+                        <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>
+                          {group.items.length} payment{group.items.length !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        {group.requisition?.createdAt && (
+                          <span style={{ fontSize: 11, color: 'var(--fg-subtle)', fontFamily: 'var(--font-mono)' }}>
+                            {fmtDate(group.requisition.createdAt)}
+                          </span>
+                        )}
+                        <span style={{ fontSize: 12, fontWeight: 700, color: groupTotal >= 0 ? 'var(--warning)' : 'var(--success)' }}>
+                          {groupTotal >= 0 ? '+' : '−'}{fmt(Math.abs(groupTotal))}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="table-wrap">
+                      <table className="stoq-tbl">
+                        <thead>
+                          <tr>
+                            <th className="no-sort" style={{ width: 70 }}>Type</th>
+                            <th className="no-sort">Item</th>
+                            <th className="no-sort" style={{ width: 80 }}>Qty</th>
+                            <th className="no-sort num-cell" style={{ width: 130 }}>Amount</th>
+                            <th className="no-sort" style={{ width: 36 }}></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {group.items.map(p => {
+                            const isCredit = p.type === 'CREDIT';
+                            return (
+                              <tr key={p.id}>
+                                <td>
+                                  <span className={isCredit ? 'stoq-badge stoq-badge--warning' : 'stoq-badge stoq-badge--success'}>
+                                    {isCredit ? 'Credit' : 'Debit'}
+                                  </span>
+                                </td>
+                                <td>
+                                  <span className="cell-stack__main">
+                                    {p.requisitionItem?.itemName || p.reference || '—'}
+                                  </span>
+                                  {p.notes && <span className="cell-stack__sub">{p.notes}</span>}
+                                </td>
+                                <td style={{ color: 'var(--fg-muted)', fontSize: 11 }}>
+                                  {p.quantity != null ? `${p.quantity} ${p.requisitionItem?.unit || ''}` : '—'}
+                                </td>
+                                <td className="num-cell" style={{ fontWeight: 700, color: isCredit ? 'var(--warning)' : 'var(--success)' }}>
+                                  {isCredit ? '+' : '−'} {fmt(p.amount)}
+                                </td>
+                                <td>
+                                  <button className="stoq-btn stoq-btn--sm stoq-btn--icon" title="View Receipt"
+                                    onClick={() => setReceipt(buildPaymentReceipt(p, supplier.name))}>
+                                    <FileText size={12} />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
+        )}
+
+      </div>
+    </>
+  );
+}
+
+// â"€â"€â"€ Main Page â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+
+const TABS = [
+  { id: 'info', label: 'Info', icon: Building2 },
+  { id: 'items', label: 'Items & Requisitions', icon: Package },
+  { id: 'finance', label: 'Finance', icon: CreditCard },
+];
+
+export default function SupplierDetail() {
+  const navigate = useNavigate();
+  const { path } = useRole();
+  const { id } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const [supplier, setSupplier] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'info');
+  const [showPayment, setShowPayment] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  // Date filter â€" persisted in URL
+  const datePreset  = searchParams.get('date') || '';
+  const customFrom  = searchParams.get('from') || '';
+  const customTo    = searchParams.get('to')   || '';
+
+  const setParam = (key, val) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (val) next.set(key, val); else next.delete(key);
+      return next;
+    }, { replace: true });
+  };
+
+  const handlePreset = (val) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (val) next.set('date', val); else next.delete('date');
+      next.delete('from');
+      next.delete('to');
+      return next;
+    }, { replace: true });
+  };
+
+  const handleTab = (tab) => {
+    setActiveTab(tab);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', tab);
+      return next;
+    }, { replace: true });
+  };
+
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await supplierService.getOne(id);
+      setSupplier(data);
+    } catch {
+      showToast('Failed to load supplier details', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (loading) return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', color: 'var(--fg-subtle)', gap: 10 }}>
+      <RefreshCw size={24} style={{ animation: 'spin 1s linear infinite' }} />
+      <span style={{ fontSize: 12 }}>Loading supplier detailsâ€¦</span>
+    </div>
+  );
+
+  if (!supplier) return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', color: 'var(--fg-subtle)', gap: 10 }}>
+      <AlertCircle size={24} style={{ color: 'var(--danger)' }} />
+      <span style={{ fontSize: 12 }}>Supplier not found</span>
+      <button className="stoq-btn stoq-btn--ghost" onClick={() => navigate(path('/suppliers'))}>
+        â† Back to Suppliers
+      </button>
+    </div>
+  );
+
+  const statusLabel = { ACTIVE: 'Active', INACTIVE: 'Inactive', SUSPENDED: 'Suspended' }[supplier.status] || supplier.status;
+  const statusBadge = STATUS_BADGE[supplier.status] || 'stoq-badge';
+
+  return (
+    <div style={{ padding: '20px 24px 32px' }}>
+      {toast && (
+        <div className={`stoq-toast ${toast.type === 'error' ? 'stoq-toast--error' : 'stoq-toast--success'}`}
+          style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {toast.type === 'error' ? <AlertCircle size={13} /> : <CheckCircle size={13} />}
+          {toast.message}
+        </div>
+      )}
+
+      {/* Page header */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 20 }}>
+        <button className="icon-btn" onClick={() => navigate(path('/suppliers'))} style={{ marginTop: 2, flexShrink: 0 }}>
+          <ArrowLeft size={14} />
+        </button>
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="stoq-crumbs" style={{ marginBottom: 6 }}>
+            <span>Suppliers</span>
+            <span className="stoq-crumbs__sep">/</span>
+            <span className="stoq-crumbs__current">{supplier.name}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', margin: 0, color: 'var(--fg)' }}>
+              {supplier.name}
+            </h1>
+            <code style={{ fontSize: 11, fontFamily: 'var(--font-mono)', background: 'var(--bg-sunk)', border: '1px solid var(--border)', borderRadius: 'var(--r-xs)', padding: '2px 6px', color: 'var(--fg-subtle)' }}>
+              {supplier.code}
+            </code>
+            <span className={statusBadge}>{statusLabel}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 6, flexWrap: 'wrap' }}>
+            <StarRating rating={supplier.rating} />
+            {supplier.city && (
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--fg-subtle)' }}>
+                <MapPin size={11} /> {supplier.city}{supplier.country ? `, ${supplier.country}` : ''}
+              </span>
+            )}
+            {supplier.email && (
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--fg-subtle)' }}>
+                <Mail size={11} /> {supplier.email}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <button className="stoq-btn" onClick={() => navigate(path(`/suppliers/edit/${supplier.id}`))} style={{ flexShrink: 0 }}>
+          <Edit2 size={13} /> Edit
+        </button>
+      </div>
+
+      {/* Date filter â€" shown on items tab */}
+      {activeTab === 'items' && (
+        <DateFilterBar
+          preset={datePreset}
+          customFrom={customFrom}
+          customTo={customTo}
+          onPreset={handlePreset}
+          onCustomFrom={v => setParam('from', v)}
+          onCustomTo={v => setParam('to', v)}
+        />
+      )}
+
+      {/* Tabs */}
+      <div className="stoq-tabs">
+        {TABS.map(tab => {
+          const Icon = tab.icon;
+          return (
+            <button key={tab.id}
+              className="stoq-tab"
+              data-active={activeTab === tab.id ? 'true' : 'false'}
+              onClick={() => handleTab(tab.id)}>
+              <Icon size={13} /> {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {activeTab === 'info' && <TabInfo supplier={supplier} />}
+      {activeTab === 'items' && (
+        <TabItems
+          supplier={supplier}
+          datePreset={datePreset}
+          customFrom={customFrom}
+          customTo={customTo}
+        />
+      )}
+      {activeTab === 'finance' && (
+        <TabFinance supplier={supplier} onRecordPayment={() => setShowPayment(true)} />
+      )}
+
+      {showPayment && (
+        <PaymentModal
+          supplierId={supplier.id}
+          stocks={supplier.stocks}
+          onClose={() => setShowPayment(false)}
+          onSuccess={(msg) => { showToast(msg); load(); }}
+        />
+      )}
+    </div>
+  );
+}
+

@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Save, AlignLeft, Layers } from 'lucide-react';
+import { ArrowLeft, Save, AlignLeft, Layers, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
 import categoryService from '../../../services/categoryService';
+import { useRole } from '../../../hooks/useRole';
 
 export default function AddEditCategory() {
   const navigate = useNavigate();
+  const { path } = useRole();
   const { id } = useParams();
   const isEdit = Boolean(id);
 
@@ -23,11 +25,10 @@ export default function AddEditCategory() {
     if (!isEdit) return;
     setLoading(true);
     categoryService.getAll().then(data => {
-      // categoryService doesn't have a getOne in this setup, so we find it from getAll
       const lists = Array.isArray(data) ? data : data.categories || [];
       const item = lists.find(c => c.id === id);
       if (item) setForm({ name: item.name, description: item.description || '' });
-      else throw new Error("Category Not found");
+      else throw new Error('Not found');
     }).catch(() => showToast('Failed to load category', 'error'))
       .finally(() => setLoading(false));
   }, [id, isEdit]);
@@ -43,7 +44,6 @@ export default function AddEditCategory() {
     e.preventDefault();
     if (!validate()) return;
     setSubmitting(true);
-    
     try {
       if (isEdit) {
         await categoryService.update(id, form);
@@ -52,7 +52,7 @@ export default function AddEditCategory() {
         await categoryService.create(form);
         showToast('Category created successfully');
       }
-      setTimeout(() => navigate('/admin/categories'), 900);
+      setTimeout(() => navigate(path('/categories')), 900);
     } catch (err) {
       showToast(err.response?.data?.message || 'Failed to save category', 'error');
     } finally {
@@ -60,69 +60,108 @@ export default function AddEditCategory() {
     }
   };
 
-  const inputClass = (field) => 
-    `w-full pl-10 pr-4 py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 font-medium transition-shadow ${errors[field] ? 'border-red-300' : 'border-slate-200'}`;
-
-  if (loading) return <div className="p-8 text-center text-slate-400 font-bold">Loading...</div>;
+  if (loading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40vh', gap: 10, color: 'var(--fg-subtle)' }}>
+      <RefreshCw size={18} style={{ animation: 'spin 1s linear infinite' }} />
+      <span style={{ fontSize: 12 }}>Loadingâ€¦</span>
+    </div>
+  );
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-6">
+    <div style={{ padding: '20px 24px 40px' }}>
       {toast && (
-        <div className={`fixed top-6 right-6 z-[100] px-4 py-3 rounded-xl shadow-lg text-sm font-semibold text-white ${toast.type === 'error' ? 'bg-red-500' : 'bg-emerald-500'}`}>
+        <div className={`stoq-toast ${toast.type === 'error' ? 'stoq-toast--error' : 'stoq-toast--success'}`}
+          style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {toast.type === 'error' ? <AlertCircle size={13} /> : <CheckCircle size={13} />}
           {toast.message}
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <button onClick={() => navigate('/admin/categories')} className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors bg-white shadow-sm">
-          <ArrowLeft size={18} />
-        </button>
-        <div>
-          <h1 className="text-2xl font-black text-slate-800 tracking-tight">{isEdit ? 'Edit Category' : 'Create Category'}</h1>
-          <p className="text-sm font-medium text-slate-500 tracking-wide mt-0.5">Manage inventory classification fields.</p>
+      {/* Page head */}
+      <div className="page-head">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button className="icon-btn" onClick={() => navigate(path('/categories'))}>
+            <ArrowLeft size={14} />
+          </button>
+          <div>
+            <h1>{isEdit ? 'Edit Category' : 'New Category'}</h1>
+            <div className="page-head__sub">Manage inventory classification</div>
+          </div>
+        </div>
+        <div className="page-head__actions">
+          <button type="button" className="stoq-btn" onClick={() => navigate(path('/categories'))}>Cancel</button>
+          <button type="button" className="stoq-btn stoq-btn--primary" disabled={submitting}
+            onClick={handleSubmit} style={{ opacity: submitting ? 0.6 : 1 }}>
+            {submitting
+              ? <><RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Savingâ€¦</>
+              : <><Save size={13} /> {isEdit ? 'Save Changes' : 'Create Category'}</>}
+          </button>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        
-        {/* Detail Input Mapping */}
-        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-8 space-y-6">
-          <div>
-            <label className="block text-sm font-bold text-slate-700 mb-2">Category Name <span className="text-red-500">*</span></label>
-            <div className="relative">
-              <Layers size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                className={inputClass('name')} placeholder="e.g. Electronics, Raw Materials" />
+      <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 14, alignItems: 'start' }}>
+        {/* Main panel */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className="stoq-panel">
+            <div className="stoq-panel__head">
+              <span className="stoq-panel__title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className="kpi__icon"><Layers size={13} /></span>
+                Category Details
+              </span>
             </div>
-            {errors.name && <p className="text-xs text-red-500 mt-1 font-bold">{errors.name}</p>}
-          </div>
+            <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div className="stoq-field">
+                <label className="stoq-field__label">
+                  Category Name <span style={{ color: 'var(--danger)' }}>*</span>
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <Layers size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-subtle)', pointerEvents: 'none' }} />
+                  <input
+                    className="stoq-input"
+                    value={form.name}
+                    onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                    placeholder="e.g. Electronics, Raw Materials"
+                    style={{ paddingLeft: 30, ...(errors.name ? { borderColor: 'var(--danger)' } : {}) }}
+                  />
+                </div>
+                {errors.name && (
+                  <span style={{ fontSize: 11, color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <AlertCircle size={11} /> {errors.name}
+                  </span>
+                )}
+              </div>
 
-          <div>
-            <label className="block text-sm font-bold text-slate-700 mb-2">Description <span className="text-slate-400 font-normal">(Optional)</span></label>
-            <div className="relative">
-              <AlignLeft size={18} className="absolute left-3.5 top-4 text-slate-400" />
-              <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                rows={5} className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none font-medium text-slate-700" 
-                placeholder="Write a brief category purpose definition..." />
+              <div className="stoq-field">
+                <label className="stoq-field__label">Description <span style={{ color: 'var(--fg-subtle)', fontWeight: 400 }}>(optional)</span></label>
+                <div style={{ position: 'relative' }}>
+                  <AlignLeft size={13} style={{ position: 'absolute', left: 10, top: 10, color: 'var(--fg-subtle)', pointerEvents: 'none' }} />
+                  <textarea
+                    className="stoq-input"
+                    value={form.description}
+                    onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                    rows={5}
+                    placeholder="Brief description of what this category coversâ€¦"
+                    style={{ height: 'auto', padding: '8px 10px 8px 30px', resize: 'vertical', lineHeight: 1.6 }}
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Action Tray */}
-        <div className="flex justify-end gap-3 pt-2">
-          <button type="button" onClick={() => navigate('/admin/categories')}
-            className="px-6 py-3 rounded-xl bg-slate-100 text-slate-700 text-sm font-bold hover:bg-slate-200 transition-colors shadow-sm">
-            Cancel
-          </button>
-          <button type="submit" disabled={submitting}
-            className="flex items-center gap-2 px-8 py-3 rounded-xl bg-primary text-white text-sm font-black hover:opacity-90 disabled:opacity-60 shadow-md transition-all active:scale-95">
-            <Save size={18} />
-            {submitting ? 'Saving...' : 'Save Category'}
-          </button>
+        {/* Sidebar */}
+        <div className="stoq-panel" style={{ background: 'var(--bg-sunk)' }}>
+          <div style={{ padding: '12px 14px' }}>
+            <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', color: 'var(--fg-subtle)', textTransform: 'uppercase', marginBottom: 8 }}>
+              About Categories
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--fg-muted)', lineHeight: 1.6 }}>
+              Categories help organise stock items for easier filtering and reporting. Each stock item can belong to one category.
+            </p>
+          </div>
         </div>
-
       </form>
     </div>
   );
 }
+

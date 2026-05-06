@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rwanda EBM Receipts</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #d0cfc8;
+    background-image:
+      radial-gradient(ellipse at 20% 50%, #c8c7c0 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 20%, #cac9c2 0%, transparent 50%);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 48px 24px;
+    font-family: 'Courier New', Courier, monospace;
+  }
+
+  h1.page-title {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 12px;
+    letter-spacing: 0.3em;
+    color: #888;
+    text-transform: uppercase;
+    margin-bottom: 36px;
+    font-weight: normal;
+  }
+
+  .receipts-wrapper {
+    display: flex;
+    gap: 40px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  /* ── Receipt shell ── */
+  .receipt {
+    width: 320px;
+    background: #fefdf8;
+    background-image:
+      repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 3px,
+        rgba(0,0,0,0.012) 3px,
+        rgba(0,0,0,0.012) 4px
+      );
+    box-shadow:
+      0 2px 4px rgba(0,0,0,0.08),
+      0 8px 24px rgba(0,0,0,0.12),
+      0 20px 48px rgba(0,0,0,0.08),
+      inset 0 0 0 1px rgba(0,0,0,0.04);
+    padding: 20px 18px 28px;
+    position: relative;
+    /* torn-paper top edge */
+    clip-path: polygon(
+      0% 0.4%, 2% 0%, 4% 0.6%, 6% 0.1%, 8% 0.5%,
+      10% 0%, 12% 0.4%, 14% 0%, 16% 0.6%, 18% 0.2%,
+      20% 0%, 22% 0.5%, 24% 0.1%, 26% 0.6%, 28% 0%,
+      30% 0.4%, 32% 0%, 34% 0.5%, 36% 0.1%, 38% 0.6%,
+      40% 0%, 42% 0.4%, 44% 0%, 46% 0.6%, 48% 0.2%,
+      50% 0%, 52% 0.5%, 54% 0.1%, 56% 0.6%, 58% 0%,
+      60% 0.4%, 62% 0%, 64% 0.5%, 66% 0.1%, 68% 0.6%,
+      70% 0%, 72% 0.4%, 74% 0%, 76% 0.6%, 78% 0.2%,
+      80% 0%, 82% 0.5%, 84% 0.1%, 86% 0.6%, 88% 0%,
+      90% 0.4%, 92% 0%, 94% 0.5%, 96% 0.1%, 98% 0.6%,
+      100% 0%,
+      100% 99.6%, 98% 100%, 96% 99.4%, 94% 100%, 92% 99.6%,
+      90% 100%, 88% 99.5%, 86% 100%, 84% 99.4%, 82% 100%,
+      80% 99.6%, 78% 100%, 76% 99.5%, 74% 100%, 72% 99.4%,
+      70% 100%, 68% 99.6%, 66% 100%, 64% 99.5%, 62% 100%,
+      60% 99.4%, 58% 100%, 56% 99.6%, 54% 100%, 52% 99.5%,
+      50% 100%, 48% 99.4%, 46% 100%, 44% 99.6%, 42% 100%,
+      40% 99.5%, 38% 100%, 36% 99.4%, 34% 100%, 32% 99.6%,
+      30% 100%, 28% 99.5%, 26% 100%, 24% 99.4%, 22% 100%,
+      20% 99.6%, 18% 100%, 16% 99.5%, 14% 100%, 12% 99.4%,
+      10% 100%, 8% 99.6%, 6% 100%, 4% 99.5%, 2% 100%, 0% 99.6%
+    );
+  }
+
+  /* ── Rwanda EBM circular stamp ── */
+  .ebm-stamp {
+    width: 64px;
+    height: 64px;
+    border: 2.5px solid #1a1a1a;
+    border-radius: 50%;
+    margin: 4px auto 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  .ebm-stamp::before {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border: 1px solid #1a1a1a;
+    border-radius: 50%;
+  }
+  .ebm-stamp .stamp-text-top {
+    font-size: 5.5px;
+    font-weight: bold;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: #1a1a1a;
+    margin-top: 2px;
+  }
+  .ebm-stamp .stamp-checkmark {
+    font-size: 18px;
+    line-height: 1;
+    color: #1a1a1a;
+    font-weight: bold;
+  }
+  .ebm-stamp .stamp-text-bot {
+    font-size: 5px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #1a1a1a;
+  }
+
+  /* ── Typography base ── */
+  .receipt-text {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 9px;
+    color: #1a1a1a;
+    line-height: 1.55;
+    text-transform: uppercase;
+  }
+
+  .company-name {
+    font-size: 11px;
+    font-weight: bold;
+    text-align: center;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .address-block {
+    font-size: 8.5px;
+    text-align: center;
+    line-height: 1.6;
+    color: #2a2a2a;
+    text-transform: uppercase;
+  }
+
+  /* ── Separator ── */
+  .sep {
+    border: none;
+    border-top: 1px dashed #555;
+    margin: 7px 0;
+  }
+  .sep-solid {
+    border: none;
+    border-top: 1px solid #333;
+    margin: 7px 0;
+  }
+  .sep-double {
+    border: none;
+    border-top: 2px solid #1a1a1a;
+    margin: 7px 0;
+  }
+
+  /* ── Key-value rows ── */
+  .kv {
+    display: flex;
+    justify-content: space-between;
+    font-size: 8.5px;
+    line-height: 1.55;
+    text-transform: uppercase;
+  }
+  .kv .k { color: #1a1a1a; }
+  .kv .v { color: #1a1a1a; font-weight: bold; text-align: right; max-width: 55%; }
+
+  .kv-full {
+    font-size: 8.5px;
+    line-height: 1.55;
+    text-transform: uppercase;
+  }
+
+  /* ── Item block ── */
+  .item-block {
+    margin-bottom: 6px;
+  }
+  .item-name {
+    font-size: 9px;
+    font-weight: bold;
+    text-transform: uppercase;
+  }
+  .item-code {
+    font-size: 8px;
+    color: #333;
+    text-transform: uppercase;
+  }
+  .item-price-row {
+    display: flex;
+    justify-content: flex-end;
+    font-size: 9px;
+    font-weight: bold;
+  }
+
+  /* ── Totals section ── */
+  .total-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 9px;
+    line-height: 1.7;
+    text-transform: uppercase;
+  }
+  .total-row.grand {
+    font-weight: bold;
+    font-size: 10px;
+  }
+  .total-row .label { color: #1a1a1a; }
+  .total-row .amount { font-weight: bold; }
+
+  /* ── Payment method ── */
+  .payment-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 9.5px;
+    font-weight: bold;
+    text-transform: uppercase;
+    margin: 4px 0;
+  }
+
+  /* ── Section header ── */
+  .section-header {
+    text-align: center;
+    font-size: 8.5px;
+    font-weight: bold;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin: 4px 0 3px;
+  }
+
+  /* ── SDC info ── */
+  .sdc-line {
+    font-size: 8px;
+    line-height: 1.6;
+    text-transform: uppercase;
+    word-break: break-all;
+  }
+  .sdc-line span { color: #1a1a1a; }
+  .sdc-code {
+    font-size: 8px;
+    letter-spacing: 0.05em;
+    word-break: break-all;
+    text-align: center;
+    color: #1a1a1a;
+    margin: 2px 0;
+  }
+
+  /* ── Receipt number big ── */
+  .receipt-number-big {
+    text-align: center;
+    font-size: 9px;
+    font-weight: bold;
+    margin: 3px 0;
+  }
+
+  /* ── Footer ── */
+  .footer-text {
+    text-align: center;
+    font-size: 8px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #444;
+    margin-top: 4px;
+  }
+  .footer-text.bold {
+    font-weight: bold;
+    font-size: 8.5px;
+    color: #1a1a1a;
+  }
+
+  /* ── QR code placeholder ── */
+  .qr-placeholder {
+    width: 72px;
+    height: 72px;
+    margin: 10px auto 4px;
+    position: relative;
+  }
+  .qr-placeholder svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  .item-number-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 8.5px;
+    font-weight: bold;
+    text-transform: uppercase;
+    margin: 2px 0;
+  }
+</style>
+</head>
+<body>
+
+<h1 class="page-title">Rwanda EBM · Legal Receipts</h1>
+
+<div class="receipts-wrapper">
+
+  <!-- ═══════════════════════════════════════════
+       RECEIPT 1 · B BRAVE PAINT Ltd
+  ════════════════════════════════════════════ -->
+  <div class="receipt receipt-text">
+
+    <!-- Stamp -->
+    <div class="ebm-stamp">
+      <div class="stamp-text-top">Rwanda</div>
+      <div class="stamp-checkmark">✓</div>
+      <div class="stamp-text-bot">EBM v2</div>
+    </div>
+
+    <!-- Company header -->
+    <div class="company-name">B BRAVE PAINT Ltd</div>
+    <div style="height:4px"></div>
+    <div class="address-block">
+      KIGALI CITY GASABO KIMIRONKO<br>
+      Gasabo - Kimironko<br>
+      TEL: 0785845110<br>
+      EMAIL: ndayemy2@gmail.com<br>
+      TIN: 121105387<br>
+      CASHIER: 121105387(121105387)
+    </div>
+
+    <hr class="sep-double" style="margin-top:10px">
+
+    <!-- Client info -->
+    <div class="kv"><span class="k">CLIENT TIN:</span><span class="v">103418026</span></div>
+    <div class="kv"><span class="k">CLIENT NAME:</span><span class="v">SEEGH LTD</span></div>
+
+    <hr class="sep">
+
+    <!-- Item -->
+    <div class="item-block">
+      <div class="item-name">IYG FAST DRY WHITE/4L</div>
+      <div class="item-code">RW2NTXL0000002</div>
+      <div class="item-price-row">
+        <span style="margin-right:auto;font-size:8px;font-weight:normal">28,000.00x3</span>
+        <span>84,000.00B-18%</span>
+      </div>
+    </div>
+
+    <hr class="sep">
+
+    <!-- Totals -->
+    <div class="total-row">
+      <span class="label">TOTAL</span>
+      <span class="amount">84,000.00</span>
+    </div>
+    <div class="total-row">
+      <span class="label">TOTAL A-EX</span>
+      <span class="amount">0.00</span>
+    </div>
+    <div class="total-row">
+      <span class="label">TOTAL B-18%</span>
+      <span class="amount">84,000.00</span>
+    </div>
+    <div class="total-row">
+      <span class="label">TOTAL TAX-B</span>
+      <span class="amount">12,813.56</span>
+    </div>
+    <div class="total-row grand">
+      <span class="label">TOTAL TAX</span>
+      <span class="amount">12,813.56</span>
+    </div>
+
+    <hr class="sep">
+
+    <!-- Payment -->
+    <div class="payment-row">
+      <span>MOBILE MONEY</span>
+      <span>84,000.00</span>
+    </div>
+
+    <hr class="sep">
+
+    <!-- Item number -->
+    <div class="item-number-row">
+      <span>ITEM NUMBER :</span>
+      <span>1</span>
+    </div>
+
+    <hr class="sep">
+
+    <!-- SDC Information -->
+    <div class="section-header">SDC INFORMATION</div>
+
+    <div class="sdc-line">Date: 11-04-2026 &nbsp; Time: 18:00:56</div>
+    <div class="sdc-line">SDC ID: SDC010058102</div>
+    <div class="sdc-line">RECEIPT NUMBER :&nbsp; 13214/13214N5</div>
+
+    <div style="height:4px"></div>
+    <div class="sdc-line" style="text-align:center">Internal Data :</div>
+    <div class="sdc-code">X3PW-DEB2-NQKK-IBGG-DWVU-H5ES-RM</div>
+
+    <div class="sdc-line" style="text-align:center">Receipt Signature :</div>
+    <div class="sdc-code">MVDH-G55I-QJX5-3QCI</div>
+
+    <hr class="sep">
+
+    <!-- Receipt number -->
+    <div class="kv">
+      <span class="k">RECEIPT NUMBER :</span>
+      <span class="v">13,411</span>
+    </div>
+    <div class="sdc-line">Date: 11-04-2026 &nbsp; Time: 18:00:56</div>
+    <div class="sdc-line">MRC: WIS00063610</div>
+
+    <hr class="sep-double">
+
+    <div class="footer-text bold">End of Legal Receipt</div>
+    <div class="footer-text">Powered by EBM v2</div>
+
+    <!-- QR code (SVG pixel art) -->
+    <div class="qr-placeholder">
+      <svg viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+        <!-- finder pattern TL -->
+        <rect x="0" y="0" width="7" height="7" fill="#1a1a1a"/>
+        <rect x="1" y="1" width="5" height="5" fill="#fefdf8"/>
+        <rect x="2" y="2" width="3" height="3" fill="#1a1a1a"/>
+        <!-- finder pattern TR -->
+        <rect x="14" y="0" width="7" height="7" fill="#1a1a1a"/>
+        <rect x="15" y="1" width="5" height="5" fill="#fefdf8"/>
+        <rect x="16" y="2" width="3" height="3" fill="#1a1a1a"/>
+        <!-- finder pattern BL -->
+        <rect x="0" y="14" width="7" height="7" fill="#1a1a1a"/>
+        <rect x="1" y="15" width="5" height="5" fill="#fefdf8"/>
+        <rect x="2" y="16" width="3" height="3" fill="#1a1a1a"/>
+        <!-- data dots (pseudo-random pattern) -->
+        <rect x="8" y="0" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="10" y="0" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="12" y="0" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="9" y="1" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="11" y="1" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="8" y="2" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="10" y="2" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="9" y="3" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="12" y="3" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="8" y="4" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="11" y="4" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="9" y="5" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="12" y="5" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="8" y="6" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="10" y="6" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="0" y="8" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="2" y="8" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="4" y="8" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="7" y="8" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="9" y="8" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="11" y="8" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="14" y="8" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="16" y="8" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="18" y="8" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="1" y="9" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="3" y="9" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="8" y="9" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="12" y="9" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="15" y="9" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="19" y="9" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="0" y="10" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="4" y="10" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="7" y="10" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="10" y="10" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="13" y="10" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="17" y="10" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="1" y="11" width="3" height="1" fill="#1a1a1a"/>
+        <rect x="6" y="11" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="9" y="11" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="14" y="11" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="16" y="11" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="20" y="11" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="0" y="12" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="3" y="12" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="7" y="12" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="10" y="12" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="13" y="12" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="18" y="12" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="8" y="14" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="10" y="14" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="13" y="14" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="15" y="14" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="19" y="14" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="9" y="15" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="12" y="15" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="14" y="15" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="17" y="15" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="8" y="16" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="11" y="16" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="16" y="16" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="18" y="16" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="9" y="17" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="13" y="17" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="15" y="17" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="19" y="17" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="8" y="18" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="10" y="18" width="3" height="1" fill="#1a1a1a"/>
+        <rect x="14" y="18" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="17" y="18" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="9" y="19" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="12" y="19" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="16" y="19" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="18" y="19" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="8" y="20" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="11" y="20" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="13" y="20" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="15" y="20" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="17" y="20" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="19" y="20" width="2" height="1" fill="#1a1a1a"/>
+        <!-- timing pattern (col 6 / row 6) -->
+        <rect x="6" y="8" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="6" y="10" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="6" y="12" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="8" y="6" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="10" y="6" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="12" y="6" width="1" height="1" fill="#1a1a1a"/>
+      </svg>
+    </div>
+
+  </div><!-- /receipt 1 -->
+
+
+  <!-- ═══════════════════════════════════════════
+       RECEIPT 2 · MUGI TRADING COMPANY
+  ════════════════════════════════════════════ -->
+  <div class="receipt receipt-text">
+
+    <!-- Stamp -->
+    <div class="ebm-stamp">
+      <div class="stamp-text-top">Rwanda</div>
+      <div class="stamp-checkmark">✓</div>
+      <div class="stamp-text-bot">EBM v2</div>
+    </div>
+
+    <!-- Company header -->
+    <div class="company-name">MUGI TRADING COMPANY Limited</div>
+    <div style="height:4px"></div>
+    <div class="address-block">
+      KIGALI CITY GASABO GISOZI Gasabo<br>
+      TEL: 0783140579<br>
+      EMAIL: nmelgue@gmail.com<br>
+      TIN: 103279961<br>
+      CASHIER: 103279961(103279961)
+    </div>
+
+    <hr class="sep-double" style="margin-top:10px">
+
+    <!-- Client info -->
+    <div class="kv"><span class="k">CLIENT TIN:</span><span class="v">103418026</span></div>
+    <div class="kv-full" style="font-size:8.5px;text-transform:uppercase;">
+      CLIENT NAME: SURVEILLANCE ETUDE<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;EXECUTION DES TRAVAUX<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DE GENIE C
+    </div>
+
+    <hr class="sep">
+
+    <!-- Items -->
+    <div class="item-block">
+      <div class="item-name">HANDLE 20&amp;25</div>
+      <div class="item-code">CN2CTXU0000006</div>
+      <div class="item-price-row">
+        <span style="margin-right:auto;font-size:8px;font-weight:normal">50,000.00x8</span>
+        <span>400,000.00B-</span>
+      </div>
+    </div>
+
+    <div class="item-block">
+      <div class="item-name">SLIDE RAILS RUNNERS</div>
+      <div class="item-code">RW2NTXNOX0001521</div>
+      <div class="item-price-row">
+        <span style="margin-right:auto;font-size:8px;font-weight:normal">18,000.00x80</span>
+        <span>1,440,000.00B-</span>
+      </div>
+    </div>
+
+    <div class="item-block">
+      <div class="item-name">WINDOW HANDLE</div>
+      <div class="item-code">CN2NTXU0000318</div>
+      <div class="item-price-row">
+        <span style="margin-right:auto;font-size:8px;font-weight:normal">7,500.00x22</span>
+        <span>165,000.00B-</span>
+      </div>
+    </div>
+
+    <div class="item-block">
+      <div class="item-name">DOOR HANDLE</div>
+      <div class="item-code">RW2NTXNOX0001508</div>
+      <div class="item-price-row">
+        <span style="margin-right:auto;font-size:8px;font-weight:normal">65,000.00x4</span>
+        <span>260,000.00B-</span>
+      </div>
+    </div>
+
+    <div class="item-block">
+      <div class="item-name">LOCKS</div>
+      <div class="item-code">AE2CTXU0000419</div>
+      <div class="item-price-row">
+        <span style="margin-right:auto;font-size:8px;font-weight:normal">6,500.00x1</span>
+        <span>6,500.00B-</span>
+      </div>
+    </div>
+
+    <hr class="sep">
+
+    <!-- Totals -->
+    <div class="total-row grand">
+      <span class="label">TOTAL</span>
+      <span class="amount">2,271,500</span>
+    </div>
+    <div class="total-row">
+      <span class="label">TOTAL A-EX</span>
+      <span class="amount">0</span>
+    </div>
+    <div class="total-row">
+      <span class="label">TOTAL B-18%</span>
+      <span class="amount">2,271,500</span>
+    </div>
+    <div class="total-row">
+      <span class="label">TOTAL TAX-B</span>
+      <span class="amount">346,500</span>
+    </div>
+    <div class="total-row grand">
+      <span class="label">TOTAL TAX</span>
+      <span class="amount">346,500</span>
+    </div>
+
+    <hr class="sep">
+
+    <!-- Payment -->
+    <div class="payment-row">
+      <span>CASH</span>
+      <span>2,271,500</span>
+    </div>
+
+    <hr class="sep">
+
+    <!-- Item number -->
+    <div class="item-number-row">
+      <span>ITEM NUMBER :</span>
+      <span>1</span>
+    </div>
+
+    <hr class="sep">
+
+    <!-- SDC Information -->
+    <div class="section-header">SDC INFORMATION</div>
+
+    <div class="sdc-line">Date: 17-03-2026 &nbsp; Time: 15:35</div>
+    <div class="sdc-line">SDC ID: SDC010008239</div>
+    <div class="sdc-line">RECEIPT NUMBER : &nbsp;2199/219</div>
+
+    <div style="height:4px"></div>
+    <div class="sdc-line" style="text-align:center">Internal Data :</div>
+    <div class="sdc-code">Y35L-Q84U-NH2A-NHDG-5KV2-MNTN-TU</div>
+
+    <div class="sdc-line" style="text-align:center">Receipt Signature :</div>
+    <div class="sdc-code">MAT6-NUAI-GBTB-TWZ0</div>
+
+    <hr class="sep">
+
+    <!-- Receipt number -->
+    <div class="kv">
+      <span class="k">RECEIPT NUMBER :</span>
+      <span class="v">2</span>
+    </div>
+    <div class="sdc-line">Date: 17-03-2026 &nbsp; Time: 15:35</div>
+    <div class="sdc-line">MRC: WIS000008801</div>
+
+    <hr class="sep-double">
+
+    <div class="footer-text bold">End of Legal Receipt</div>
+    <div class="footer-text">Powered by EBM v2</div>
+
+    <!-- QR code (SVG pixel art) -->
+    <div class="qr-placeholder">
+      <svg viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+        <!-- finder TL -->
+        <rect x="0" y="0" width="7" height="7" fill="#1a1a1a"/>
+        <rect x="1" y="1" width="5" height="5" fill="#fefdf8"/>
+        <rect x="2" y="2" width="3" height="3" fill="#1a1a1a"/>
+        <!-- finder TR -->
+        <rect x="14" y="0" width="7" height="7" fill="#1a1a1a"/>
+        <rect x="15" y="1" width="5" height="5" fill="#fefdf8"/>
+        <rect x="16" y="2" width="3" height="3" fill="#1a1a1a"/>
+        <!-- finder BL -->
+        <rect x="0" y="14" width="7" height="7" fill="#1a1a1a"/>
+        <rect x="1" y="15" width="5" height="5" fill="#fefdf8"/>
+        <rect x="2" y="16" width="3" height="3" fill="#1a1a1a"/>
+        <!-- data (different pattern for receipt 2) -->
+        <rect x="8" y="0" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="11" y="0" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="13" y="0" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="9" y="1" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="12" y="1" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="8" y="2" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="10" y="2" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="12" y="2" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="9" y="3" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="8" y="4" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="11" y="4" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="9" y="5" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="13" y="5" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="8" y="6" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="12" y="6" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="0" y="8" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="3" y="8" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="5" y="8" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="7" y="8" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="11" y="8" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="14" y="8" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="18" y="8" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="20" y="8" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="1" y="9" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="4" y="9" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="8" y="9" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="10" y="9" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="13" y="9" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="17" y="9" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="0" y="10" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="3" y="10" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="7" y="10" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="9" y="10" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="12" y="10" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="16" y="10" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="19" y="10" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="2" y="11" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="6" y="11" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="8" y="11" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="11" y="11" width="3" height="1" fill="#1a1a1a"/>
+        <rect x="15" y="11" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="20" y="11" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="1" y="12" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="4" y="12" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="7" y="12" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="10" y="12" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="14" y="12" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="17" y="12" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="9" y="14" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="11" y="14" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="14" y="14" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="18" y="14" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="8" y="15" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="12" y="15" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="16" y="15" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="19" y="15" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="9" y="16" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="13" y="16" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="15" y="16" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="18" y="16" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="8" y="17" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="11" y="17" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="14" y="17" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="17" y="17" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="20" y="17" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="9" y="18" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="12" y="18" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="16" y="18" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="19" y="18" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="8" y="19" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="10" y="19" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="13" y="19" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="17" y="19" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="9" y="20" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="12" y="20" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="14" y="20" width="2" height="1" fill="#1a1a1a"/>
+        <rect x="18" y="20" width="2" height="1" fill="#1a1a1a"/>
+        <!-- timing -->
+        <rect x="6" y="8" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="6" y="10" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="6" y="12" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="8" y="6" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="10" y="6" width="1" height="1" fill="#1a1a1a"/>
+        <rect x="12" y="6" width="1" height="1" fill="#1a1a1a"/>
+      </svg>
+    </div>
+
+  </div><!-- /receipt 2 -->
+
+</div><!-- /receipts-wrapper -->
+
+</body>
+</html>

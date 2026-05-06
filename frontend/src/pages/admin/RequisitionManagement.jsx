@@ -1,43 +1,49 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import {
   Search, Eye, CheckCircle, XCircle, Package, ChevronLeft, ChevronRight,
-  Clock, CheckCheck, FileText, Truck, Trash2, Plus,
+  Clock, CheckCheck, FileText, Truck, Trash2, Plus, LayoutGrid, List,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import requisitionService from '../../services/requisitionService';
+import { useRole } from '../../hooks/useRole';
 import { useSocketEvent } from '../../context/SocketContext';
+import Sparkline, { genSpark } from '../../components/Sparkline';
+import { useViewMode } from '../../hooks/useViewMode';
+
+const SPARK_SEEDS  = { PENDING: 4, APPROVED: 6, PARTIALLY_RECEIVED: 8, FULLY_RECEIVED: 2, REJECTED: 10 };
+const SPARK_COLORS = { PENDING: 'var(--fg-subtle)', APPROVED: 'var(--accent)', PARTIALLY_RECEIVED: 'var(--warning)', FULLY_RECEIVED: 'var(--success)', REJECTED: 'var(--danger)' };
 
 const PAGE_SIZE = 10;
 
 const STATUS_CONFIG = {
-  PENDING:            { label: 'Pending',            color: 'bg-amber-100 text-amber-700',    icon: Clock },
-  APPROVED:           { label: 'Approved',           color: 'bg-blue-100 text-blue-700',      icon: CheckCircle },
-  PARTIALLY_RECEIVED: { label: 'Partially Received', color: 'bg-orange-100 text-orange-700',  icon: Truck },
-  FULLY_RECEIVED:     { label: 'Fully Received',     color: 'bg-emerald-100 text-emerald-700',icon: CheckCheck },
-  REJECTED:           { label: 'Rejected',           color: 'bg-red-100 text-red-600',         icon: XCircle },
+  PENDING:            { label: 'Pending',            icon: Clock },
+  APPROVED:           { label: 'Approved',           icon: CheckCircle },
+  PARTIALLY_RECEIVED: { label: 'Partially Received', icon: Truck },
+  FULLY_RECEIVED:     { label: 'Fully Received',     icon: CheckCheck },
+  REJECTED:           { label: 'Rejected',           icon: XCircle },
+};
+
+const STATUS_BADGE = {
+  PENDING:            'stoq-badge',
+  APPROVED:           'stoq-badge stoq-badge--accent',
+  PARTIALLY_RECEIVED: 'stoq-badge stoq-badge--warning',
+  FULLY_RECEIVED:     'stoq-badge stoq-badge--success',
+  REJECTED:           'stoq-badge stoq-badge--danger',
 };
 
 function StatusBadge({ status }) {
   const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.PENDING;
-  const Icon = cfg.icon;
-  return (
-    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${cfg.color}`}>
-      <Icon size={11} /> {cfg.label}
-    </span>
-  );
+  return <span className={STATUS_BADGE[status] || 'stoq-badge'}>{cfg.label}</span>;
 }
 
 function Toast({ toast }) {
   if (!toast) return null;
-  return (
-    <div className={`fixed top-6 right-6 z-[100] px-4 py-3 rounded-xl shadow-lg text-sm font-semibold text-white transition-all ${toast.type === 'error' ? 'bg-red-500' : 'bg-emerald-500'}`}>
-      {toast.msg}
-    </div>
-  );
+  return <div className={`stoq-toast ${toast.type === 'error' ? 'stoq-toast--error' : 'stoq-toast--success'}`}>{toast.msg}</div>;
 }
 
 export default function RequisitionManagement() {
   const navigate = useNavigate();
+  const { path } = useRole();
   const [requisitions, setRequisitions] = useState([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -50,6 +56,7 @@ export default function RequisitionManagement() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [acting, setActing] = useState(false);
   const [toast, setToast] = useState(null);
+  const [viewMode, setViewMode, isSmallScreen] = useViewMode('admin-requisitions');
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -113,181 +120,229 @@ export default function RequisitionManagement() {
     }
   };
 
-  // Count by status from current page — just for stat cards visual
   const counts = Object.keys(STATUS_CONFIG).reduce((acc, key) => {
     acc[key] = requisitions.filter(r => r.status === key).length;
     return acc;
   }, {});
 
   return (
-    <div className="p-6 space-y-5">
+    <div>
       <Toast toast={toast} />
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* Page Head */}
+      <div className="page-head">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-800">Requisitions</h1>
-          <p className="text-sm text-slate-500 mt-0.5">{total} total requests</p>
+          <h1>Requisitions</h1>
+          <div className="page-head__sub">{total} total requests</div>
         </div>
-        <button
-          onClick={() => navigate('/admin/requisition-management/create')}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white text-sm font-bold hover:opacity-90 shadow transition-all">
-          <Plus size={15} /> New Requisition
-        </button>
+        <div className="page-head__actions">
+          <button className="stoq-btn stoq-btn--primary" onClick={() => navigate(path('/requisition-management/create'))}>
+            <Plus size={13} /> New Requisition
+          </button>
+        </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      {/* Status KPIs */}
+      <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)', marginBottom: 'var(--gap-card)' }}>
         {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
           const Icon = cfg.icon;
+          const active = statusFilter === key;
           return (
-            <button
+            <div
               key={key}
-              onClick={() => { setStatusFilter(statusFilter === key ? '' : key); setPage(1); }}
-              className={`p-4 rounded-xl border text-left transition-all ${statusFilter === key ? 'border-primary bg-primary/5 shadow-sm' : 'bg-white border-slate-100 hover:border-slate-200'}`}
+              className="kpi"
+              style={{ cursor: 'pointer', outline: active ? '2px solid var(--accent)' : 'none', outlineOffset: -2 }}
+              onClick={() => { setStatusFilter(active ? '' : key); setPage(1); }}
             >
-              <div className="flex items-center gap-2 mb-1">
-                <Icon size={15} className={statusFilter === key ? 'text-primary' : 'text-slate-400'} />
-                <span className="text-xs font-semibold text-slate-500 leading-tight">{cfg.label}</span>
+              <div className="kpi__label">
+                <span className="kpi__icon"><Icon size={11} /></span>
+                {cfg.label}
               </div>
-              <p className="text-2xl font-extrabold text-slate-800">{counts[key] ?? 0}</p>
-            </button>
+              <div className="kpi__value">{counts[key] ?? 0}</div>
+              <div className="kpi__foot"><span>{active ? 'filtered' : 'click to filter'}</span></div>
+              <Sparkline data={genSpark(SPARK_SEEDS[key], 14, 0)} color={SPARK_COLORS[key]} />
+            </div>
           );
         })}
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[220px]">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1); }}
-            placeholder="Search by employee or description..."
-            className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-          />
-        </div>
-        <select
-          value={statusFilter}
-          onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-          className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-        >
-          <option value="">All Status</option>
-          {Object.entries(STATUS_CONFIG).map(([k, v]) => (
-            <option key={k} value={k}>{v.label}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 border-b border-slate-100">
-            <tr>
-              <th className="text-left px-5 py-3 font-semibold text-slate-600">Employee</th>
-              <th className="text-left px-5 py-3 font-semibold text-slate-600 hidden sm:table-cell">Description</th>
-              <th className="text-left px-5 py-3 font-semibold text-slate-600">Items</th>
-              <th className="text-left px-5 py-3 font-semibold text-slate-600">Status</th>
-              <th className="text-left px-5 py-3 font-semibold text-slate-600 hidden md:table-cell">Date</th>
-              <th className="px-5 py-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={6} className="text-center py-12 text-slate-400">Loading...</td></tr>
-            ) : requisitions.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="text-center py-16">
-                  <FileText size={40} className="mx-auto text-slate-200 mb-2" />
-                  <p className="text-slate-400 font-medium">No requisitions found</p>
-                </td>
-              </tr>
-            ) : requisitions.map(req => (
-              <tr key={req.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                <td className="px-5 py-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary text-xs font-bold">
-                      {req.employee?.firstName?.charAt(0)?.toUpperCase() ?? 'E'}
-                    </div>
-                    <div>
-                      <p className="font-semibold text-slate-800 text-sm">
-                        {req.employee?.firstName} {req.employee?.lastName}
-                      </p>
-                      <p className="text-xs text-slate-400">{req.employee?.position || req.employee?.email}</p>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-5 py-4 hidden sm:table-cell">
-                  <p className="text-slate-600 text-sm max-w-xs truncate">
-                    {req.description || <span className="text-slate-300 italic">No description</span>}
-                  </p>
-                </td>
-                <td className="px-5 py-4">
-                  <span className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700">
-                    <Package size={13} className="text-slate-400" />
-                    {req._count?.items ?? req.items?.length ?? 0}
-                  </span>
-                </td>
-                <td className="px-5 py-4"><StatusBadge status={req.status} /></td>
-                <td className="px-5 py-4 hidden md:table-cell text-xs text-slate-400">
-                  {new Date(req.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                </td>
-                <td className="px-5 py-4">
-                  <div className="flex items-center justify-end gap-1">
-                    <button
-                      onClick={() => navigate(`/admin/requisition-management/${req.id}`)}
-                      className="p-1.5 rounded-lg hover:bg-primary/10 text-primary" title="View details">
-                      <Eye size={14} />
-                    </button>
-
-                    {req.status === 'PENDING' && (
-                      <>
-                        <button
-                          onClick={() => navigate(`/admin/requisition-management/approve/${req.id}`)}
-                          className="p-1.5 rounded-lg hover:bg-emerald-50 text-emerald-600" title="Approve">
-                          <CheckCircle size={14} />
-                        </button>
-                        <button
-                          onClick={() => { setRejectTarget(req); setRejectReason(''); }}
-                          className="p-1.5 rounded-lg hover:bg-red-50 text-red-500" title="Reject">
-                          <XCircle size={14} />
-                        </button>
-                      </>
-                    )}
-
-                    {(req.status === 'APPROVED' || req.status === 'PARTIALLY_RECEIVED') && (
-                      <button
-                        onClick={() => navigate(`/admin/requisition-management/receive/${req.id}`)}
-                        className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600" title="Receive Items">
-                        <Truck size={14} />
-                      </button>
-                    )}
-
-                    <button
-                      onClick={() => setDeleteTarget(req)}
-                      className="p-1.5 rounded-lg hover:bg-red-50 text-red-500" title="Delete">
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
+      {/* Panel */}
+      <div className="stoq-panel">
+        {/* Toolbar */}
+        <div className="stoq-toolbar">
+          <div className="stoq-toolbar__search">
+            <input
+              className="stoq-input stoq-input--search"
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              placeholder="Search by employee or descriptionâ€¦"
+            />
+          </div>
+          <select className="stoq-select" value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }} style={{ width: 160 }}>
+            <option value="">All Status</option>
+            {Object.entries(STATUS_CONFIG).map(([k, v]) => (
+              <option key={k} value={k}>{v.label}</option>
             ))}
-          </tbody>
-        </table>
+          </select>
+          <div style={{ flex: 1 }} />
+          {!isSmallScreen && (
+            <div className="stoq-segment">
+              <button data-active={viewMode === 'table' ? 'true' : undefined} onClick={() => setViewMode('table')} title="Table"><List size={13} /></button>
+              <button data-active={viewMode === 'grid' ? 'true' : undefined} onClick={() => setViewMode('grid')} title="Grid"><LayoutGrid size={13} /></button>
+            </div>
+          )}
+        </div>
+
+        {/* Table view */}
+        {viewMode === 'table' && (
+          <div className="table-wrap">
+            <table className="stoq-tbl">
+              <thead>
+                <tr>
+                  <th className="no-sort">Employee</th>
+                  <th className="no-sort">Description</th>
+                  <th className="no-sort">Items</th>
+                  <th className="no-sort">Status</th>
+                  <th className="no-sort">Date</th>
+                  <th className="no-sort col-actions" style={{ textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={6} className="stoq-empty">Loadingâ€¦</td></tr>
+                ) : requisitions.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="stoq-empty">
+                      <div className="stoq-empty__icon"><FileText size={28} /></div>
+                      <div className="stoq-empty__title">No requisitions found</div>
+                    </td>
+                  </tr>
+                ) : requisitions.map(req => (
+                  <tr key={req.id}>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ width: 30, height: 30, borderRadius: 'var(--r-sm)', background: req.employee ? 'var(--accent-soft)' : 'var(--bg-sunk)', color: req.employee ? 'var(--accent-soft-fg)' : 'var(--fg-subtle)', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+                          {req.employee?.firstName?.charAt(0)?.toUpperCase() ?? 'A'}
+                        </div>
+                        <div>
+                          {req.employee ? (
+                            <>
+                              <span className="cell-stack__main">{req.employee.firstName} {req.employee.lastName}</span>
+                              <span className="cell-stack__sub">{req.employee.position || req.employee.email}</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="cell-stack__main">Admin Requisition</span>
+                              <span className="cell-stack__sub">Created directly by admin</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <span style={{ fontSize: 12, color: 'var(--fg-muted)', maxWidth: 200, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {req.description || <em style={{ color: 'var(--fg-subtle)' }}>No description</em>}
+                      </span>
+                    </td>
+                    <td>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12 }}>
+                        <Package size={12} style={{ color: 'var(--fg-subtle)' }} />
+                        <strong>{req._count?.items ?? req.items?.length ?? 0}</strong>
+                      </span>
+                    </td>
+                    <td><StatusBadge status={req.status} /></td>
+                    <td style={{ fontSize: 11, color: 'var(--fg-subtle)', fontFamily: 'var(--font-mono)' }}>
+                      {new Date(req.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </td>
+                    <td className="col-actions" style={{ textAlign: 'right' }}>
+                      <div className="stoq-btn-group" style={{ justifyContent: 'flex-end' }}>
+                        <button className="stoq-btn stoq-btn--ghost stoq-btn--icon stoq-btn--sm" title="View" onClick={() => navigate(path(`/requisition-management/${req.id}`))}>
+                          <Eye size={13} />
+                        </button>
+                        {req.status === 'PENDING' && (
+                          <>
+                            <button className="stoq-btn stoq-btn--ghost stoq-btn--icon stoq-btn--sm" title="Approve" style={{ color: 'var(--success)' }} onClick={() => navigate(path(`/requisition-management/approve/${req.id}`))}>
+                              <CheckCircle size={13} />
+                            </button>
+                            <button className="stoq-btn stoq-btn--ghost stoq-btn--icon stoq-btn--sm" title="Reject" style={{ color: 'var(--danger)' }} onClick={() => { setRejectTarget(req); setRejectReason(''); }}>
+                              <XCircle size={13} />
+                            </button>
+                          </>
+                        )}
+                        {(req.status === 'APPROVED' || req.status === 'PARTIALLY_RECEIVED') && (
+                          <button className="stoq-btn stoq-btn--ghost stoq-btn--icon stoq-btn--sm" title="Receive Items" onClick={() => navigate(path(`/requisition-management/receive/${req.id}`))}>
+                            <Truck size={13} />
+                          </button>
+                        )}
+                        <button className="stoq-btn stoq-btn--ghost stoq-btn--icon stoq-btn--sm" title="Delete" style={{ color: 'var(--danger)' }} onClick={() => setDeleteTarget(req)}>
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Grid view */}
+        {viewMode === 'grid' && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12, padding: 14 }}>
+            {loading ? (
+              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 32, color: 'var(--fg-subtle)', fontSize: 12 }}>Loadingâ€¦</div>
+            ) : requisitions.length === 0 ? (
+              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 32, color: 'var(--fg-subtle)', fontSize: 12 }}>No requisitions found</div>
+            ) : requisitions.map(req => (
+              <div key={req.id} style={{ border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', padding: 14, background: 'var(--panel)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 30, height: 30, borderRadius: 'var(--r-sm)', background: req.employee ? 'var(--accent-soft)' : 'var(--bg-sunk)', color: req.employee ? 'var(--accent-soft-fg)' : 'var(--fg-subtle)', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+                      {req.employee?.firstName?.charAt(0)?.toUpperCase() ?? 'A'}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{req.employee ? `${req.employee.firstName} ${req.employee.lastName}` : 'Admin Requisition'}</div>
+                      <div style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>{req.employee?.position ?? 'No employee assigned'}</div>
+                    </div>
+                  </div>
+                  <StatusBadge status={req.status} />
+                </div>
+                {req.description && (
+                  <div style={{ fontSize: 12, color: 'var(--fg-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{req.description}</div>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 11, color: 'var(--fg-subtle)' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Package size={10} /> {req._count?.items ?? 0} items</span>
+                  <span>{new Date(req.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 4, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+                  <button className="stoq-btn stoq-btn--ghost stoq-btn--sm" style={{ flex: 1 }} onClick={() => navigate(path(`/requisition-management/${req.id}`))}><Eye size={12} /> View</button>
+                  {req.status === 'PENDING' && (
+                    <button className="stoq-btn stoq-btn--sm" style={{ flex: 1, background: 'var(--success)', color: '#fff', borderColor: 'transparent' }} onClick={() => navigate(path(`/requisition-management/approve/${req.id}`))}>
+                      <CheckCircle size={12} /> Approve
+                    </button>
+                  )}
+                  {(req.status === 'APPROVED' || req.status === 'PARTIALLY_RECEIVED') && (
+                    <button className="stoq-btn stoq-btn--sm" style={{ flex: 1 }} onClick={() => navigate(path(`/requisition-management/receive/${req.id}`))}>
+                      <Truck size={12} /> Receive
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-slate-500">Page {page} of {totalPages} · {total} total</p>
-          <div className="flex gap-2">
-            <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}
-              className="p-2 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50">
-              <ChevronLeft size={16} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', fontSize: 12, color: 'var(--fg-muted)' }}>
+          <span>Page {page} of {totalPages} Â· {total} total</span>
+          <div className="stoq-btn-group">
+            <button className="stoq-btn stoq-btn--ghost stoq-btn--icon stoq-btn--sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+              <ChevronLeft size={14} />
             </button>
-            <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}
-              className="p-2 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50">
-              <ChevronRight size={16} />
+            <button className="stoq-btn stoq-btn--ghost stoq-btn--icon stoq-btn--sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
+              <ChevronRight size={14} />
             </button>
           </div>
         </div>
@@ -295,45 +350,53 @@ export default function RequisitionManagement() {
 
       {/* Reject Modal */}
       {rejectTarget && (
-        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
-            <h2 className="text-lg font-bold text-slate-800 mb-1">Reject Requisition</h2>
-            <p className="text-sm text-slate-500 mb-4">Provide a reason for the employee.</p>
-            <textarea
-              value={rejectReason}
-              onChange={e => setRejectReason(e.target.value)}
-              placeholder="Reason for rejection..."
-              rows={3}
-              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 mb-4"
-            />
-            <div className="flex gap-3">
-              <button onClick={() => { setRejectTarget(null); setRejectReason(''); }}
-                className="flex-1 py-2 rounded-xl border border-slate-200 text-sm font-semibold hover:bg-slate-50">
-                Cancel
-              </button>
-              <button onClick={handleReject} disabled={acting}
-                className="flex-1 py-2 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 disabled:opacity-60">
-                {acting ? 'Rejecting...' : 'Reject'}
+        <div className="stoq-modal-backdrop">
+          <div className="stoq-modal" style={{ maxWidth: 420 }}>
+            <div className="stoq-modal__head">
+              <div>
+                <div className="stoq-modal__title">Reject Requisition</div>
+                <div className="stoq-modal__sub">Provide a reason for the employee.</div>
+              </div>
+              <button className="stoq-btn stoq-btn--ghost stoq-btn--icon" onClick={() => { setRejectTarget(null); setRejectReason(''); }}>âœ•</button>
+            </div>
+            <div className="stoq-modal__body">
+              <textarea
+                value={rejectReason}
+                onChange={e => setRejectReason(e.target.value)}
+                placeholder="Reason for rejectionâ€¦"
+                rows={3}
+                className="stoq-input"
+                style={{ width: '100%', resize: 'vertical', minHeight: 80 }}
+              />
+            </div>
+            <div className="stoq-modal__foot">
+              <button className="stoq-btn" onClick={() => { setRejectTarget(null); setRejectReason(''); }}>Cancel</button>
+              <button className="stoq-btn stoq-btn--primary" style={{ background: 'var(--danger)', borderColor: 'transparent' }} onClick={handleReject} disabled={acting}>
+                {acting ? 'Rejectingâ€¦' : 'Reject'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Delete Confirm Modal */}
+      {/* Delete Modal */}
       {deleteTarget && (
-        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
-            <h2 className="text-lg font-bold text-slate-800 mb-1">Delete Requisition</h2>
-            <p className="text-sm text-slate-500 mb-4">This action cannot be undone.</p>
-            <div className="flex gap-3">
-              <button onClick={() => setDeleteTarget(null)}
-                className="flex-1 py-2 rounded-xl border border-slate-200 text-sm font-semibold hover:bg-slate-50">
-                Cancel
-              </button>
-              <button onClick={handleDelete} disabled={acting}
-                className="flex-1 py-2 rounded-xl bg-red-500 text-white text-sm font-bold hover:bg-red-600 disabled:opacity-60">
-                {acting ? 'Deleting...' : 'Delete'}
+        <div className="stoq-modal-backdrop">
+          <div className="stoq-modal" style={{ maxWidth: 400 }}>
+            <div className="stoq-modal__head">
+              <div>
+                <div className="stoq-modal__title">Delete Requisition</div>
+                <div className="stoq-modal__sub">This action cannot be undone.</div>
+              </div>
+              <button className="stoq-btn stoq-btn--ghost stoq-btn--icon" onClick={() => setDeleteTarget(null)}>âœ•</button>
+            </div>
+            <div className="stoq-modal__body">
+              <p style={{ fontSize: 13, color: 'var(--fg-muted)' }}>Are you sure you want to delete this requisition?</p>
+            </div>
+            <div className="stoq-modal__foot">
+              <button className="stoq-btn" onClick={() => setDeleteTarget(null)}>Cancel</button>
+              <button className="stoq-btn stoq-btn--primary" style={{ background: 'var(--danger)', borderColor: 'transparent' }} onClick={handleDelete} disabled={acting}>
+                {acting ? 'Deletingâ€¦' : 'Delete'}
               </button>
             </div>
           </div>
@@ -342,3 +405,5 @@ export default function RequisitionManagement() {
     </div>
   );
 }
+
+

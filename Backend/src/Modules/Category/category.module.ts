@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { CategoryService } from './category.service';
 import { CategoryController } from './category.controller';
-import { AdminAuthGuard } from '../../Guards/admin-auth.guard';
+import { ActivityLogModule } from '../ActivityLog/activity-log.module';
 
 @Module({
+  imports: [ActivityLogModule],
   controllers: [CategoryController],
-  providers: [CategoryService, AdminAuthGuard],
+  providers: [CategoryService],
   exports: [CategoryService],
 })
 export class CategoryModule {}

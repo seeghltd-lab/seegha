@@ -1,135 +1,182 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard,
-  Package,
-  Users,
-  FileText,
-  X,
-  ChevronRight,
-  Truck,
-  User,
-  Landmark,
-  Shield,
-  Bell,
+  LayoutDashboard, Package, Users, FileText, X,
+  Truck, User, Landmark, Shield, Bell, History, Activity, PackagePlus,
 } from 'lucide-react';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import { useEmployeeAuth } from '../context/EmployeeAuthContext';
 import { SITE_NAME } from '../config/site';
 
+const hasPerm = (employee, ...names) =>
+  names.some(name => employee?.permissions?.some(p => p.permission.name === name));
+
 const Sidebar = ({ isOpen, onToggle, role }) => {
   const location = useLocation();
   const { admin } = useAdminAuth();
   const { employee } = useEmployeeAuth();
-
   const user = role === 'admin' ? admin : employee;
 
-  const links = role === 'admin' ? [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/admin/dashboard' },
-    { id: 'categories', label: 'Categories', icon: Package, path: '/admin/categories' },
-    { id: 'stock', label: 'Stock', icon: Package, path: '/admin/stock' },
-    { id: 'suppliers', label: 'Suppliers', icon: Truck, path: '/admin/suppliers' },
-    { id: 'employees', label: 'Employees', icon: Users, path: '/admin/employees' },
-    { id: 'requisitions', label: 'Requisitions', icon: FileText, path: '/admin/requisition-management' },
-    { id: 'permissions', label: 'Permissions', icon: Shield, path: '/admin/permissions' },
-    { id: 'notifications', label: 'Notifications', icon: Bell, path: '/admin/notifications' },
-    { id: 'profile', label: 'My Profile', icon: User, path: '/admin/profile' },
-    { id: 'sites', label: 'Sites', icon: Landmark, path: '/admin/site-management' },
-  ] : [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
-    { id: 'inventory', label: 'My Inventory', icon: Package, path: '/inventory' },
-    { id: 'requisitions', label: 'My Requests', icon: FileText, path: '/requisitions' },
-    { id: 'notifications', label: 'Notifications', icon: Bell, path: '/notifications' },
-    { id: 'profile', label: 'My Profile', icon: User, path: '/profile' },
+  const adminLinks = [
+    { id: 'dashboard',     label: 'Dashboard',      icon: LayoutDashboard, path: '/admin/dashboard' },
+    { id: 'employees',     label: 'Employees',       icon: Users,           path: '/admin/employees' },
+    { id: 'categories',    label: 'Categories',      icon: Package,         path: '/admin/categories' },
+    { id: 'stock',         label: 'Stock',           icon: Package,         path: '/admin/stock' },
+    { id: 'stock-history', label: 'Stock History',   icon: History,         path: '/admin/stock/history' },
+    { id: 'suppliers',     label: 'Suppliers',       icon: Truck,           path: '/admin/suppliers' },
+    { id: 'requisitions',  label: 'Requisitions',    icon: FileText,        path: '/admin/requisition-management' },
+    { id: 'permissions',   label: 'Permissions',     icon: Shield,          path: '/admin/permissions' },
+    { id: 'notifications', label: 'Notifications',   icon: Bell,            path: '/admin/notifications' },
+    { id: 'activity-log',  label: 'Activity Log',    icon: Activity,        path: '/admin/activity-log' },
+    { id: 'sites',         label: 'Sites',           icon: Landmark,        path: '/admin/site-management' },
+    { id: 'profile',       label: 'My Profile',      icon: User,            path: '/admin/profile' },
   ];
 
+  // Employee links — base pages always visible, shared pages gated by permission
+  const allEmployeeLinks = [
+    {
+      id: 'dashboard',
+      label: 'Dashboard',
+      icon: LayoutDashboard,
+      path: '/dashboard',
+      visible: true,
+    },
+    {
+      id: 'stock',
+      label: 'Inventory',
+      icon: Package,
+      path: '/stock',
+      visible: hasPerm(employee, 'stock_management'),
+    },
+    {
+      id: 'direct-receipt',
+      label: 'Direct Receipt',
+      icon: PackagePlus,
+      path: '/stock/direct-receipt',
+      visible: hasPerm(employee, 'record_direct_stock'),
+    },
+    {
+      id: 'requisitions',
+      label: 'My Requests',
+      icon: FileText,
+      path: '/requisitions',
+      visible: hasPerm(employee, 'create_requisition', 'approve_requisition', 'receive_requisition'),
+    },
+    {
+      id: 'suppliers',
+      label: 'Suppliers',
+      icon: Truck,
+      path: '/suppliers',
+      visible: hasPerm(employee, 'supplier_management'),
+    },
+    {
+      id: 'sites',
+      label: 'Sites',
+      icon: Landmark,
+      path: '/sites',
+      visible: hasPerm(employee, 'site_management'),
+    },
+    {
+      id: 'categories',
+      label: 'Categories',
+      icon: Package,
+      path: '/categories',
+      visible: hasPerm(employee, 'category_management'),
+    },
+    {
+      id: 'notifications',
+      label: 'Notifications',
+      icon: Bell,
+      path: '/notifications',
+      visible: true,
+    },
+    {
+      id: 'profile',
+      label: 'My Profile',
+      icon: User,
+      path: '/profile',
+      visible: true,
+    },
+  ];
+
+  const employeeLinks = allEmployeeLinks.filter(l => l.visible);
+  const links = role === 'admin' ? adminLinks : employeeLinks;
+  const userName = user?.names || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'User';
+  const userInitial = userName.charAt(0).toUpperCase();
+  const shortName = SITE_NAME.split(' ')[0];
+
+  // Active detection — exact match or prefix match (but not /stock matching /stock/history)
+  const isLinkActive = (linkPath) => {
+    if (location.pathname === linkPath) return true;
+    // Prefix match only for non-leaf paths, avoid false positives
+    if (linkPath.endsWith('/stock') || linkPath === '/stock') {
+      return location.pathname === linkPath;
+    }
+    return location.pathname.startsWith(linkPath + '/');
+  };
+
   return (
-    <>
-      {/* Mobile Overlay */}
-      {isOpen && (
-        <div 
-          className="fixed inset-0 bg-slate-900/50 z-40 lg:hidden transition-opacity"
+    <aside className={`stoq-sidebar${isOpen ? ' is-open' : ''}`}>
+      {/* Brand */}
+      <div className="stoq-sidebar__brand">
+        <div className="brand-mark">
+          <span>{shortName.charAt(0)}</span>
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div className="brand-name">{shortName}</div>
+          <div className="brand-meta">{role === 'admin' ? 'Management' : 'Staff Portal'}</div>
+        </div>
+        <button
           onClick={onToggle}
-        />
-      )}
+          style={{
+            marginLeft: 'auto', display: 'grid', placeItems: 'center',
+            background: 'none', border: 'none',
+            color: 'var(--fg-subtle)', padding: '4px',
+            borderRadius: 'var(--r-xs)', cursor: 'pointer',
+          }}
+          className="lg:hidden"
+        >
+          <X size={16} />
+        </button>
+      </div>
 
-      {/* Sidebar Container */}
-      <aside 
-        className={`fixed left-0 top-0 h-screen bg-surface-container-lowest border-r border-outline-variant/30 z-50 transform transition-transform duration-300 lg:translate-x-0 ${
-          isOpen ? 'translate-x-0' : '-translate-x-full'
-        } w-72 lg:w-64 flex flex-col shadow-xl lg:shadow-none`}
-      >
-        {/* Logo Section */}
-        <div className="p-6 flex items-center justify-between border-b border-outline-variant/20">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 primary-gradient rounded-xl flex items-center justify-center shadow-md">
-              <span className="material-symbols-outlined text-white" style={{ fontVariationSettings: "'FILL' 1" }}>
-                {role === 'admin' ? 'account_balance_wallet' : 'person'}
-              </span>
-            </div>
-            <div>
-              <span className="text-xl font-extrabold tracking-tighter text-on-surface uppercase block leading-none">
-                {SITE_NAME.split(' ')[0]}
-              </span>
-              <span className="text-[10px] font-bold text-primary tracking-[2px] uppercase opacity-60">
-                {role === 'admin' ? 'Management' : 'Staff Link'}
-              </span>
-            </div>
-          </div>
-          <button 
-            onClick={onToggle} 
-            className="lg:hidden p-2 text-slate-400 hover:text-primary hover:bg-surface-container rounded-lg transition-colors"
-          >
-            <X size={20} />
-          </button>
+      {/* Navigation */}
+      <nav className="stoq-nav" style={{ flex: 1, overflowY: 'auto', paddingTop: 8, paddingBottom: 8 }}>
+        <div className="stoq-sidebar__section-label">
+          {role === 'admin' ? 'Management' : 'My Portal'}
         </div>
+        {links.map((link) => {
+          const Icon = link.icon;
+          const active = isLinkActive(link.path);
+          return (
+            <NavLink
+              key={link.id}
+              to={link.path}
+              onClick={() => window.innerWidth < 768 && onToggle()}
+              className="stoq-nav__item"
+              data-active={active ? 'true' : undefined}
+              style={{ textDecoration: 'none' }}
+            >
+              <Icon size={15} className="stoq-nav__icon" />
+              <span className="stoq-nav__label">{link.label}</span>
+            </NavLink>
+          );
+        })}
+      </nav>
 
-        {/* Navigation Section */}
-        <nav className="flex-1 px-4 py-8 space-y-1.5 overflow-y-auto bg-surface/30">
-          {links.map((link) => {
-            const Icon = link.icon;
-            const isActive = location.pathname === link.path;
-            
-            return (
-              <NavLink
-                key={link.id}
-                to={link.path}
-                className={({ isActive }) => `
-                  flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 group
-                  ${isActive 
-                    ? 'bg-primary text-white shadow-md' 
-                    : 'text-secondary hover:bg-surface-container hover:text-primary'}
-                `}
-                onClick={() => window.innerWidth < 1024 && onToggle()}
-              >
-                <div className="flex items-center gap-3">
-                  <Icon size={19} className={isActive ? 'text-white' : 'text-slate-400 group-hover:text-primary transition-colors'} />
-                  <span className="text-[13px] font-bold tracking-wide">{link.label}</span>
-                </div>
-                {isActive && <ChevronRight size={15} className="text-white/60" />}
-              </NavLink>
-            );
-          })}
-        </nav>
-
-        {/* User Card at bottom */}
-        <div className="p-4 border-t border-outline-variant/20 bg-surface">
-          <div className="flex items-center gap-3 p-3 rounded-2xl bg-surface-container-low border border-outline-variant/10 shadow-sm">
-            <div className="w-10 h-10 rounded-xl bg-white border border-outline-variant/30 flex items-center justify-center text-primary font-extrabold shadow-sm">
-              {(user?.names || user?.firstName || 'U').charAt(0).toUpperCase()}
+      {/* User card */}
+      <div className="stoq-sidebar__footer">
+        <div className="user-card">
+          <div className="stoq-avatar">{userInitial}</div>
+          <div style={{ minWidth: 0 }}>
+            <div className="user-card__name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {userName}
             </div>
-            <div className="overflow-hidden">
-              <p className="text-[13px] font-bold text-on-surface truncate">
-                {user?.names || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'User'}
-              </p>
-              <p className="text-[9px] font-bold text-secondary uppercase tracking-[1px] opacity-70">
-                {role} Access
-              </p>
-            </div>
+            <div className="user-card__role">{role}</div>
           </div>
         </div>
-      </aside>
-    </>
+      </div>
+    </aside>
   );
 };
 

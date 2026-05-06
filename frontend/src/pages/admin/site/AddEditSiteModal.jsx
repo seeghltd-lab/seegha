@@ -1,40 +1,48 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Upload, Save, MapPin, User, Calendar, DollarSign, AlignLeft } from 'lucide-react';
+import { X, Upload, Save, MapPin, User, Calendar, DollarSign, AlignLeft, AlertCircle, RefreshCw, ShieldCheck } from 'lucide-react';
 import siteService from '../../../services/siteService';
+
+function Field({ label, required, error, children }) {
+  return (
+    <div className="stoq-field">
+      <label className="stoq-field__label">
+        {label}{required && <span style={{ color: 'var(--danger)', marginLeft: 2 }}>*</span>}
+      </label>
+      {children}
+      {error && (
+        <span style={{ fontSize: 11, color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <AlertCircle size={11} /> {error}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function IconInput({ icon: Icon, error, ...props }) {
+  return (
+    <div style={{ position: 'relative' }}>
+      <Icon size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-subtle)', pointerEvents: 'none' }} />
+      <input className="stoq-input" style={{ paddingLeft: 30, ...(error ? { borderColor: 'var(--danger)' } : {}) }} {...props} />
+    </div>
+  );
+}
 
 export default function AddEditSiteModal({ site, onClose, onRefresh }) {
   const isEdit = Boolean(site);
-  const [form, setForm] = useState({
-    name: '',
-    location: '',
-    managerName: '',
-    status: 'ACTIVE',
-    description: '',
-    budget: '',
-    startDate: '',
-    endDate: '',
-  });
+  const fileRef = useRef(null);
+
+  const [form, setForm] = useState({ name: '', location: '', managerName: '', status: 'ACTIVE', description: '', budget: '', startDate: '', endDate: '' });
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
-  const fileRef = useRef(null);
+
+  const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
   useEffect(() => {
     if (site) {
-      setForm({
-        name: site.name,
-        location: site.location,
-        managerName: site.managerName || '',
-        status: site.status,
-        description: site.description || '',
-        budget: site.budget,
-        startDate: site.startDate ? new Date(site.startDate).toISOString().split('T')[0] : '',
-        endDate: site.endDate ? new Date(site.endDate).toISOString().split('T')[0] : '',
-      });
-      if (site.image) {
-        setImagePreview(`http://localhost:3000${site.image}`);
-      }
+      setForm({ name: site.name, location: site.location, managerName: site.managerName || '', status: site.status, description: site.description || '', budget: site.budget, startDate: site.startDate ? new Date(site.startDate).toISOString().split('T')[0] : '', endDate: site.endDate ? new Date(site.endDate).toISOString().split('T')[0] : '' });
+      if (site.image) setImagePreview(`http://localhost:3000${site.image}`);
     }
   }, [site]);
 
@@ -50,146 +58,102 @@ export default function AddEditSiteModal({ site, onClose, onRefresh }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validate()) return;
-    
     try {
       setSubmitting(true);
       const fd = new FormData();
-      Object.entries(form).forEach(([k, v]) => {
-        if (v !== '' && v !== null) fd.append(k, v);
-      });
+      Object.entries(form).forEach(([k, v]) => { if (v !== '' && v !== null) fd.append(k, v); });
       if (imageFile) fd.append('image', imageFile);
-
-      if (isEdit) {
-        await siteService.update(site.id, fd);
-      } else {
-        await siteService.create(fd);
-      }
+      if (isEdit) await siteService.update(site.id, fd);
+      else await siteService.create(fd);
       onRefresh();
       onClose();
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to save site');
-    } finally {
-      setSubmitting(false);
-    }
+    } finally { setSubmitting(false); }
   };
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      setImageFile(file);
-      setImagePreview(URL.createObjectURL(file));
-    }
+    if (file) { setImageFile(file); setImagePreview(URL.createObjectURL(file)); }
   };
 
-  const inputClass = (field) => 
-    `w-full pl-10 pr-4 py-2.5 bg-slate-50 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all ${errors[field] ? 'border-red-300' : 'border-slate-200'}`;
-
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
-        {/* Header */}
-        <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+    <div className="stoq-modal-backdrop">
+      <div className="stoq-modal stoq-modal--wide" style={{ maxHeight: 'calc(100vh - 80px)' }}>
+        <div className="stoq-modal__head">
           <div>
-            <h2 className="text-xl font-black text-slate-800 tracking-tight">{isEdit ? 'Edit Site Environment' : 'Initialize New Site'}</h2>
-            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-0.5">Configuration Portal</p>
+            <div className="stoq-modal__title">{isEdit ? 'Edit Site' : 'New Site'}</div>
+            <div className="stoq-modal__sub">{isEdit ? 'Update site configuration' : 'Register a new project location'}</div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white rounded-xl text-slate-400 hover:text-slate-600 transition-colors bg-white/50 shadow-sm">
-            <X size={20} />
-          </button>
+          <button className="icon-btn" onClick={onClose}><X size={14} /></button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-8 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Image Upload */}
-            <div className="md:col-span-2 flex items-center gap-6 p-4 rounded-3xl bg-slate-50 border border-slate-100 border-dashed border-2">
-              <div className="relative group cursor-pointer" onClick={() => fileRef.current?.click()}>
-                <div className="w-24 h-24 rounded-2xl overflow-hidden bg-white shadow-sm flex items-center justify-center border border-slate-200">
-                  {imagePreview ? (
-                    <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
-                  ) : (
-                    <Upload size={24} className="text-slate-300" />
-                  )}
-                </div>
-                <div className="absolute inset-0 bg-primary/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-2xl">
-                  <Upload className="text-primary" size={20} />
-                </div>
-              </div>
-              <div>
-                <h4 className="font-bold text-slate-700 text-sm">Site Perspective Image</h4>
-                <p className="text-xs text-slate-400 mt-0.5">JPG, PNG under 5MB. Visual reference for dashboard.</p>
-                <button type="button" onClick={() => fileRef.current?.click()} className="mt-2 text-xs font-black text-primary uppercase tracking-wider hover:underline">Select File</button>
-              </div>
-              <input type="file" ref={fileRef} className="hidden" accept="image/*" onChange={handleImageChange} />
+        <form onSubmit={handleSubmit} className="stoq-modal__body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Image upload */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 12px', background: 'var(--bg-sunk)', borderRadius: 'var(--r-md)', border: '1px dashed var(--border)' }}>
+            <div style={{ width: 80, height: 60, borderRadius: 'var(--r-sm)', background: 'var(--panel)', border: '1px solid var(--border)', display: 'grid', placeItems: 'center', overflow: 'hidden', cursor: 'pointer', flexShrink: 0 }}
+              onClick={() => fileRef.current?.click()}>
+              {imagePreview
+                ? <img src={imagePreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : <Upload size={18} style={{ color: 'var(--fg-subtle)' }} />}
             </div>
-
-            {/* Basic Info */}
             <div>
-              <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Site Identity Name</label>
-              <div className="relative">
-                <AlignLeft size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} className={inputClass('name')} placeholder="e.g. KICUKIRO HEADQUARTERS" />
-              </div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)' }}>Site Image</div>
+              <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginTop: 2 }}>JPG, PNG under 5MB</div>
+              <button type="button" className="stoq-btn stoq-btn--sm" style={{ marginTop: 6 }} onClick={() => fileRef.current?.click()}>Select File</button>
             </div>
-
-            <div>
-              <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Geographic Location</label>
-              <div className="relative">
-                <MapPin size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input value={form.location} onChange={e => setForm({...form, location: e.target.value})} className={inputClass('location')} placeholder="e.g. Kigali, Rwanda" />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Site Manager Assignment</label>
-              <div className="relative">
-                <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input value={form.managerName} onChange={e => setForm({...form, managerName: e.target.value})} className={inputClass('managerName')} placeholder="e.g. ADRien" />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Initial Status</label>
-              <select value={form.status} onChange={e => setForm({...form, status: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 appearance-none transition-all font-bold text-slate-700">
-                <option value="ACTIVE">ACTIVE</option>
-                <option value="PAUSED">PAUSED</option>
-                <option value="COMPLETED">COMPLETED</option>
-              </select>
-            </div>
-
-            {/* Financial & Dates */}
-            <div>
-              <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Project Budget (RWF)</label>
-              <div className="relative">
-                <DollarSign size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input type="number" value={form.budget} onChange={e => setForm({...form, budget: e.target.value})} className={inputClass('budget')} placeholder="0.00" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Start</label>
-                <input type="date" value={form.startDate} onChange={e => setForm({...form, startDate: e.target.value})} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-primary/30 font-bold" />
-              </div>
-              <div>
-                <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">End</label>
-                <input type="date" value={form.endDate} onChange={e => setForm({...form, endDate: e.target.value})} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-primary/30 font-bold" />
-              </div>
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Strategic Description</label>
-              <textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} rows={3} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none font-medium text-slate-600" placeholder="Scope of the site, construction highlights, or unique warehouse properties..." />
-            </div>
+            <input type="file" ref={fileRef} accept="image/*" onChange={handleImageChange} style={{ display: 'none' }} />
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
-            <button type="button" onClick={onClose} className="px-6 py-2.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all">Cancel</button>
-            <button type="submit" disabled={submitting} className="flex items-center gap-2 px-8 py-2.5 rounded-xl bg-primary text-white text-sm font-black hover:opacity-90 disabled:opacity-50 shadow-lg shadow-primary/20 transition-all active:scale-95">
-              <Save size={18} />
-              {submitting ? 'Processing...' : 'Deploy Site'}
-            </button>
+          {/* Fields grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <Field label="Site Name" required error={errors.name}>
+              <IconInput icon={AlignLeft} value={form.name} onChange={set('name')} placeholder="e.g. Kicukiro HQ" error={errors.name} />
+            </Field>
+            <Field label="Location" required error={errors.location}>
+              <IconInput icon={MapPin} value={form.location} onChange={set('location')} placeholder="e.g. Kigali, Rwanda" error={errors.location} />
+            </Field>
+            <Field label="Site Manager">
+              <IconInput icon={User} value={form.managerName} onChange={set('managerName')} placeholder="e.g. John Doe" />
+            </Field>
+            <Field label="Status">
+              <div style={{ position: 'relative' }}>
+                <ShieldCheck size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-subtle)', pointerEvents: 'none' }} />
+                <select className="stoq-select" value={form.status} onChange={set('status')} style={{ width: '100%', paddingLeft: 30 }}>
+                  <option value="ACTIVE">Active</option>
+                  <option value="PAUSED">Paused</option>
+                  <option value="COMPLETED">Completed</option>
+                </select>
+              </div>
+            </Field>
+            <Field label="Budget (RWF)" required error={errors.budget}>
+              <IconInput icon={DollarSign} type="number" value={form.budget} onChange={set('budget')} placeholder="0" error={errors.budget} />
+            </Field>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <Field label="Start Date">
+                <input type="date" className="stoq-input" value={form.startDate} onChange={set('startDate')} />
+              </Field>
+              <Field label="End Date">
+                <input type="date" className="stoq-input" value={form.endDate} onChange={set('endDate')} />
+              </Field>
+            </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <Field label="Description">
+                <textarea className="stoq-input" value={form.description} onChange={set('description')} rows={3}
+                  placeholder="Scope, highlights, or notes…"
+                  style={{ height: 'auto', padding: '8px 10px', resize: 'none', lineHeight: 1.6 }} />
+              </Field>
+            </div>
           </div>
         </form>
+
+        <div className="stoq-modal__foot">
+          <button className="stoq-btn" onClick={onClose}>Cancel</button>
+          <button className="stoq-btn stoq-btn--primary" disabled={submitting} onClick={handleSubmit}
+            style={{ opacity: submitting ? 0.6 : 1 }}>
+            {submitting ? <><RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Saving…</> : <><Save size={13} /> {isEdit ? 'Save Changes' : 'Create Site'}</>}
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -30,6 +30,16 @@ class SupplierService {
     const { data } = await api.delete(`/suppliers/${id}`);
     return data;
   }
+
+  async getPayments(id) {
+    const { data } = await api.get(`/suppliers/${id}/payments`);
+    return data;
+  }
+
+  async addPayment(id, paymentData) {
+    const { data } = await api.post(`/suppliers/${id}/payments`, paymentData);
+    return data;
+  }
 }
 
 export default new SupplierService();

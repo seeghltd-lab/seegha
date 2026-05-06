@@ -1,0 +1,1234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>STOQ — Construction Stock OS</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --accent-h: 250; --accent-c: 0.18; --accent-l: 0.55;
+  --accent: oklch(var(--accent-l) var(--accent-c) var(--accent-h));
+  --accent-fg: oklch(0.99 0 0);
+  --accent-soft: oklch(0.96 0.04 var(--accent-h));
+  --accent-soft-fg: oklch(0.40 0.16 var(--accent-h));
+  --accent-ring: oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.25);
+  --accent-hover: oklch(calc(var(--accent-l) - 0.05) var(--accent-c) var(--accent-h));
+  --bg: oklch(0.985 0.003 250);
+  --bg-elev: oklch(1 0 0);
+  --bg-sunk: oklch(0.97 0.005 250);
+  --panel: oklch(1 0 0);
+  --border: oklch(0.92 0.006 250);
+  --border-strong: oklch(0.86 0.008 250);
+  --fg: oklch(0.18 0.015 250);
+  --fg-muted: oklch(0.46 0.012 250);
+  --fg-subtle: oklch(0.62 0.010 250);
+  --success: oklch(0.62 0.16 155);
+  --success-soft: oklch(0.95 0.05 155);
+  --warning: oklch(0.72 0.16 75);
+  --warning-soft: oklch(0.96 0.06 75);
+  --danger: oklch(0.60 0.20 25);
+  --danger-soft: oklch(0.95 0.05 25);
+  --r-xs: 4px; --r-sm: 6px; --r-md: 8px; --r-lg: 12px;
+  --shadow-sm: 0 1px 2px oklch(0.2 0.02 250 / 0.04), 0 1px 1px oklch(0.2 0.02 250 / 0.03);
+  --shadow-md: 0 4px 12px oklch(0.2 0.02 250 / 0.06), 0 1px 3px oklch(0.2 0.02 250 / 0.04);
+  --shadow-lg: 0 12px 40px oklch(0.2 0.02 250 / 0.10), 0 2px 6px oklch(0.2 0.02 250 / 0.05);
+  --row-h: 36px; --pad-x: 12px; --pad-y: 8px; --gap-card: 14px;
+  --font-display: "Inter Tight", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
+}
+[data-theme="dark"] {
+  --bg: oklch(0.16 0.012 250);
+  --bg-elev: oklch(0.20 0.014 250);
+  --bg-sunk: oklch(0.13 0.012 250);
+  --panel: oklch(0.20 0.014 250);
+  --border: oklch(0.27 0.012 250);
+  --border-strong: oklch(0.34 0.014 250);
+  --fg: oklch(0.96 0.005 250);
+  --fg-muted: oklch(0.70 0.012 250);
+  --fg-subtle: oklch(0.55 0.010 250);
+  --accent-soft: oklch(0.30 0.08 var(--accent-h));
+  --accent-soft-fg: oklch(0.85 0.10 var(--accent-h));
+  --success-soft: oklch(0.28 0.08 155);
+  --warning-soft: oklch(0.30 0.10 75);
+  --danger-soft: oklch(0.30 0.10 25);
+  --shadow-sm: 0 1px 2px #0008;
+  --shadow-md: 0 4px 12px #0009;
+  --shadow-lg: 0 16px 48px #000a;
+}
+[data-density="comfy"] { --row-h: 44px; --pad-x: 14px; --pad-y: 11px; --gap-card: 18px; }
+[data-density="compact"] { --row-h: 32px; --pad-x: 10px; --pad-y: 6px; --gap-card: 12px; }
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { font-family: var(--font-body); background: var(--bg); color: var(--fg); font-size: 13px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+button { font-family: inherit; cursor: pointer; }
+input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.num { font-variant-numeric: tabular-nums; }
+.hidden { display: none !important; }
+
+.app { display: grid; grid-template-columns: var(--sidebar-w, 224px) 1fr; height: 100vh; overflow: hidden; }
+.app[data-sidebar="rail"] { --sidebar-w: 56px; }
+
+.sidebar { background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; min-width: 0; }
+.sidebar__brand { height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid var(--border); }
+.brand-mark { width: 28px; height: 28px; border-radius: 7px; background: var(--fg); color: var(--bg); display: grid; place-items: center; font-family: var(--font-display); font-weight: 800; font-size: 13px; flex-shrink: 0; position: relative; overflow: hidden; }
+.brand-mark::before { content: ""; position: absolute; inset: 0; background: linear-gradient(135deg, transparent 49%, var(--accent) 49%, var(--accent) 51%, transparent 51%); }
+.brand-mark span { position: relative; z-index: 1; }
+.brand-name { font-family: var(--font-display); font-weight: 700; font-size: 14px; letter-spacing: -0.02em; color: var(--fg); }
+.brand-meta { font-size: 10px; font-weight: 500; letter-spacing: 0.08em; color: var(--fg-subtle); text-transform: uppercase; margin-top: 1px; }
+.sidebar__section-label { font-size: 10px; font-weight: 600; letter-spacing: 0.10em; color: var(--fg-subtle); text-transform: uppercase; padding: 14px 16px 6px; }
+.app[data-sidebar="rail"] .sidebar__section-label, .app[data-sidebar="rail"] .brand-name, .app[data-sidebar="rail"] .brand-meta { display: none; }
+.nav { display: flex; flex-direction: column; padding: 0 8px; gap: 1px; }
+.nav__item { display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 8px; border-radius: var(--r-sm); color: var(--fg-muted); border: none; background: transparent; cursor: pointer; text-align: left; width: 100%; position: relative; font-size: 13px; font-weight: 500; }
+.nav__item:hover { background: var(--bg-sunk); color: var(--fg); }
+.nav__item[data-active="true"] { background: var(--accent-soft); color: var(--accent-soft-fg); font-weight: 600; }
+.nav__item[data-active="true"]::before { content: ""; position: absolute; left: -8px; top: 6px; bottom: 6px; width: 2px; background: var(--accent); border-radius: 0 2px 2px 0; }
+.nav__icon { width: 16px; height: 16px; flex-shrink: 0; }
+.nav__label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nav__count { font-size: 10px; padding: 1px 6px; background: var(--bg-sunk); border: 1px solid var(--border); border-radius: 10px; color: var(--fg-muted); font-weight: 600; font-variant-numeric: tabular-nums; }
+.nav__item[data-active="true"] .nav__count { background: var(--bg-elev); border-color: transparent; }
+.app[data-sidebar="rail"] .nav__item { justify-content: center; padding: 0; }
+.app[data-sidebar="rail"] .nav__label, .app[data-sidebar="rail"] .nav__count { display: none; }
+
+.sidebar__footer { margin-top: auto; padding: 10px; border-top: 1px solid var(--border); }
+.user-card { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: var(--r-sm); background: var(--bg-sunk); border: 1px solid var(--border); cursor: pointer; }
+.user-card:hover { background: var(--bg-elev); }
+.avatar { width: 28px; height: 28px; border-radius: 6px; background: var(--accent); color: var(--accent-fg); display: grid; place-items: center; font-weight: 700; font-size: 11px; flex-shrink: 0; }
+.user-card__name { font-size: 12px; font-weight: 600; }
+.user-card__role { font-size: 10px; color: var(--fg-subtle); letter-spacing: 0.06em; text-transform: uppercase; }
+.app[data-sidebar="rail"] .user-card__name, .app[data-sidebar="rail"] .user-card__role { display: none; }
+
+.main { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.topbar { height: 56px; border-bottom: 1px solid var(--border); background: var(--panel); display: flex; align-items: center; padding: 0 20px; gap: 16px; flex-shrink: 0; }
+.crumbs { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--fg-subtle); }
+.crumbs__sep { opacity: 0.5; }
+.crumbs__current { color: var(--fg); font-weight: 600; }
+.topbar__search { flex: 1; max-width: 480px; margin-left: auto; height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 10px; background: var(--bg-sunk); border: 1px solid var(--border); border-radius: var(--r-sm); color: var(--fg-subtle); font-size: 12px; cursor: pointer; }
+.topbar__search:hover { background: var(--bg-elev); border-color: var(--border-strong); }
+.topbar__search kbd { margin-left: auto; font-family: var(--font-mono); font-size: 10px; padding: 2px 5px; border: 1px solid var(--border); border-radius: 3px; background: var(--panel); color: var(--fg-subtle); }
+.icon-btn { width: 32px; height: 32px; display: grid; place-items: center; border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--panel); color: var(--fg-muted); position: relative; }
+.icon-btn:hover { background: var(--bg-sunk); color: var(--fg); }
+.icon-btn .dot { position: absolute; top: 6px; right: 6px; width: 6px; height: 6px; background: var(--danger); border-radius: 50%; border: 2px solid var(--panel); box-sizing: content-box; }
+.content { flex: 1; overflow: auto; padding: 20px 24px 32px; }
+
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 18px; flex-wrap: wrap; }
+.page-head h1 { font-family: var(--font-display); font-size: 22px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 2px; }
+.page-head__sub { font-size: 12px; color: var(--fg-muted); }
+.page-head__actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+.btn { height: 32px; padding: 0 12px; border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--panel); color: var(--fg); font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.btn:hover { background: var(--bg-sunk); border-color: var(--border-strong); }
+.btn--primary { background: var(--accent); color: var(--accent-fg); border-color: transparent; box-shadow: var(--shadow-sm), inset 0 1px 0 #ffffff20; }
+.btn--primary:hover { background: var(--accent-hover); }
+.btn--ghost { border-color: transparent; background: transparent; }
+.btn--ghost:hover { background: var(--bg-sunk); }
+.btn--sm { height: 26px; padding: 0 8px; font-size: 11px; }
+.btn--icon { width: 32px; padding: 0; justify-content: center; }
+
+.kpi-grid { display: grid; gap: var(--gap-card); }
+.kpi-grid--4 { grid-template-columns: repeat(4, 1fr); }
+.kpi-grid--3 { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 1100px) { .kpi-grid--4, .kpi-grid--3 { grid-template-columns: repeat(2, 1fr); } }
+
+.kpi { background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-md); padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; min-height: 110px; }
+.app[data-card="bordered"] .kpi { border-radius: 0; }
+.app[data-card="flat"] .kpi { background: var(--bg-sunk); border-color: transparent; }
+.kpi__label { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; color: var(--fg-subtle); text-transform: uppercase; display: flex; align-items: center; gap: 6px; }
+.kpi__icon { width: 22px; height: 22px; border-radius: 6px; background: var(--accent-soft); color: var(--accent-soft-fg); display: grid; place-items: center; }
+.kpi__icon[data-tone="warning"] { background: var(--warning-soft); color: var(--warning); }
+.kpi__value { font-family: var(--font-display); font-size: 26px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.kpi__delta { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; }
+.kpi__delta--up { color: var(--success); }
+.kpi__delta--down { color: var(--danger); }
+.kpi__foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--fg-subtle); }
+.kpi__spark { height: 32px; width: 100%; }
+
+.panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
+.app[data-card="flat"] .panel { background: var(--bg-sunk); border-color: transparent; }
+.panel__head { height: 44px; padding: 0 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); gap: 12px; }
+.panel__title { font-family: var(--font-display); font-size: 13px; font-weight: 700; letter-spacing: -0.01em; }
+.panel__sub { font-size: 11px; color: var(--fg-subtle); }
+
+.table-wrap { overflow: auto; }
+.tbl { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.tbl th { text-align: left; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; color: var(--fg-subtle); text-transform: uppercase; padding: 10px var(--pad-x); background: var(--bg-sunk); border-bottom: 1px solid var(--border); white-space: nowrap; cursor: pointer; }
+.tbl th.no-sort { cursor: default; }
+.tbl td { padding: var(--pad-y) var(--pad-x); border-bottom: 1px solid var(--border); font-size: 12px; height: var(--row-h); vertical-align: middle; }
+.tbl tr:last-child td { border-bottom: none; }
+.tbl tbody tr:hover { background: var(--bg-sunk); cursor: pointer; }
+.tbl tbody tr[data-selected="true"] { background: var(--accent-soft); }
+.tbl .num-cell { text-align: right; font-family: var(--font-mono); font-size: 11px; }
+.tbl .col-check { width: 32px; padding-right: 0; }
+.tbl .col-actions { width: 40px; text-align: right; }
+.cell-stack__main { font-weight: 600; font-size: 12px; display: block; }
+.cell-stack__sub { font-size: 11px; color: var(--fg-subtle); font-family: var(--font-mono); display: block; margin-top: 2px; }
+
+.badge { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; border-radius: 4px; font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; background: var(--bg-sunk); color: var(--fg-muted); border: 1px solid var(--border); white-space: nowrap; }
+.badge::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.badge--success { background: var(--success-soft); color: var(--success); border-color: transparent; }
+.badge--warning { background: var(--warning-soft); color: var(--warning); border-color: transparent; }
+.badge--danger { background: var(--danger-soft); color: var(--danger); border-color: transparent; }
+.badge--accent { background: var(--accent-soft); color: var(--accent-soft-fg); border-color: transparent; }
+.badge--plain { letter-spacing: 0; text-transform: none; font-weight: 500; }
+.badge--plain::before { display: none; }
+
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.tab { height: 36px; padding: 0 14px; background: transparent; border: none; color: var(--fg-muted); font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tab:hover { color: var(--fg); }
+.tab[data-active="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+
+.input { height: 32px; padding: 0 10px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-sm); color: var(--fg); font-size: 12px; width: 100%; outline: none; }
+.input:focus { outline: 2px solid var(--accent-ring); border-color: var(--accent); }
+.input--search { padding-left: 30px; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='8'/><path d='m21 21-4.3-4.3'/></svg>"); background-repeat: no-repeat; background-position: 10px center; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field__label { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; color: var(--fg-subtle); text-transform: uppercase; }
+.select { height: 32px; padding: 0 28px 0 10px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-sm); color: var(--fg); font-size: 12px; appearance: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round'><polyline points='6 9 12 15 18 9'/></svg>"); background-repeat: no-repeat; background-position: right 8px center; }
+.checkbox { width: 14px; height: 14px; appearance: none; border: 1px solid var(--border-strong); border-radius: 3px; background: var(--panel); display: inline-grid; place-content: center; cursor: pointer; flex-shrink: 0; }
+.checkbox:checked { background: var(--accent); border-color: var(--accent); }
+.checkbox:checked::after { content: ""; width: 8px; height: 5px; border-left: 2px solid white; border-bottom: 2px solid white; transform: rotate(-45deg) translate(1px, -1px); }
+
+.segment { display: inline-flex; background: var(--bg-sunk); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 2px; gap: 1px; }
+.segment button { height: 24px; padding: 0 10px; background: transparent; border: none; color: var(--fg-muted); font-size: 11px; font-weight: 600; border-radius: 4px; display: inline-flex; align-items: center; gap: 5px; }
+.segment button[data-active="true"] { background: var(--panel); color: var(--fg); box-shadow: var(--shadow-sm); }
+.segment--icon button { width: 26px; padding: 0; justify-content: center; }
+
+.toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--panel); }
+.toolbar__search { flex: 1; min-width: 220px; max-width: 380px; }
+
+.modal-backdrop { position: fixed; inset: 0; background: oklch(0.15 0.02 250 / 0.45); backdrop-filter: blur(4px); z-index: 50; display: grid; place-items: center; padding: 40px; animation: fade 120ms ease-out; }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slide { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.modal { background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--r-lg); width: 100%; max-width: 560px; box-shadow: var(--shadow-lg); overflow: hidden; animation: slide 160ms ease-out; display: flex; flex-direction: column; max-height: 100%; }
+.modal--wide { max-width: 720px; }
+.modal__head { padding: 16px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.modal__title { font-family: var(--font-display); font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+.modal__sub { font-size: 11px; color: var(--fg-subtle); margin-top: 2px; }
+.modal__body { padding: 18px; overflow: auto; }
+.modal__foot { padding: 12px 18px; border-top: 1px solid var(--border); background: var(--bg-sunk); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+
+.cmdk-backdrop { position: fixed; inset: 0; background: oklch(0.15 0.02 250 / 0.4); z-index: 60; display: grid; place-items: start center; padding-top: 12vh; animation: fade 100ms ease-out; }
+.cmdk { width: 100%; max-width: 560px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-lg); overflow: hidden; animation: slide 140ms ease-out; }
+.cmdk__input { width: 100%; height: 48px; padding: 0 18px; border: none; background: transparent; font-size: 14px; border-bottom: 1px solid var(--border); outline: none; }
+.cmdk__list { max-height: 360px; overflow: auto; padding: 6px; }
+.cmdk__group-label { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; color: var(--fg-subtle); text-transform: uppercase; padding: 10px 10px 4px; }
+.cmdk__item { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: var(--r-sm); font-size: 13px; cursor: pointer; }
+.cmdk__item[data-active="true"] { background: var(--accent-soft); color: var(--accent-soft-fg); }
+.cmdk__item-kbd { margin-left: auto; font-family: var(--font-mono); font-size: 10px; color: var(--fg-subtle); }
+.cmdk__foot { height: 32px; padding: 0 14px; border-top: 1px solid var(--border); background: var(--bg-sunk); display: flex; align-items: center; gap: 12px; font-size: 10px; color: var(--fg-subtle); }
+.cmdk__foot kbd { font-family: var(--font-mono); padding: 1px 4px; background: var(--panel); border: 1px solid var(--border); border-radius: 3px; color: var(--fg-muted); }
+
+.drawer-backdrop { position: fixed; inset: 0; background: transparent; z-index: 40; }
+.drawer { position: fixed; top: 56px; right: 16px; width: 360px; max-height: calc(100vh - 80px); background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--r-md); box-shadow: var(--shadow-lg); z-index: 41; display: flex; flex-direction: column; overflow: hidden; animation: slide 140ms ease-out; }
+.drawer__head { padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.drawer__title { font-weight: 700; font-size: 13px; }
+.drawer__list { overflow: auto; flex: 1; }
+.notif { padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; }
+.notif:hover { background: var(--bg-sunk); }
+.notif__dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-top: 6px; flex-shrink: 0; }
+.notif--read .notif__dot { background: var(--border-strong); }
+.notif__title { font-size: 12px; font-weight: 600; }
+.notif__body { font-size: 11px; color: var(--fg-muted); margin-top: 2px; line-height: 1.4; }
+.notif__time { font-size: 10px; color: var(--fg-subtle); margin-top: 4px; font-family: var(--font-mono); }
+
+.dash-grid { display: grid; grid-template-columns: 2fr 1fr; gap: var(--gap-card); align-items: start; }
+@media (max-width: 1100px) { .dash-grid { grid-template-columns: 1fr; } }
+.activity-row { display: flex; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 12px; align-items: flex-start; }
+.activity-row:last-child { border-bottom: none; }
+.activity-icon { width: 26px; height: 26px; border-radius: 6px; background: var(--bg-sunk); display: grid; place-items: center; color: var(--fg-muted); flex-shrink: 0; }
+.activity-icon[data-kind="in"] { background: var(--success-soft); color: var(--success); }
+.activity-icon[data-kind="out"] { background: var(--danger-soft); color: var(--danger); }
+.activity-icon[data-kind="warn"] { background: var(--warning-soft); color: var(--warning); }
+.activity-row__title { font-weight: 600; }
+.activity-row__meta { font-size: 11px; color: var(--fg-subtle); margin-top: 2px; }
+.activity-row__time { margin-left: auto; font-size: 11px; color: var(--fg-subtle); font-family: var(--font-mono); white-space: nowrap; }
+
+.progress-row { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 12px; align-items: center; }
+.progress-row:last-child { border-bottom: none; }
+.progress-bar { grid-column: 1 / -1; height: 4px; background: var(--bg-sunk); border-radius: 2px; overflow: hidden; }
+.progress-bar > span { display: block; height: 100%; background: var(--accent); border-radius: 2px; }
+.progress-bar[data-tone="warn"] > span { background: var(--warning); }
+.progress-bar[data-tone="danger"] > span { background: var(--danger); }
+.progress-row__num { font-family: var(--font-mono); font-size: 11px; color: var(--fg-muted); }
+
+.login { display: grid; grid-template-columns: 1fr 1fr; height: 100vh; }
+@media (max-width: 800px) { .login { grid-template-columns: 1fr; } .login__brand { display: none; } }
+.login__brand { position: relative; background: oklch(0.20 0.04 250); color: white; padding: 40px; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; }
+.login__brand-bg { position: absolute; inset: 0; background: radial-gradient(circle at 30% 20%, oklch(0.40 0.18 var(--accent-h) / 0.5), transparent 50%), radial-gradient(circle at 80% 90%, oklch(0.35 0.20 calc(var(--accent-h) + 30) / 0.4), transparent 60%); }
+.login__grid { position: absolute; inset: 0; background-image: linear-gradient(to right, #ffffff10 1px, transparent 1px), linear-gradient(to bottom, #ffffff10 1px, transparent 1px); background-size: 32px 32px; mask-image: radial-gradient(ellipse at center, black, transparent 75%); }
+.login__brand-content { position: relative; z-index: 1; }
+.login__logo { display: flex; align-items: center; gap: 10px; }
+.login__logo .brand-name { color: white; font-size: 16px; }
+.login__logo .brand-meta { color: #ffffff80; }
+.login__tag { position: relative; z-index: 1; font-family: var(--font-display); font-size: 36px; line-height: 1.1; font-weight: 600; letter-spacing: -0.02em; max-width: 440px; }
+.login__tag em { font-style: normal; color: oklch(0.85 0.12 var(--accent-h)); }
+.login__stats { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; border-top: 1px solid #ffffff20; padding-top: 24px; }
+.login__stat-num { font-family: var(--font-display); font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+.login__stat-lbl { font-size: 10px; color: #ffffff80; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2px; }
+.login__form-side { background: var(--bg); display: grid; place-items: center; padding: 40px; }
+.login__form { width: 100%; max-width: 360px; }
+.login__form h2 { font-family: var(--font-display); font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 4px; }
+.login__form-sub { font-size: 13px; color: var(--fg-muted); margin-bottom: 24px; }
+.login__form .field { margin-bottom: 14px; }
+.login__form .input { height: 38px; font-size: 13px; }
+.login__form .btn { width: 100%; height: 38px; justify-content: center; font-size: 13px; }
+.login__divider { display: flex; align-items: center; gap: 10px; margin: 18px 0; color: var(--fg-subtle); font-size: 10px; letter-spacing: 0.10em; text-transform: uppercase; }
+.login__divider::before, .login__divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.login__chip { display: inline-flex; gap: 6px; align-items: center; font-size: 10px; font-weight: 600; letter-spacing: 0.10em; text-transform: uppercase; color: var(--fg-subtle); padding: 4px 8px; border: 1px solid var(--border); border-radius: 100px; margin-bottom: 20px; }
+.login__chip .pulse { width: 6px; height: 6px; background: var(--success); border-radius: 50%; animation: pulse 1.6s infinite; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 oklch(0.62 0.16 155 / 0.5); } 100% { box-shadow: 0 0 0 8px transparent; } }
+
+.supplier-head { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: start; margin-bottom: 18px; }
+.supplier-head__title { font-family: var(--font-display); font-size: 24px; font-weight: 700; letter-spacing: -0.02em; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.supplier-head__meta { display: flex; gap: 14px; font-size: 12px; color: var(--fg-muted); margin-top: 6px; flex-wrap: wrap; }
+.detail-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
+@media (max-width: 800px) { .detail-grid { grid-template-columns: 1fr 1fr; } }
+.detail-cell { background: var(--panel); padding: 14px 16px; }
+.detail-cell__label { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; color: var(--fg-subtle); text-transform: uppercase; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+.detail-cell__value { font-size: 13px; font-weight: 500; }
+
+.analytics-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--gap-card); }
+.analytics-grid--3 { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 1100px) { .analytics-grid, .analytics-grid--3 { grid-template-columns: 1fr; } }
+
+.empty { padding: 50px 20px; text-align: center; color: var(--fg-subtle); font-size: 12px; }
+
+/* TWEAKS PANEL */
+.tweaks {
+  position: fixed; right: 16px; bottom: 16px; z-index: 100;
+  width: 300px; background: var(--bg-elev); color: var(--fg);
+  border: 1px solid var(--border); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg); overflow: hidden;
+  display: flex; flex-direction: column;
+  max-height: calc(100vh - 32px);
+  font-size: 12px;
+}
+.tweaks__head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.tweaks__title { font-family: var(--font-display); font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+.tweaks__body { padding: 12px 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+.tweaks__sect { font-size: 10px; font-weight: 600; letter-spacing: 0.10em; color: var(--fg-subtle); text-transform: uppercase; margin-bottom: -4px; }
+.tweaks__row { display: flex; flex-direction: column; gap: 6px; }
+.tweaks__row label { font-size: 11px; font-weight: 600; color: var(--fg-muted); }
+.tweaks__seg { display: flex; gap: 1px; background: var(--bg-sunk); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 2px; }
+.tweaks__seg button { flex: 1; height: 24px; background: transparent; border: none; color: var(--fg-muted); font-size: 11px; font-weight: 600; border-radius: 4px; cursor: pointer; }
+.tweaks__seg button[data-active="true"] { background: var(--panel); color: var(--fg); box-shadow: var(--shadow-sm); }
+.tweaks__select { width: 100%; height: 28px; padding: 0 26px 0 8px; background: var(--bg-sunk); border: 1px solid var(--border); border-radius: var(--r-sm); color: var(--fg); font-size: 12px; appearance: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2.5' stroke-linecap='round'><polyline points='6 9 12 15 18 9'/></svg>"); background-repeat: no-repeat; background-position: right 7px center; }
+.tweaks__swatches { display: flex; gap: 5px; flex-wrap: wrap; }
+.tweaks__swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; outline: none; position: relative; }
+.tweaks__swatch[data-active="true"] { border-color: var(--fg); }
+.tweaks__swatch[data-active="true"]::after { content: ""; position: absolute; inset: 4px; border-radius: 50%; border: 1.5px solid var(--bg); }
+
+/* Tweaks toggle pill (visible only when panel hidden) */
+.tweaks-toggle { position: fixed; right: 16px; bottom: 16px; z-index: 99; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border); background: var(--panel); color: var(--fg); display: grid; place-items: center; box-shadow: var(--shadow-md); cursor: pointer; }
+.tweaks-toggle:hover { background: var(--bg-sunk); }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 6px; border: 2px solid var(--bg); }
+::-webkit-scrollbar-track { background: transparent; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+/* ============== DATA ============== */
+const D = (() => {
+  const suppliers = [
+    { id: "SUP-2401", name: "Kigali Steel Works", contact: "Jean-Paul Mugisha", email: "jp@kigalisteel.rw", phone: "+250 788 123 456", city: "Kigali", country: "Rwanda", address: "KN 5 Ave, Industrial Zone", status: "active", items: 47, value: 18420000, balance: -240000, rating: 4.6, leadTime: 4, since: "2022-03" },
+    { id: "SUP-2389", name: "Pan-African Cement Co.", contact: "Aisha Niyonzima", email: "aisha@panafric-cement.com", phone: "+250 722 884 002", city: "Musanze", country: "Rwanda", address: "Plot 14, Cement Road", status: "active", items: 12, value: 9200000, balance: 0, rating: 4.8, leadTime: 7, since: "2021-11" },
+    { id: "SUP-2376", name: "Volta Aggregates Ltd", contact: "Eric Habimana", email: "eric@volta-agg.rw", phone: "+250 788 002 113", city: "Rubavu", country: "Rwanda", address: "Lake Front 22", status: "active", items: 8, value: 4100000, balance: -85000, rating: 4.2, leadTime: 3, since: "2023-01" },
+    { id: "SUP-2402", name: "Nile Hardwoods", contact: "Florence Uwase", email: "f.uwase@nilehardwoods.com", phone: "+250 788 776 222", city: "Kampala", country: "Uganda", address: "Industrial Area Block C", status: "review", items: 21, value: 6700000, balance: -1200000, rating: 3.9, leadTime: 12, since: "2023-08" },
+    { id: "SUP-2351", name: "Equator Tools & Fixings", contact: "Daniel Okonkwo", email: "daniel@equatortools.com", phone: "+254 711 305 200", city: "Nairobi", country: "Kenya", address: "Mombasa Road, Bay 8", status: "active", items: 156, value: 22340000, balance: -480000, rating: 4.5, leadTime: 9, since: "2020-06" },
+    { id: "SUP-2410", name: "Acacia Electricals", contact: "Marie Ingabire", email: "marie@acacia-el.rw", phone: "+250 788 110 991", city: "Kigali", country: "Rwanda", address: "KK 19 Rd", status: "active", items: 89, value: 11200000, balance: 0, rating: 4.7, leadTime: 5, since: "2022-09" },
+    { id: "SUP-2398", name: "Sahara Plumbing Imports", contact: "Tariq Bensalem", email: "tariq@saharaplumb.com", phone: "+212 5 22 43 11 88", city: "Casablanca", country: "Morocco", address: "Zone Industrielle Sidi", status: "paused", items: 34, value: 3800000, balance: -2400000, rating: 3.4, leadTime: 21, since: "2021-04" },
+    { id: "SUP-2415", name: "Rift Valley Glassworks", contact: "Sarah Cheboi", email: "sarah@rvgw.co.ke", phone: "+254 720 887 100", city: "Nakuru", country: "Kenya", address: "Industrial Park 4", status: "active", items: 18, value: 5600000, balance: -180000, rating: 4.3, leadTime: 14, since: "2024-02" },
+  ];
+  const categories = [
+    { id: "cat-steel", name: "Steel & Rebar", count: 128, value: 24300000 },
+    { id: "cat-cement", name: "Cement & Aggregates", count: 64, value: 18200000 },
+    { id: "cat-wood", name: "Timber & Boards", count: 92, value: 9400000 },
+    { id: "cat-tools", name: "Tools & Fixings", count: 412, value: 14600000 },
+    { id: "cat-elec", name: "Electrical", count: 286, value: 11800000 },
+    { id: "cat-plumb", name: "Plumbing", count: 174, value: 6200000 },
+    { id: "cat-paint", name: "Paint & Finishes", count: 98, value: 4100000 },
+    { id: "cat-glass", name: "Glass & Glazing", count: 41, value: 5800000 },
+  ];
+  const sites = [
+    { id: "site-hq", name: "HQ Warehouse · Kigali", short: "HQ-KGL" },
+    { id: "site-mz", name: "Site B · Musanze Bridge", short: "SITE-MZB" },
+    { id: "site-rb", name: "Site C · Rubavu Towers", short: "SITE-RBT" },
+    { id: "site-ny", name: "Site D · Nyamata Schools", short: "SITE-NYS" },
+    { id: "site-tz", name: "Yard · Kayonza Transit", short: "YARD-KYZ" },
+  ];
+  const items = [
+    { sku: "STL-RB-12", name: "Rebar Y12 · Deformed", cat: "Steel & Rebar", site: "HQ-KGL", supplier: "Kigali Steel Works", qty: 4820, unit: "pcs", cost: 3200, status: "ok", min: 2000 },
+    { sku: "STL-RB-16", name: "Rebar Y16 · Deformed", cat: "Steel & Rebar", site: "HQ-KGL", supplier: "Kigali Steel Works", qty: 1240, unit: "pcs", cost: 5400, status: "ok", min: 800 },
+    { sku: "STL-RB-20", name: "Rebar Y20 · Deformed", cat: "Steel & Rebar", site: "SITE-MZB", supplier: "Kigali Steel Works", qty: 380, unit: "pcs", cost: 8200, status: "low", min: 400 },
+    { sku: "CEM-OPC-50", name: "Portland Cement 50kg · OPC 42.5N", cat: "Cement & Aggregates", site: "HQ-KGL", supplier: "Pan-African Cement Co.", qty: 1860, unit: "bag", cost: 11800, status: "ok", min: 600 },
+    { sku: "CEM-WHT-50", name: "White Cement 50kg", cat: "Cement & Aggregates", site: "SITE-RBT", supplier: "Pan-African Cement Co.", qty: 142, unit: "bag", cost: 22000, status: "ok", min: 80 },
+    { sku: "AGG-SND-CR", name: "Coarse River Sand", cat: "Cement & Aggregates", site: "YARD-KYZ", supplier: "Volta Aggregates Ltd", qty: 78, unit: "m³", cost: 28000, status: "ok", min: 30 },
+    { sku: "AGG-GR-20", name: "Crushed Gravel 20mm", cat: "Cement & Aggregates", site: "YARD-KYZ", supplier: "Volta Aggregates Ltd", qty: 42, unit: "m³", cost: 32000, status: "low", min: 50 },
+    { sku: "WD-PLY-18", name: "Plywood 18mm 2440×1220", cat: "Timber & Boards", site: "HQ-KGL", supplier: "Nile Hardwoods", qty: 612, unit: "sheet", cost: 24500, status: "ok", min: 200 },
+    { sku: "WD-MR-2x4", name: "Mahogany Runner 2×4×12ft", cat: "Timber & Boards", site: "SITE-NYS", supplier: "Nile Hardwoods", qty: 184, unit: "pcs", cost: 9800, status: "ok", min: 100 },
+    { sku: "WD-OSB-12", name: "OSB Board 12mm", cat: "Timber & Boards", site: "HQ-KGL", supplier: "Nile Hardwoods", qty: 0, unit: "sheet", cost: 14200, status: "out", min: 60 },
+    { sku: "TL-DRL-18V", name: "Cordless Drill 18V Combo Kit", cat: "Tools & Fixings", site: "HQ-KGL", supplier: "Equator Tools & Fixings", qty: 22, unit: "kit", cost: 145000, status: "ok", min: 8 },
+    { sku: "TL-SCR-65", name: "Wood Screws 65mm · 200pk", cat: "Tools & Fixings", site: "HQ-KGL", supplier: "Equator Tools & Fixings", qty: 412, unit: "pack", cost: 4800, status: "ok", min: 100 },
+    { sku: "TL-NL-CMN", name: "Common Nails 4\" · 25kg keg", cat: "Tools & Fixings", site: "SITE-MZB", supplier: "Equator Tools & Fixings", qty: 38, unit: "keg", cost: 38000, status: "ok", min: 20 },
+    { sku: "EL-CBL-25", name: "Cu Cable 2.5mm² · 100m", cat: "Electrical", site: "HQ-KGL", supplier: "Acacia Electricals", qty: 86, unit: "roll", cost: 62000, status: "ok", min: 40 },
+    { sku: "EL-CBL-60", name: "Cu Cable 6mm² · 100m", cat: "Electrical", site: "HQ-KGL", supplier: "Acacia Electricals", qty: 14, unit: "roll", cost: 138000, status: "low", min: 20 },
+    { sku: "EL-MCB-32", name: "MCB 32A Type C", cat: "Electrical", site: "HQ-KGL", supplier: "Acacia Electricals", qty: 248, unit: "pcs", cost: 6400, status: "ok", min: 80 },
+    { sku: "PL-PVC-110", name: "PVC Pipe 110mm · 6m", cat: "Plumbing", site: "SITE-RBT", supplier: "Sahara Plumbing Imports", qty: 96, unit: "len", cost: 18800, status: "ok", min: 40 },
+    { sku: "PL-FT-EL90", name: "PVC 110mm Elbow 90°", cat: "Plumbing", site: "SITE-RBT", supplier: "Sahara Plumbing Imports", qty: 12, unit: "pcs", cost: 4200, status: "low", min: 30 },
+    { sku: "GL-CL-6", name: "Clear Float Glass 6mm · m²", cat: "Glass & Glazing", site: "HQ-KGL", supplier: "Rift Valley Glassworks", qty: 162, unit: "m²", cost: 22000, status: "ok", min: 60 },
+    { sku: "PT-EM-WHT", name: "Emulsion Paint White 20L", cat: "Paint & Finishes", site: "HQ-KGL", supplier: "Equator Tools & Fixings", qty: 124, unit: "tin", cost: 48500, status: "ok", min: 40 },
+  ];
+  const requisitions = [
+    { id: "REQ-10421", site: "Site B · Musanze Bridge", requestedBy: "Eric Habimana", items: 7, value: 2400000, status: "pending", priority: "high" },
+    { id: "REQ-10420", site: "Site C · Rubavu Towers", requestedBy: "Marie Ingabire", items: 14, value: 8200000, status: "approved", priority: "normal" },
+    { id: "REQ-10419", site: "HQ Warehouse · Kigali", requestedBy: "Jean-Paul Mugisha", items: 3, value: 980000, status: "fulfilled", priority: "low" },
+    { id: "REQ-10418", site: "Site D · Nyamata Schools", requestedBy: "Florence Uwase", items: 22, value: 14600000, status: "pending", priority: "high" },
+    { id: "REQ-10417", site: "Site B · Musanze Bridge", requestedBy: "Eric Habimana", items: 5, value: 1820000, status: "rejected", priority: "normal" },
+    { id: "REQ-10416", site: "Yard · Kayonza Transit", requestedBy: "Daniel Okonkwo", items: 9, value: 3400000, status: "approved", priority: "normal" },
+  ];
+  const activity = [
+    { kind: "in", title: "Stock received · 480 bags Portland Cement", meta: "Pan-African Cement Co. → HQ-KGL", time: "12m" },
+    { kind: "out", title: "Issued 22 sheets Plywood 18mm", meta: "Site D · Nyamata Schools · REQ-10420", time: "38m" },
+    { kind: "warn", title: "Low stock alert · Crushed Gravel 20mm", meta: "Yard-KYZ · 42 m³ remaining (min 50)", time: "1h" },
+    { kind: "in", title: "Direct receipt · 14 rolls 6mm² Cu Cable", meta: "Acacia Electricals · INV-A4421", time: "2h" },
+    { kind: "out", title: "Transferred 18 kits Cordless Drill", meta: "HQ-KGL → SITE-MZB", time: "3h" },
+    { kind: "warn", title: "Supplier flagged for review", meta: "Nile Hardwoods · 4 late deliveries this month", time: "5h" },
+    { kind: "in", title: "Stock received · 612 m Y16 Rebar", meta: "Kigali Steel Works → HQ-KGL", time: "yesterday" },
+  ];
+  const notifications = [
+    { title: "REQ-10418 needs your approval", body: "Florence Uwase requested 22 items totalling RWF 14.6M for Nyamata Schools.", time: "8 min ago", read: false },
+    { title: "Low stock: 3 items below minimum", body: "Y20 Rebar, Crushed Gravel 20mm, Cu Cable 6mm² are at or below threshold.", time: "1 h ago", read: false },
+    { title: "Supplier review due", body: "Nile Hardwoods quarterly review scheduled for May 12.", time: "3 h ago", read: false },
+    { title: "Stock count completed", body: "HQ-KGL monthly count: 0.4% variance · within tolerance.", time: "yesterday", read: true },
+    { title: "Permission updated", body: "You granted 'Stock Receive' to 4 employees on Site C.", time: "2 days ago", read: true },
+  ];
+  const days = 30;
+  const valueSeries = Array.from({length: days}, (_, i) => Math.round(88_000_000 + Math.sin(i/4) * 4_000_000 + (Math.sin(i*1.7) + Math.cos(i*2.3)) * 1_500_000 + i * 60_000));
+  const movementsIn = Array.from({length: days}, (_, i) => Math.round(20 + Math.abs(Math.sin(i/2)) * 30 + (i % 3 === 0 ? 12 : 0)));
+  const movementsOut = Array.from({length: days}, (_, i) => Math.round(15 + Math.abs(Math.cos(i/2.5)) * 24 + (i % 4 === 0 ? 8 : 0)));
+  return { suppliers, categories, sites, items, requisitions, activity, notifications, valueSeries, movementsIn, movementsOut };
+})();
+
+/* ============== UTILS ============== */
+const fmtCurrency = (n, ccy = "RWF") => {
+  if (n == null) return "—";
+  const abs = Math.abs(n);
+  if (abs >= 1_000_000) return `${ccy} ${(n / 1_000_000).toFixed(abs >= 10_000_000 ? 1 : 2)}M`;
+  if (abs >= 1_000) return `${ccy} ${(n / 1_000).toFixed(0)}K`;
+  return `${ccy} ${n.toLocaleString()}`;
+};
+const fmtNum = n => n == null ? "—" : n.toLocaleString();
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+const $ = (sel, root = document) => root.querySelector(sel);
+
+/* ============== ICONS (inline SVG strings) ============== */
+const ICON = (name, size = 16) => {
+  const paths = {
+    dashboard: '<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
+    box: '<path d="m21 8-9 4-9-4"/><path d="m21 8-9-5-9 5v8l9 5 9-5z"/><path d="M12 12v10"/>',
+    truck: '<path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/>',
+    users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    list: '<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>',
+    shield: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
+    bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/>',
+    site: '<path d="M3 9h18"/><path d="M9 21V9"/><rect x="3" y="3" width="18" height="18" rx="2"/>',
+    chart: '<path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>',
+    plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+    download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+    upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
+    search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+    filter: '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',
+    grid: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>',
+    refresh: '<path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/>',
+    check: '<polyline points="20 6 9 17 4 12"/>',
+    x: '<path d="M18 6L6 18"/><path d="M6 6l12 12"/>',
+    chevR: '<polyline points="9 18 15 12 9 6"/>',
+    chevL: '<polyline points="15 18 9 12 15 6"/>',
+    chevD: '<polyline points="6 9 12 15 18 9"/>',
+    arrowUp: '<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>',
+    arrowDown: '<line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/>',
+    arrowL: '<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>',
+    edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+    mail: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/>',
+    phone: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>',
+    pin: '<path d="M20 10c0 7-8 12-8 12s-8-5-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
+    cube: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',
+    coin: '<circle cx="12" cy="12" r="9"/><path d="M9 9h4.5a2 2 0 0 1 0 4H9"/><path d="M9 13h5a2 2 0 0 1 0 4H9"/><path d="M9 7v10"/>',
+    alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+    dots: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+    star: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+    settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+    activity: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
+    sliders: '<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>',
+    layers: '<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>',
+  };
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths[name] || ""}</svg>`;
+};
+
+/* ============== CHART HELPERS ============== */
+const sparkline = (data, w = 120, h = 32, color = "var(--accent)") => {
+  const min = Math.min(...data), max = Math.max(...data), span = max - min || 1;
+  const pts = data.map((v, i) => [i / (data.length - 1) * w, h - ((v - min) / span) * (h - 4) - 2]);
+  const d = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
+  const area = d + ` L ${w} ${h} L 0 ${h} Z`;
+  const last = pts[pts.length - 1];
+  return `<svg class="kpi__spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%;height:${h}px"><path d="${area}" fill="${color}" opacity="0.10"/><path d="${d}" fill="none" stroke="${color}" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/><circle cx="${last[0]}" cy="${last[1]}" r="2.2" fill="${color}"/></svg>`;
+};
+const areaChart = (inS, outS, h = 200) => {
+  const w = 600, max = Math.max(...inS, ...outS) * 1.15;
+  const build = (arr, fill) => {
+    const pts = arr.map((v, i) => [i / (arr.length - 1) * w, h - (v / max) * (h - 16) - 8]);
+    const d = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
+    return fill ? d + ` L ${w} ${h} L 0 ${h} Z` : d;
+  };
+  let grid = "";
+  for (let i = 0; i < 4; i++) { const y = (i / 3) * (h - 16) + 8; grid += `<line x1="0" x2="${w}" y1="${y}" y2="${y}" stroke="var(--border)" stroke-width="1" stroke-dasharray="2 4"/>`; }
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%;height:${h}px;display:block">${grid}<path d="${build(inS, true)}" fill="var(--accent)" opacity="0.10"/><path d="${build(inS, false)}" fill="none" stroke="var(--accent)" stroke-width="1.5"/><path d="${build(outS, false)}" fill="none" stroke="var(--warning)" stroke-width="1.5" stroke-dasharray="3 3"/></svg>`;
+};
+const barChart = (data, h = 180) => {
+  const max = Math.max(...data.map(d => d.value));
+  return `<div style="display:flex;align-items:flex-end;gap:6px;height:${h}px;padding:8px 0">${data.map(d => `
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0">
+      <div style="flex:1;width:100%;display:flex;align-items:flex-end"><div style="width:100%;height:${(d.value/max)*100}%;background:${d.color || 'var(--accent)'};border-radius:3px 3px 0 0;min-height:2px"></div></div>
+      <div style="font-size:10px;color:var(--fg-subtle);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">${esc(d.label)}</div>
+    </div>`).join("")}</div>`;
+};
+const donut = (segs, size = 130, t = 20) => {
+  const total = segs.reduce((s, v) => s + v.value, 0);
+  const r = (size - t) / 2, c = 2 * Math.PI * r;
+  let acc = 0;
+  const circles = segs.map(s => {
+    const len = (s.value / total) * c, rot = (acc / total) * 360 - 90;
+    acc += s.value;
+    return `<circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${s.color}" stroke-width="${t}" stroke-dasharray="${len} ${c}" transform="rotate(${rot} ${size/2} ${size/2})"/>`;
+  }).join("");
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--bg-sunk)" stroke-width="${t}"/>${circles}</svg>`;
+};
+const heatmap = (rows = 7, cols = 24, fn) => {
+  let html = `<div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:2px">`;
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const v = fn(r, c);
+    html += `<div style="aspect-ratio:1;border-radius:2px;background:${v < 0.05 ? 'var(--bg-sunk)' : `oklch(var(--accent-l) var(--accent-c) var(--accent-h) / ${v.toFixed(2)})`};${v < 0.05 ? 'border:1px solid var(--border)' : ''}"></div>`;
+  }
+  return html + "</div>";
+};
+
+/* ============== STATE ============== */
+const state = {
+  route: "login",
+  supplierId: null,
+  loggedIn: false,
+  // Stock filters
+  stockSearch: "", stockCat: "all", stockSite: "all", stockStatus: "all",
+  stockSort: { key: "name", dir: "asc" }, stockView: "rows", stockSelected: new Set(),
+  // Supplier detail tab
+  supTab: "info",
+  // Modals/overlays
+  modal: null,        // 'addStock' | 'addSupplier' | null
+  cmdkOpen: false, cmdkQuery: "", cmdkActive: 0,
+  notifsOpen: false,
+  // Tweaks
+  tweaksOpen: false,
+  tweaksHidden: false,
+  tweaks: {
+    theme: localStorage.getItem("stoq.theme") || "light",
+    accent: localStorage.getItem("stoq.accent") || "Indigo",
+    density: localStorage.getItem("stoq.density") || "dense",
+    sidebar: localStorage.getItem("stoq.sidebar") || "labels",
+    fontPair: localStorage.getItem("stoq.fontPair") || "Inter / Inter Tight",
+    cardLayout: localStorage.getItem("stoq.cardLayout") || "default",
+  },
+};
+const ACCENTS = {
+  Indigo: { h: 250, c: 0.18, l: 0.55 },
+  Amber:  { h: 60,  c: 0.16, l: 0.60 },
+  Emerald:{ h: 155, c: 0.15, l: 0.50 },
+  Rose:   { h: 15,  c: 0.18, l: 0.58 },
+  Violet: { h: 290, c: 0.18, l: 0.55 },
+};
+const FONT_PAIRS = {
+  "Inter / Inter Tight":  { display: '"Inter Tight"', body: '"Inter"' },
+  "IBM Plex Sans":        { display: '"IBM Plex Sans"', body: '"IBM Plex Sans"' },
+  "Space Grotesk / Inter":{ display: '"Space Grotesk"', body: '"Inter"' },
+};
+
+function applyTweaks() {
+  const t = state.tweaks;
+  document.documentElement.dataset.theme = t.theme;
+  const a = ACCENTS[t.accent] || ACCENTS.Indigo;
+  document.documentElement.style.setProperty("--accent-h", a.h);
+  document.documentElement.style.setProperty("--accent-c", a.c);
+  document.documentElement.style.setProperty("--accent-l", a.l);
+  const fp = FONT_PAIRS[t.fontPair] || FONT_PAIRS["Inter / Inter Tight"];
+  document.documentElement.style.setProperty("--font-display", `${fp.display}, ui-sans-serif, system-ui, sans-serif`);
+  document.documentElement.style.setProperty("--font-body", `${fp.body}, ui-sans-serif, system-ui, sans-serif`);
+  Object.entries(t).forEach(([k, v]) => localStorage.setItem("stoq." + k, v));
+}
+function setTweak(k, v) { state.tweaks[k] = v; applyTweaks(); render(); }
+
+/* ============== TEMPLATES ============== */
+function tplLogin() {
+  return `
+  <div class="login">
+    <div class="login__brand">
+      <div class="login__brand-bg"></div>
+      <div class="login__grid"></div>
+      <div class="login__brand-content login__logo">
+        <div class="brand-mark"><span>S</span></div>
+        <div><div class="brand-name">STOQ</div><div class="brand-meta">CONSTRUCTION STOCK OS</div></div>
+      </div>
+      <div class="login__tag">Every bag of cement,<br/>every length of rebar.<br/><em>Counted, costed, accounted.</em></div>
+      <div class="login__stats">
+        <div><div class="login__stat-num num">14,820</div><div class="login__stat-lbl">SKUs Tracked</div></div>
+        <div><div class="login__stat-num num">38</div><div class="login__stat-lbl">Active Sites</div></div>
+        <div><div class="login__stat-num num">99.4%</div><div class="login__stat-lbl">Count Accuracy</div></div>
+      </div>
+    </div>
+    <div class="login__form-side">
+      <div class="login__form">
+        <div class="login__chip"><span class="pulse"></span>System nominal · v4.2.1</div>
+        <h2>Sign in</h2>
+        <div class="login__form-sub">Welcome back. Enter your credentials to access the operations console.</div>
+        <div class="field"><label class="field__label">Work Email</label><input class="input" value="admin@stoq.build"/></div>
+        <div class="field"><label class="field__label">Password</label><input class="input" type="password" value="••••••••••"/></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin:10px 0 18px;font-size:12px">
+          <label style="display:flex;align-items:center;gap:6px;color:var(--fg-muted)"><input type="checkbox" class="checkbox" checked/> Keep me signed in</label>
+          <a href="#" style="color:var(--accent-soft-fg);font-weight:600;text-decoration:none">Reset password</a>
+        </div>
+        <button class="btn btn--primary" data-action="login">Continue to console ${ICON("chevR", 14)}</button>
+        <div class="login__divider">OR</div>
+        <button class="btn" style="width:100%;height:38px;justify-content:center">${ICON("shield", 14)} Sign in with SSO</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function tplKpi(label, value, sub, delta, deltaDir, icon, series, tone) {
+  return `<div class="kpi">
+    <div class="kpi__label"><span class="kpi__icon" ${tone ? `data-tone="${tone}"` : ""}>${ICON(icon, 12)}</span>${esc(label)}</div>
+    <div class="kpi__value">${value}</div>
+    <div class="kpi__foot"><span style="color:var(--fg-muted)">${esc(sub || "vs. last period")}</span>
+      ${delta ? `<span class="kpi__delta ${deltaDir === 'up' ? 'kpi__delta--up' : deltaDir === 'down' ? 'kpi__delta--down' : ''}">${deltaDir === 'up' ? ICON('arrowUp', 11) : deltaDir === 'down' ? ICON('arrowDown', 11) : ''}${esc(delta)}</span>` : ""}
+    </div>
+    ${series ? sparkline(series, 120, 32, tone === "warning" ? "var(--warning)" : "var(--accent)") : ""}
+  </div>`;
+}
+
+function tplBadge(status) {
+  if (status === "ok" || status === "active" || status === "approved" || status === "fulfilled" || status === "paid") return `<span class="badge badge--success">${status === "ok" ? "In stock" : status[0].toUpperCase() + status.slice(1)}</span>`;
+  if (status === "low" || status === "review" || status === "pending" || status === "open") return `<span class="badge badge--warning">${status[0].toUpperCase() + status.slice(1)}</span>`;
+  if (status === "out" || status === "paused" || status === "rejected" || status === "overdue") return `<span class="badge badge--danger">${status[0].toUpperCase() + status.slice(1)}</span>`;
+  return `<span class="badge">${esc(status)}</span>`;
+}
+
+function tplDashboard() {
+  const totalValue = D.items.reduce((s, x) => s + x.qty * x.cost, 0);
+  const lowCount = D.items.filter(x => x.status === "low" || x.status === "out").length;
+  const pending = D.requisitions.filter(r => r.status === "pending").length;
+  const colors = ["var(--accent)","oklch(0.72 0.16 75)","oklch(0.62 0.16 155)","oklch(0.65 0.20 25)","oklch(0.55 0.18 290)","oklch(0.65 0.14 200)","oklch(0.70 0.12 100)","oklch(0.55 0.16 340)"];
+  const segs = D.categories.map((c, i) => ({ value: c.value, color: colors[i % colors.length] }));
+  const sumCat = D.categories.reduce((s, c) => s + c.value, 0);
+
+  return `
+  <div class="page-head">
+    <div><h1>Operations overview</h1><div class="page-head__sub">Live inventory & site activity · ${new Date().toLocaleDateString("en-GB", {weekday:"long", day:"numeric", month:"long"})}</div></div>
+    <div class="page-head__actions">
+      <div class="segment"><button data-active="true">Today</button><button>7d</button><button>30d</button><button>QTD</button></div>
+      <button class="btn">${ICON("download", 13)} Export</button>
+      <button class="btn btn--primary" data-action="open-modal" data-modal="addStock">${ICON("plus", 13)} Add stock</button>
+    </div>
+  </div>
+  <div class="kpi-grid kpi-grid--4" style="margin-bottom:14px">
+    ${tplKpi("Inventory value", fmtCurrency(totalValue), "across all sites", "+4.2%", "up", "coin", D.valueSeries)}
+    ${tplKpi("Active SKUs", fmtNum(14820), "across 8 categories", "+182", "up", "cube", D.movementsIn)}
+    ${tplKpi("Pending requisitions", fmtNum(pending), `${D.requisitions.filter(r=>r.priority==='high'&&r.status==='pending').length} high priority`, "-3", "up", "list", D.movementsOut)}
+    ${tplKpi("Low / out of stock", fmtNum(lowCount), "needs review", "+1", "down", "alert", [3,4,3,3,5,4,4,5], "warning")}
+  </div>
+  <div class="dash-grid">
+    <div class="panel">
+      <div class="panel__head">
+        <div><div class="panel__title">Inventory movements · last 30 days</div><div class="panel__sub">Receipts vs. issues, all sites</div></div>
+        <div style="display:flex;gap:12px;font-size:11px;color:var(--fg-muted)">
+          <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:14px;height:2px;background:var(--accent)"></span>Received</span>
+          <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:14px;height:0;border-top:2px dashed var(--warning)"></span>Issued</span>
+        </div>
+      </div>
+      <div style="padding:16px">
+        ${areaChart(D.movementsIn, D.movementsOut, 220)}
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--fg-subtle);font-family:var(--font-mono);margin-top:6px"><span>Apr 06</span><span>Apr 13</span><span>Apr 20</span><span>Apr 27</span><span>May 04</span></div>
+      </div>
+      <div class="panel__head" style="border-top:1px solid var(--border);border-bottom:none"><div class="panel__title">Recent activity</div><button class="btn btn--ghost btn--sm">View all ${ICON("chevR", 11)}</button></div>
+      <div>${D.activity.slice(0, 5).map(a => `
+        <div class="activity-row">
+          <div class="activity-icon" data-kind="${a.kind}">${ICON(a.kind === "in" ? "arrowDown" : a.kind === "out" ? "arrowUp" : "alert", 13)}</div>
+          <div style="flex:1;min-width:0"><div class="activity-row__title">${esc(a.title)}</div><div class="activity-row__meta">${esc(a.meta)}</div></div>
+          <div class="activity-row__time">${esc(a.time)}</div>
+        </div>`).join("")}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:var(--gap-card)">
+      <div class="panel">
+        <div class="panel__head"><div class="panel__title">Stock by category</div><button class="btn btn--ghost btn--sm" data-action="nav" data-route="stock">Browse ${ICON("chevR", 11)}</button></div>
+        <div style="padding:16px;display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center">
+          <div style="position:relative">${donut(segs, 130, 20)}<div style="position:absolute;inset:0;display:grid;place-items:center;text-align:center"><div><div style="font-family:var(--font-display);font-size:16px;font-weight:700;letter-spacing:-0.02em">${fmtCurrency(sumCat)}</div><div style="font-size:9px;color:var(--fg-subtle);text-transform:uppercase;letter-spacing:0.08em">Total</div></div></div></div>
+          <div style="display:flex;flex-direction:column;gap:6px">${D.categories.slice(0, 6).map((c, i) => `<div style="display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;font-size:11px"><span style="width:8px;height:8px;border-radius:2px;background:${colors[i]}"></span><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.name)}</span><span style="color:var(--fg-muted);font-family:var(--font-mono);font-size:10px">${Math.round(c.value/sumCat*100)}%</span></div>`).join("")}</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel__head"><div class="panel__title">Site utilization</div><span class="panel__sub">RWF · stock on hand</span></div>
+        <div style="padding:8px 14px">${D.sites.map(s => {
+          const v = D.items.filter(x => x.site === s.short).reduce((sum, x) => sum + x.qty * x.cost, 0);
+          const max = Math.max(...D.sites.map(ss => D.items.filter(x => x.site === ss.short).reduce((su, x) => su + x.qty * x.cost, 0)));
+          const pct = (v / max) * 100;
+          return `<div class="progress-row">
+            <div style="display:flex;align-items:center;gap:6px">${ICON("site", 12)}<span style="font-weight:600">${esc(s.short)}</span><span style="color:var(--fg-subtle);font-size:11px">· ${esc(s.name.split(" · ")[1] || s.name)}</span></div>
+            <div class="progress-row__num">${fmtCurrency(v)}</div>
+            <div class="progress-bar" ${pct < 25 ? 'data-tone="danger"' : pct < 50 ? 'data-tone="warn"' : ''}><span style="width:${pct}%"></span></div>
+          </div>`;
+        }).join("")}</div>
+      </div>
+      <div class="panel">
+        <div class="panel__head"><div class="panel__title">Approvals queue</div><span class="badge badge--accent">${D.requisitions.filter(r => r.status === "pending").length} pending</span></div>
+        <div>${D.requisitions.filter(r => r.status === "pending").slice(0, 3).map(r => `
+          <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center">
+            <div class="activity-icon" data-kind="${r.priority === 'high' ? 'warn' : 'in'}">${ICON("list", 13)}</div>
+            <div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600">${esc(r.id)} · ${esc(r.requestedBy)}</div><div style="font-size:11px;color:var(--fg-subtle)">${esc(r.site)} · ${r.items} items · ${fmtCurrency(r.value)}</div></div>
+            <button class="btn btn--sm">Review</button>
+          </div>`).join("")}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function tplStock() {
+  let rows = D.items.slice();
+  const q = state.stockSearch.toLowerCase();
+  if (q) rows = rows.filter(x => x.name.toLowerCase().includes(q) || x.sku.toLowerCase().includes(q) || x.supplier.toLowerCase().includes(q));
+  if (state.stockCat !== "all") rows = rows.filter(x => x.cat === state.stockCat);
+  if (state.stockSite !== "all") rows = rows.filter(x => x.site === state.stockSite);
+  if (state.stockStatus !== "all") rows = rows.filter(x => x.status === state.stockStatus);
+  rows.sort((a, b) => {
+    const av = a[state.stockSort.key], bv = b[state.stockSort.key];
+    const cmp = typeof av === "number" ? av - bv : String(av).localeCompare(String(bv));
+    return state.stockSort.dir === "asc" ? cmp : -cmp;
+  });
+  const totalValue = D.items.reduce((s, x) => s + x.qty * x.cost, 0);
+  const totalQty = D.items.reduce((s, x) => s + x.qty, 0);
+  const lowCount = D.items.filter(x => x.status === "low" || x.status === "out").length;
+  const sortIco = k => state.stockSort.key === k ? ICON(state.stockSort.dir === "asc" ? "arrowUp" : "arrowDown", 10) : "";
+  const ths = (label, k, num) => `<th data-sort="${k || ''}" ${k ? '' : 'class="no-sort"'} style="text-align:${num ? 'right' : 'left'}"><span style="display:inline-flex;align-items:center;gap:4px">${label}${k ? sortIco(k) : ''}</span></th>`;
+
+  return `
+  <div class="page-head">
+    <div><h1>Stock</h1><div class="page-head__sub">${D.items.length} SKUs across ${D.sites.length} sites · last sync 4 min ago</div></div>
+    <div class="page-head__actions">
+      <button class="btn">${ICON("download", 13)} CSV</button>
+      <button class="btn">${ICON("upload", 13)} Direct receipt</button>
+      <button class="btn btn--primary" data-action="open-modal" data-modal="addStock">${ICON("plus", 13)} Add stock</button>
+    </div>
+  </div>
+  <div class="kpi-grid kpi-grid--3" style="margin-bottom:14px">
+    ${tplKpi("Total stock value", fmtCurrency(totalValue), "across all sites", "+4.2%", "up", "coin", D.valueSeries.slice(-14))}
+    ${tplKpi("Units on hand", fmtNum(totalQty), "all SKUs combined", "+820", "up", "cube", D.movementsIn.slice(-14))}
+    ${tplKpi("Low / out of stock", fmtNum(lowCount), "below minimum threshold", "+1", "down", "alert", [3,4,3,3,5,4,4,5,4,5,5,5,4,5], "warning")}
+  </div>
+  <div class="panel">
+    <div class="toolbar">
+      <div class="toolbar__search"><input class="input input--search" placeholder="Search by SKU, name, supplier..." value="${esc(state.stockSearch)}" data-bind="stockSearch"/></div>
+      <select class="select" data-bind="stockCat"><option value="all">All categories</option>${D.categories.map(c => `<option value="${esc(c.name)}" ${state.stockCat === c.name ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select>
+      <select class="select" data-bind="stockSite"><option value="all">All sites</option>${D.sites.map(s => `<option value="${esc(s.short)}" ${state.stockSite === s.short ? "selected" : ""}>${esc(s.short)}</option>`).join("")}</select>
+      <div class="segment">${["all","ok","low","out"].map(s => `<button data-set="stockStatus" data-val="${s}" ${state.stockStatus === s ? 'data-active="true"' : ''}>${s === "all" ? "All" : s === "ok" ? "In stock" : s === "low" ? "Low" : "Out"}</button>`).join("")}</div>
+      <div style="flex:1"></div>
+      <div class="segment segment--icon">
+        <button data-set="stockView" data-val="rows" ${state.stockView === "rows" ? 'data-active="true"' : ''}>${ICON("list", 13)}</button>
+        <button data-set="stockView" data-val="grid" ${state.stockView === "grid" ? 'data-active="true"' : ''}>${ICON("grid", 13)}</button>
+      </div>
+      <button class="btn btn--icon">${ICON("refresh", 13)}</button>
+    </div>
+    ${state.stockSelected.size > 0 ? `<div style="padding:8px 12px;background:var(--accent-soft);color:var(--accent-soft-fg);display:flex;align-items:center;gap:12px;font-size:12px;font-weight:600;border-bottom:1px solid var(--border)">${ICON("check", 13)} ${state.stockSelected.size} selected<button class="btn btn--sm" style="margin-left:auto">Transfer</button><button class="btn btn--sm">Adjust</button><button class="btn btn--sm">Export</button><button class="btn btn--sm" data-action="clear-selection">Clear</button></div>` : ""}
+    ${state.stockView === "rows" ? `
+      <div class="table-wrap"><table class="tbl"><thead><tr>
+        <th class="col-check no-sort"><input type="checkbox" class="checkbox" data-action="toggle-all" ${state.stockSelected.size === rows.length && rows.length > 0 ? "checked" : ""}/></th>
+        ${ths("SKU / Item", "name")}${ths("Category", "cat")}${ths("Site", "site")}${ths("Supplier", "supplier")}${ths("On hand", "qty", true)}${ths("Unit cost", "cost", true)}${ths("Total", null, true)}${ths("Status")}
+        <th class="col-actions no-sort"></th></tr></thead>
+        <tbody>${rows.map(r => `
+          <tr data-supplier="${esc(r.supplier)}" data-selected="${state.stockSelected.has(r.sku) ? 'true' : ''}" data-sku="${esc(r.sku)}">
+            <td class="col-check"><input type="checkbox" class="checkbox" data-action="toggle-row" data-sku="${esc(r.sku)}" ${state.stockSelected.has(r.sku) ? 'checked' : ''}/></td>
+            <td><span class="cell-stack__main">${esc(r.name)}</span><span class="cell-stack__sub">${esc(r.sku)}</span></td>
+            <td><span class="badge badge--plain">${esc(r.cat)}</span></td>
+            <td><span class="mono" style="font-size:11px;color:var(--fg-muted)">${esc(r.site)}</span></td>
+            <td style="color:var(--fg-muted)">${esc(r.supplier)}</td>
+            <td class="num-cell"><span style="font-weight:600;color:var(--fg)">${fmtNum(r.qty)}</span> <span style="color:var(--fg-subtle);font-size:10px">${esc(r.unit)}</span></td>
+            <td class="num-cell">${fmtNum(r.cost)}</td>
+            <td class="num-cell" style="font-weight:600">${fmtCurrency(r.qty * r.cost)}</td>
+            <td>${r.status === "low" ? `<span class="badge badge--warning">Low · ${r.qty}/${r.min}</span>` : tplBadge(r.status)}</td>
+            <td class="col-actions">${ICON("dots", 14)}</td>
+          </tr>`).join("")}</tbody></table>
+        ${rows.length === 0 ? '<div class="empty">No items match your filters</div>' : ''}
+      </div>` : `
+      <div style="padding:14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">${rows.map(r => `
+        <div style="padding:12px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--bg-elev)">
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span class="mono" style="font-size:10px;color:var(--fg-subtle)">${esc(r.sku)}</span>${tplBadge(r.status)}</div>
+          <div style="font-size:12px;font-weight:600;margin-bottom:4px;line-height:1.3">${esc(r.name)}</div>
+          <div style="font-size:10px;color:var(--fg-subtle);margin-bottom:10px">${esc(r.cat)} · ${esc(r.site)}</div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline">
+            <div style="font-family:var(--font-display);font-size:18px;font-weight:700;letter-spacing:-0.02em">${fmtNum(r.qty)} <span style="font-size:10px;color:var(--fg-subtle);font-weight:400">${esc(r.unit)}</span></div>
+            <div style="font-size:11px;color:var(--fg-muted);text-align:right">${fmtCurrency(r.qty * r.cost)}</div>
+          </div>
+        </div>`).join("")}</div>`}
+    <div style="padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);font-size:11px;color:var(--fg-muted)">
+      <span>${rows.length} of ${D.items.length} items</span>
+      <div style="display:flex;gap:4px;align-items:center"><button class="btn btn--sm btn--icon">${ICON("chevL", 12)}</button><span>Page 1 of 1</span><button class="btn btn--sm btn--icon">${ICON("chevR", 12)}</button></div>
+    </div>
+  </div>`;
+}
+
+function tplSuppliers() {
+  const totalSpend = D.suppliers.reduce((s, x) => s + x.value, 0);
+  const totalDue = D.suppliers.reduce((s, x) => s + Math.abs(Math.min(0, x.balance)), 0);
+  const active = D.suppliers.filter(s => s.status === "active").length;
+  return `
+  <div class="page-head">
+    <div><h1>Suppliers</h1><div class="page-head__sub">${D.suppliers.length} vendors · ${active} active · 4 countries</div></div>
+    <div class="page-head__actions">
+      <button class="btn">${ICON("download", 13)} Export</button>
+      <button class="btn btn--primary" data-action="open-modal" data-modal="addSupplier">${ICON("plus", 13)} Add supplier</button>
+    </div>
+  </div>
+  <div class="kpi-grid kpi-grid--3" style="margin-bottom:14px">
+    ${tplKpi("Total spend YTD", fmtCurrency(totalSpend), "across active suppliers", "+12%", "up", "coin", [60,62,65,64,68,72,75,78,82,85,88,92])}
+    ${tplKpi("Open balance due", fmtCurrency(totalDue), "6 vendors with payables", "-8%", "up", "list", [12,11,12,10,9,8,7,8,7,6,5,4])}
+    ${tplKpi("Avg lead time", "9.4d", "rolling 30-day", "-1.2d", "up", "truck", [12,11,12,10,11,9,10,9,8,9,8,9])}
+  </div>
+  <div class="panel">
+    <div class="toolbar">
+      <div class="toolbar__search"><input class="input input--search" placeholder="Search vendors, SUP-ID, country..."/></div>
+      <select class="select"><option>All status</option><option>Active</option><option>Review</option><option>Paused</option></select>
+      <select class="select"><option>All countries</option><option>Rwanda</option><option>Kenya</option><option>Uganda</option><option>Morocco</option></select>
+      <div style="flex:1"></div>
+      <button class="btn">${ICON("filter", 13)} Filters</button>
+    </div>
+    <div class="table-wrap"><table class="tbl"><thead><tr>
+      <th class="no-sort">Supplier</th><th class="no-sort">Contact</th><th class="no-sort">Location</th><th class="no-sort">Items</th><th class="no-sort">Stock value</th><th class="no-sort">Balance</th><th class="no-sort">Lead time</th><th class="no-sort">Rating</th><th class="no-sort">Status</th><th class="col-actions no-sort"></th>
+    </tr></thead><tbody>${D.suppliers.map(s => `
+      <tr data-action="open-supplier" data-id="${esc(s.id)}">
+        <td><span class="cell-stack__main">${esc(s.name)}</span><span class="cell-stack__sub">${esc(s.id)}</span></td>
+        <td><div style="font-size:12px">${esc(s.contact)}</div><div style="font-size:11px;color:var(--fg-subtle)">${esc(s.email)}</div></td>
+        <td>${ICON("pin", 11)} ${esc(s.city)}, ${esc(s.country)}</td>
+        <td class="num-cell">${s.items}</td>
+        <td class="num-cell" style="font-weight:600">${fmtCurrency(s.value)}</td>
+        <td class="num-cell" style="color:${s.balance < 0 ? 'var(--danger)' : 'var(--fg-muted)'}">${s.balance === 0 ? '—' : fmtCurrency(s.balance)}</td>
+        <td class="num-cell">${s.leadTime}d</td>
+        <td><span style="display:inline-flex;align-items:center;gap:4px;font-family:var(--font-mono);font-size:11px">${ICON("star", 11)} ${s.rating}</span></td>
+        <td>${tplBadge(s.status)}</td>
+        <td class="col-actions" style="color:var(--fg-subtle)">${ICON("chevR", 12)}</td>
+      </tr>`).join("")}</tbody></table></div>
+  </div>`;
+}
+
+function tplSupplierDetail() {
+  const s = D.suppliers.find(x => x.id === state.supplierId) || D.suppliers[0];
+  const supItems = D.items.filter(i => i.supplier === s.name);
+  const tab = state.supTab;
+  return `
+  <div style="margin-bottom:14px">
+    <button class="btn btn--ghost btn--sm" data-action="nav" data-route="suppliers" style="margin-bottom:12px">${ICON("arrowL", 12)} All suppliers</button>
+    <div class="supplier-head">
+      <div>
+        <div class="supplier-head__title">${esc(s.name)}<span class="badge badge--plain mono" style="font-size:10px;font-weight:600">${esc(s.id)}</span>${tplBadge(s.status)}</div>
+        <div class="supplier-head__meta">
+          <span style="display:inline-flex;align-items:center;gap:5px">${ICON("star", 12)} ${s.rating} rating</span>
+          <span style="display:inline-flex;align-items:center;gap:5px">${ICON("pin", 12)} ${esc(s.city)}, ${esc(s.country)}</span>
+          <span style="display:inline-flex;align-items:center;gap:5px">${ICON("truck", 12)} ${s.leadTime}d avg lead</span>
+          <span style="display:inline-flex;align-items:center;gap:5px">${ICON("activity", 12)} Vendor since ${esc(s.since)}</span>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn">${ICON("mail", 13)} Contact</button>
+        <button class="btn">${ICON("edit", 13)} Edit</button>
+        <button class="btn btn--primary">${ICON("plus", 13)} New requisition</button>
+      </div>
+    </div>
+  </div>
+  <div class="kpi-grid kpi-grid--4" style="margin-bottom:14px">
+    ${tplKpi("Items supplied", fmtNum(s.items), "active SKUs", "+3", "up", "cube")}
+    ${tplKpi("Stock value held", fmtCurrency(s.value), "from this supplier", "+6.4%", "up", "coin")}
+    ${tplKpi("Outstanding balance", s.balance < 0 ? fmtCurrency(s.balance) : "RWF 0", s.balance < 0 ? "due to vendor" : "settled", null, null, "list", null, s.balance < 0 ? "warning" : null)}
+    ${tplKpi("On-time delivery", "94.2%", "last 30 days", "+1.8%", "up", "truck")}
+  </div>
+  <div class="tabs">
+    <button class="tab" data-set="supTab" data-val="info" ${tab === "info" ? 'data-active="true"' : ''}>${ICON("user", 13)} Overview</button>
+    <button class="tab" data-set="supTab" data-val="items" ${tab === "items" ? 'data-active="true"' : ''}>${ICON("cube", 13)} Items <span style="font-size:10px;color:var(--fg-subtle)">(${supItems.length})</span></button>
+    <button class="tab" data-set="supTab" data-val="finance" ${tab === "finance" ? 'data-active="true"' : ''}>${ICON("coin", 13)} Finance</button>
+    <button class="tab" data-set="supTab" data-val="history" ${tab === "history" ? 'data-active="true"' : ''}>${ICON("activity", 13)} History</button>
+  </div>
+  ${tab === "info" ? `
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:var(--gap-card)">
+      <div>
+        <div style="font-size:11px;color:var(--fg-subtle);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;margin-bottom:8px">Contact details</div>
+        <div class="detail-grid" style="margin-bottom:18px">
+          ${[["Contact person",s.contact,"user"],["Email",s.email,"mail"],["Phone",s.phone,"phone"],["City",s.city,"pin"],["Address",s.address,"site"],["Country",s.country,"layers"]].map(([l,v,i])=>`<div class="detail-cell"><div class="detail-cell__label">${ICON(i,11)}${l}</div><div class="detail-cell__value">${esc(v)}</div></div>`).join("")}
+        </div>
+        <div style="font-size:11px;color:var(--fg-subtle);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;margin-bottom:8px">Performance</div>
+        <div class="panel"><div style="padding:16px">${areaChart(D.movementsIn.slice(-14), D.movementsOut.slice(-14), 140)}</div></div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--fg-subtle);text-transform:uppercase;letter-spacing:0.08em;font-weight:600;margin-bottom:8px">Recent activity</div>
+        <div class="panel">${D.activity.slice(0, 5).map(a => `<div class="activity-row" style="padding:10px 12px"><div class="activity-icon" data-kind="${a.kind}">${ICON(a.kind === "in" ? "arrowDown" : a.kind === "out" ? "arrowUp" : "alert", 12)}</div><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:600">${esc(a.title)}</div><div style="font-size:10px;color:var(--fg-subtle)">${esc(a.time)}</div></div></div>`).join("")}</div>
+      </div>
+    </div>` : ""}
+  ${tab === "items" ? `
+    <div class="panel"><table class="tbl"><thead><tr><th class="no-sort">SKU / Item</th><th class="no-sort">Category</th><th class="no-sort">Site</th><th class="no-sort">On hand</th><th class="no-sort">Unit cost</th><th class="no-sort">Total</th><th class="no-sort">Status</th></tr></thead><tbody>${supItems.map(r => `<tr><td><span class="cell-stack__main">${esc(r.name)}</span><span class="cell-stack__sub">${esc(r.sku)}</span></td><td><span class="badge badge--plain">${esc(r.cat)}</span></td><td class="mono" style="font-size:11px;color:var(--fg-muted)">${esc(r.site)}</td><td class="num-cell">${fmtNum(r.qty)} <span style="color:var(--fg-subtle);font-size:10px">${esc(r.unit)}</span></td><td class="num-cell">${fmtNum(r.cost)}</td><td class="num-cell" style="font-weight:600">${fmtCurrency(r.qty * r.cost)}</td><td>${tplBadge(r.status)}</td></tr>`).join("")}</tbody></table></div>` : ""}
+  ${tab === "finance" ? `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--gap-card)">
+      <div class="panel">
+        <div class="panel__head"><div class="panel__title">Open invoices</div><span class="badge badge--accent">3 open</span></div>
+        <table class="tbl"><tbody>
+          ${[{id:"INV-A4421",date:"2026-04-22",value:2400000,status:"paid"},{id:"INV-A4502",date:"2026-04-28",value:1820000,status:"open"},{id:"INV-A4561",date:"2026-05-02",value:4200000,status:"open"},{id:"INV-A4380",date:"2026-04-12",value:980000,status:"overdue"}].map(inv => `<tr><td class="mono" style="font-size:11px">${inv.id}</td><td style="color:var(--fg-muted);font-size:11px">${inv.date}</td><td class="num-cell" style="font-weight:600">${fmtCurrency(inv.value)}</td><td>${tplBadge(inv.status)}</td></tr>`).join("")}
+        </tbody></table>
+      </div>
+      <div class="panel"><div class="panel__head"><div class="panel__title">Spend trend · 12 weeks</div></div><div style="padding:16px">${barChart(Array.from({length:12},(_,i)=>({label:`W${i+1}`,value:1+Math.sin(i/2)*0.6+(i%3)*0.2})), 180)}</div></div>
+    </div>` : ""}
+  ${tab === "history" ? `
+    <div class="panel">${D.activity.concat(D.activity).slice(0, 10).map(a => `<div class="activity-row"><div class="activity-icon" data-kind="${a.kind}">${ICON(a.kind === "in" ? "arrowDown" : a.kind === "out" ? "arrowUp" : "alert", 13)}</div><div style="flex:1"><div class="activity-row__title">${esc(a.title)}</div><div class="activity-row__meta">${esc(a.meta)}</div></div><div class="activity-row__time">${esc(a.time)}</div></div>`).join("")}</div>` : ""}
+  `;
+}
+
+function tplAnalytics() {
+  const colors = ["var(--accent)","oklch(0.72 0.16 75)","oklch(0.62 0.16 155)","oklch(0.65 0.20 25)","oklch(0.55 0.18 290)","oklch(0.65 0.14 200)","oklch(0.70 0.12 100)","oklch(0.55 0.16 340)"];
+  const supBars = D.suppliers.map(s => ({label: s.name.split(" ")[0].slice(0, 6), value: s.value})).sort((a,b)=>b.value-a.value).slice(0, 8).map((b, i) => ({...b, color: colors[i % colors.length]}));
+  return `
+  <div class="page-head">
+    <div><h1>Analytics</h1><div class="page-head__sub">Inventory performance · cost · supplier health · forecasting</div></div>
+    <div class="page-head__actions">
+      <div class="segment"><button>7d</button><button data-active="true">30d</button><button>QTD</button><button>YTD</button></div>
+      <button class="btn">${ICON("download", 13)} Report</button>
+    </div>
+  </div>
+  <div class="kpi-grid kpi-grid--4" style="margin-bottom:14px">
+    ${tplKpi("Inventory turnover", "4.8×", "annualized", "+0.4×", "up", "refresh", [3.8,4.0,4.1,4.0,4.2,4.4,4.3,4.5,4.6,4.7,4.8,4.8])}
+    ${tplKpi("Stockout rate", "1.2%", "last 30 days", "-0.4pp", "up", "alert", [2.1,2.0,1.8,1.9,1.7,1.6,1.5,1.4,1.4,1.3,1.2,1.2])}
+    ${tplKpi("Carrying cost", fmtCurrency(8400000), "estimated monthly", "+2.1%", "down", "coin", [7.8,7.9,8.0,8.1,8.0,8.2,8.3,8.2,8.3,8.4,8.4,8.4])}
+    ${tplKpi("Forecast accuracy", "91.4%", "rolling 90d MAPE", "+1.2pp", "up", "chart", [88,89,89,90,90,91,90,91,91,91,91,91])}
+  </div>
+  <div class="analytics-grid" style="margin-bottom:var(--gap-card)">
+    <div class="panel">
+      <div class="panel__head"><div><div class="panel__title">Top suppliers by spend</div><div class="panel__sub">Year to date · ${D.suppliers.length} active vendors</div></div><button class="btn btn--ghost btn--sm">Details ${ICON("chevR", 11)}</button></div>
+      <div style="padding:16px">${barChart(supBars, 200)}</div>
+    </div>
+    <div class="panel">
+      <div class="panel__head"><div class="panel__title">Movement heatmap</div><span class="panel__sub">Receipts · last 7 days × hour of day</span></div>
+      <div style="padding:16px">
+        ${heatmap(7, 24, (r, c) => {
+          const work = c >= 8 && c <= 17 ? 0.6 : 0.05;
+          const peak = (c === 10 || c === 14) ? 0.3 : 0;
+          const day = r < 5 ? 1 : r === 5 ? 0.5 : 0.1;
+          const noise = (Math.sin(r*3 + c*1.3) + 1) * 0.15;
+          return Math.min(1, (work + peak + noise) * day);
+        })}
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--fg-subtle);font-family:var(--font-mono);margin-top:8px"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:00</span></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:10px;color:var(--fg-subtle)">Less<div style="display:flex;gap:2px">${[0.1,0.3,0.5,0.7,0.9].map(v => `<div style="width:12px;height:12px;border-radius:2px;background:oklch(var(--accent-l) var(--accent-c) var(--accent-h) / ${v})"></div>`).join("")}</div>More</div>
+      </div>
+    </div>
+  </div>
+  <div class="analytics-grid analytics-grid--3">
+    <div class="panel"><div class="panel__head"><div class="panel__title">Slowest moving SKUs</div></div><table class="tbl"><tbody>${D.items.slice(0, 6).map((r, i) => `<tr><td><span class="cell-stack__main">${esc(r.name)}</span><span class="cell-stack__sub">${esc(r.sku)}</span></td><td class="num-cell"><span style="color:var(--fg-muted)">${120 + i * 11}d</span></td><td class="num-cell" style="font-weight:600">${fmtCurrency(r.qty * r.cost)}</td></tr>`).join("")}</tbody></table></div>
+    <div class="panel"><div class="panel__head"><div class="panel__title">Cost variance · top 5</div></div><div style="padding:8px 14px">${[{name:"Portland Cement 50kg",change:8.4,dir:"up"},{name:"Crushed Gravel 20mm",change:14.2,dir:"up"},{name:"Cu Cable 6mm² · 100m",change:-3.8,dir:"down"},{name:"Plywood 18mm 2440×1220",change:6.1,dir:"up"},{name:"PVC Pipe 110mm · 6m",change:-1.2,dir:"down"}].map((c, i) => `<div style="padding:10px 0;${i < 4 ? 'border-bottom:1px solid var(--border)' : ''};display:flex;align-items:center;gap:10px"><div style="flex:1;font-size:12px">${esc(c.name)}</div><div style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;font-family:var(--font-mono);color:${c.dir === 'up' ? 'var(--danger)' : 'var(--success)'}">${ICON(c.dir === "up" ? "arrowUp" : "arrowDown", 11)}${Math.abs(c.change)}%</div></div>`).join("")}</div></div>
+    <div class="panel"><div class="panel__head"><div class="panel__title">Reorder forecast</div><span class="badge badge--warning">Next 14d</span></div><div style="padding:8px 14px">${[{name:"Y20 Rebar · Deformed",days:4,qty:"600 pcs",urgent:true},{name:"Crushed Gravel 20mm",days:6,qty:"30 m³",urgent:true},{name:"Cu Cable 6mm² · 100m",days:9,qty:"15 rolls",urgent:false},{name:"OSB Board 12mm",days:11,qty:"80 sheets",urgent:false},{name:"PVC 110mm Elbow 90°",days:12,qty:"40 pcs",urgent:false}].map((r, i) => `<div style="padding:10px 0;${i < 4 ? 'border-bottom:1px solid var(--border)' : ''}"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="font-size:12px;font-weight:600">${esc(r.name)}</div><span class="badge ${r.urgent ? "badge--danger" : "badge--accent"}">${r.days}d</span></div><div style="font-size:11px;color:var(--fg-subtle);margin-top:2px">Suggested order: ${esc(r.qty)}</div></div>`).join("")}</div></div>
+  </div>`;
+}
+
+function tplShell(content) {
+  const navItems = [
+    { id: "dashboard", icon: "dashboard", label: "Dashboard" },
+    { id: "stock", icon: "box", label: "Stock", count: D.items.length },
+    { id: "suppliers", icon: "truck", label: "Suppliers", count: D.suppliers.length },
+    { id: "analytics", icon: "chart", label: "Analytics" },
+  ];
+  const navItems2 = [
+    { id: "categories", icon: "layers", label: "Categories", count: D.categories.length },
+    { id: "requisitions", icon: "list", label: "Requisitions", count: D.requisitions.filter(r => r.status === "pending").length },
+    { id: "employees", icon: "users", label: "Employees" },
+    { id: "sites", icon: "site", label: "Sites" },
+    { id: "permissions", icon: "shield", label: "Permissions" },
+  ];
+  const crumbs = { dashboard:["Operations","Overview"], stock:["Operations","Stock"], suppliers:["Procurement","Suppliers"], supplierDetail:["Procurement","Suppliers","Detail"], analytics:["Operations","Analytics"] };
+  const cb = crumbs[state.route] || ["Operations", state.route];
+
+  return `
+  <div class="app" data-sidebar="${state.tweaks.sidebar}" data-density="${state.tweaks.density}" data-card="${state.tweaks.cardLayout}">
+    <aside class="sidebar">
+      <div class="sidebar__brand">
+        <div class="brand-mark"><span>S</span></div>
+        <div><div class="brand-name">STOQ</div><div class="brand-meta">CONSTRUCTION OS</div></div>
+      </div>
+      <div class="sidebar__section-label">Operations</div>
+      <nav class="nav">${navItems.map(n => `<button class="nav__item" data-action="nav" data-route="${n.id}" ${state.route === n.id || (state.route === "supplierDetail" && n.id === "suppliers") ? 'data-active="true"' : ''}>${ICON(n.icon, 15)}<span class="nav__label">${esc(n.label)}</span>${n.count != null ? `<span class="nav__count">${n.count}</span>` : ""}</button>`).join("")}</nav>
+      <div class="sidebar__section-label">Manage</div>
+      <nav class="nav">${navItems2.map(n => `<button class="nav__item" data-action="nav" data-route="${n.id}">${ICON(n.icon, 15)}<span class="nav__label">${esc(n.label)}</span>${n.count != null ? `<span class="nav__count">${n.count}</span>` : ""}</button>`).join("")}</nav>
+      <div class="sidebar__footer">
+        <div class="user-card"><div class="avatar">SK</div><div style="flex:1;min-width:0"><div class="user-card__name">Serge K.</div><div class="user-card__role">Admin · HQ-KGL</div></div>${ICON("chevD", 12)}</div>
+      </div>
+    </aside>
+    <main class="main">
+      <div class="topbar">
+        <div class="crumbs">${cb.map((c, i) => `<span class="${i === cb.length - 1 ? 'crumbs__current' : ''}">${esc(c)}</span>${i < cb.length - 1 ? '<span class="crumbs__sep">/</span>' : ''}`).join("")}</div>
+        <div style="flex:1"></div>
+        <button class="topbar__search" data-action="open-cmdk">${ICON("search", 13)} Search anything…<kbd>⌘K</kbd></button>
+        <button class="icon-btn" data-action="open-notifs">${ICON("bell", 14)}<span class="dot"></span></button>
+        <button class="icon-btn" data-action="toggle-tweaks" title="Tweaks">${ICON("sliders", 14)}</button>
+      </div>
+      <div class="content">${content}</div>
+    </main>
+  </div>`;
+}
+
+function tplAddStockModal() {
+  return `<div class="modal-backdrop" data-action="close-modal"><div class="modal modal--wide" onclick="event.stopPropagation()">
+    <div class="modal__head"><div><div class="modal__title">Add stock</div><div class="modal__sub">Receive new inventory into a site</div></div><button class="icon-btn" data-action="close-modal">${ICON("x", 14)}</button></div>
+    <div class="modal__body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div class="field"><label class="field__label">Item</label><select class="select"><option>Search or pick item…</option>${D.items.map(i => `<option>${esc(i.sku)} · ${esc(i.name)}</option>`).join("")}</select></div>
+        <div class="field"><label class="field__label">Supplier</label><select class="select">${D.suppliers.map(s => `<option>${esc(s.name)}</option>`).join("")}</select></div>
+        <div class="field"><label class="field__label">Destination site</label><select class="select">${D.sites.map(s => `<option>${esc(s.name)}</option>`).join("")}</select></div>
+        <div class="field"><label class="field__label">Receipt date</label><input class="input" value="2026-05-04"/></div>
+        <div class="field"><label class="field__label">Quantity</label><input class="input" value="100"/></div>
+        <div class="field"><label class="field__label">Unit cost (RWF)</label><input class="input" value="11800"/></div>
+        <div class="field" style="grid-column:1/-1"><label class="field__label">Reference / GRN</label><input class="input" value="GRN-2026-0418"/></div>
+        <div class="field" style="grid-column:1/-1"><label class="field__label">Notes</label><textarea class="input" style="height:70px;padding:10px;resize:vertical" placeholder="Optional notes about this receipt..."></textarea></div>
+      </div>
+      <div style="margin-top:16px;padding:12px;background:var(--bg-sunk);border:1px solid var(--border);border-radius:var(--r-sm);display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;font-size:11px">
+        <div><div style="color:var(--fg-subtle);font-size:10px;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;margin-bottom:4px">Total value</div><div style="font-family:var(--font-display);font-size:16px;font-weight:700">${fmtCurrency(1180000)}</div></div>
+        <div><div style="color:var(--fg-subtle);font-size:10px;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;margin-bottom:4px">New on-hand</div><div style="font-family:var(--font-display);font-size:16px;font-weight:700" class="num">1,960 bag</div></div>
+        <div><div style="color:var(--fg-subtle);font-size:10px;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;margin-bottom:4px">Avg unit cost</div><div style="font-family:var(--font-display);font-size:16px;font-weight:700" class="num">RWF 11,820</div></div>
+      </div>
+    </div>
+    <div class="modal__foot">
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--fg-muted)"><input type="checkbox" class="checkbox" checked/> Notify site manager</label>
+      <div style="display:flex;gap:8px"><button class="btn" data-action="close-modal">Cancel</button><button class="btn btn--primary" data-action="close-modal">${ICON("check", 13)} Confirm receipt</button></div>
+    </div>
+  </div></div>`;
+}
+function tplAddSupplierModal() {
+  return `<div class="modal-backdrop" data-action="close-modal"><div class="modal" onclick="event.stopPropagation()">
+    <div class="modal__head"><div><div class="modal__title">New supplier</div><div class="modal__sub">Onboard a new vendor</div></div><button class="icon-btn" data-action="close-modal">${ICON("x", 14)}</button></div>
+    <div class="modal__body"><div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div class="field" style="grid-column:1/-1"><label class="field__label">Company name</label><input class="input" placeholder="e.g. Volcano Steel Imports"/></div>
+      <div class="field"><label class="field__label">Contact person</label><input class="input"/></div>
+      <div class="field"><label class="field__label">Email</label><input class="input"/></div>
+      <div class="field"><label class="field__label">Phone</label><input class="input"/></div>
+      <div class="field"><label class="field__label">City</label><input class="input"/></div>
+      <div class="field"><label class="field__label">Country</label><select class="select"><option>Rwanda</option><option>Kenya</option><option>Uganda</option></select></div>
+      <div class="field"><label class="field__label">Lead time (days)</label><input class="input" value="7"/></div>
+      <div class="field" style="grid-column:1/-1"><label class="field__label">Address</label><input class="input"/></div>
+    </div></div>
+    <div class="modal__foot"><span style="font-size:11px;color:var(--fg-subtle)">Vendor will start as <strong>Review</strong></span><div style="display:flex;gap:8px"><button class="btn" data-action="close-modal">Cancel</button><button class="btn btn--primary" data-action="close-modal">Create supplier</button></div></div>
+  </div></div>`;
+}
+function tplCmdk() {
+  const items = [
+    { group: "Navigate", icon: "dashboard", label: "Go to Dashboard", kbd: "G D", action: "nav:dashboard" },
+    { group: "Navigate", icon: "box", label: "Go to Stock", kbd: "G S", action: "nav:stock" },
+    { group: "Navigate", icon: "truck", label: "Go to Suppliers", kbd: "G V", action: "nav:suppliers" },
+    { group: "Navigate", icon: "chart", label: "Go to Analytics", kbd: "G A", action: "nav:analytics" },
+    { group: "Actions", icon: "plus", label: "Add stock receipt", kbd: "N R", action: "modal:addStock" },
+    { group: "Actions", icon: "plus", label: "New supplier", kbd: "N V", action: "modal:addSupplier" },
+    { group: "Settings", icon: "settings", label: "Toggle dark mode", action: "tweak:theme" },
+    { group: "Settings", icon: "sliders", label: "Open Tweaks panel", action: "tweaks:open" },
+  ];
+  const filtered = state.cmdkQuery ? items.filter(x => x.label.toLowerCase().includes(state.cmdkQuery.toLowerCase())) : items;
+  const groups = {};
+  filtered.forEach(x => { (groups[x.group] = groups[x.group] || []).push(x); });
+  let idx = -1;
+  return `<div class="cmdk-backdrop" data-action="close-cmdk"><div class="cmdk" onclick="event.stopPropagation()">
+    <input id="cmdk-input" autofocus class="cmdk__input" placeholder="Search commands, navigate, or take action..." value="${esc(state.cmdkQuery)}"/>
+    <div class="cmdk__list">${Object.entries(groups).map(([g, list]) => `<div><div class="cmdk__group-label">${esc(g)}</div>${list.map(x => { idx++; return `<div class="cmdk__item" ${idx === state.cmdkActive ? 'data-active="true"' : ''} data-cmdk-action="${esc(x.action)}">${ICON(x.icon, 14)}${esc(x.label)}${x.kbd ? `<span class="cmdk__item-kbd">${esc(x.kbd)}</span>` : ""}</div>`; }).join("")}</div>`).join("") || '<div class="empty">No commands found</div>'}</div>
+    <div class="cmdk__foot"><span><kbd>↑↓</kbd> navigate</span><span><kbd>↵</kbd> select</span><span><kbd>esc</kbd> close</span></div>
+  </div></div>`;
+}
+function tplNotifs() {
+  return `<div class="drawer-backdrop" data-action="close-notifs"></div><div class="drawer">
+    <div class="drawer__head"><div><div class="drawer__title">Notifications</div><div style="font-size:11px;color:var(--fg-subtle)">${D.notifications.filter(n => !n.read).length} unread</div></div><div style="display:flex;gap:6px"><button class="btn btn--ghost btn--sm">Mark all read</button><button class="icon-btn" data-action="close-notifs">${ICON("x", 14)}</button></div></div>
+    <div class="drawer__list">${D.notifications.map(n => `<div class="notif ${n.read ? 'notif--read' : ''}"><div class="notif__dot"></div><div style="flex:1;min-width:0"><div class="notif__title">${esc(n.title)}</div><div class="notif__body">${esc(n.body)}</div><div class="notif__time">${esc(n.time)}</div></div></div>`).join("")}</div>
+  </div>`;
+}
+function tplTweaksPanel() {
+  if (state.tweaksHidden) {
+    return `<button class="tweaks-toggle" data-action="show-tweaks-pill" title="Show tweaks panel">${ICON("sliders", 16)}</button>`;
+  }
+  if (!state.tweaksOpen) return "";
+  const t = state.tweaks;
+  const seg = (k, opts) => `<div class="tweaks__seg">${opts.map(o => `<button data-tweak-set="${k}" data-val="${o.value}" ${t[k] === o.value ? 'data-active="true"' : ''}>${esc(o.label)}</button>`).join("")}</div>`;
+  return `<div class="tweaks">
+    <div class="tweaks__head">
+      <div class="tweaks__title">${ICON("sliders", 14)} Tweaks</div>
+      <div style="display:flex;gap:4px">
+        <button class="icon-btn" style="width:24px;height:24px;border:none" data-action="hide-tweaks" title="Hide panel">${ICON("chevD", 12)}</button>
+        <button class="icon-btn" style="width:24px;height:24px;border:none" data-action="close-tweaks" title="Close">${ICON("x", 12)}</button>
+      </div>
+    </div>
+    <div class="tweaks__body">
+      <div class="tweaks__sect">Appearance</div>
+      <div class="tweaks__row"><label>Theme</label>${seg("theme", [{value:"light",label:"Light"},{value:"dark",label:"Dark"}])}</div>
+      <div class="tweaks__row"><label>Accent</label>
+        <div class="tweaks__swatches">${Object.entries(ACCENTS).map(([name, a]) => `<button class="tweaks__swatch" data-tweak-set="accent" data-val="${name}" ${t.accent === name ? 'data-active="true"' : ''} title="${name}" style="background:oklch(${a.l} ${a.c} ${a.h})"></button>`).join("")}</div>
+      </div>
+      <div class="tweaks__row"><label>Font pair</label><select class="tweaks__select" data-tweak-set="fontPair">${Object.keys(FONT_PAIRS).map(f => `<option ${t.fontPair === f ? "selected" : ""}>${esc(f)}</option>`).join("")}</select></div>
+      <div class="tweaks__sect">Layout</div>
+      <div class="tweaks__row"><label>Sidebar</label>${seg("sidebar", [{value:"labels",label:"Labels"},{value:"rail",label:"Icon rail"}])}</div>
+      <div class="tweaks__row"><label>Density</label>${seg("density", [{value:"compact",label:"Compact"},{value:"dense",label:"Dense"},{value:"comfy",label:"Comfy"}])}</div>
+      <div class="tweaks__row"><label>Cards</label>${seg("cardLayout", [{value:"default",label:"Default"},{value:"flat",label:"Flat"},{value:"bordered",label:"Sharp"}])}</div>
+    </div>
+  </div>`;
+}
+
+/* ============== RENDER ============== */
+function render() {
+  const root = $("#root");
+  let html = "";
+  if (state.route === "login") {
+    html = tplLogin();
+  } else {
+    let inner = "";
+    if (state.route === "dashboard") inner = tplDashboard();
+    else if (state.route === "stock") inner = tplStock();
+    else if (state.route === "suppliers") inner = tplSuppliers();
+    else if (state.route === "supplierDetail") inner = tplSupplierDetail();
+    else if (state.route === "analytics") inner = tplAnalytics();
+    else inner = `<div class="empty" style="padding:80px">${ICON("layers", 32)}<div style="font-family:var(--font-display);font-size:18px;font-weight:700;color:var(--fg);margin:14px 0 4px;text-transform:capitalize">${esc(state.route)}</div><div>Module ready · connect data sources to populate</div></div>`;
+    html = tplShell(inner);
+  }
+  if (state.modal === "addStock") html += tplAddStockModal();
+  if (state.modal === "addSupplier") html += tplAddSupplierModal();
+  if (state.cmdkOpen) html += tplCmdk();
+  if (state.notifsOpen) html += tplNotifs();
+  if (state.route !== "login") html += tplTweaksPanel();
+  root.innerHTML = html;
+  // Restore focus to cmdk input
+  if (state.cmdkOpen) {
+    const inp = $("#cmdk-input");
+    if (inp) {
+      inp.focus();
+      inp.setSelectionRange(state.cmdkQuery.length, state.cmdkQuery.length);
+    }
+  }
+}
+
+/* ============== EVENT WIRING ============== */
+function handleCmdkAction(action) {
+  const [type, val] = action.split(":");
+  if (type === "nav") { state.route = val; }
+  else if (type === "modal") { state.modal = val; }
+  else if (type === "tweak" && val === "theme") { state.tweaks.theme = state.tweaks.theme === "light" ? "dark" : "light"; applyTweaks(); }
+  else if (type === "tweaks" && val === "open") { state.tweaksOpen = true; state.tweaksHidden = false; }
+  state.cmdkOpen = false;
+  state.cmdkQuery = "";
+  state.cmdkActive = 0;
+}
+
+document.addEventListener("click", (e) => {
+  const t = e.target.closest("[data-action]");
+  if (!t) {
+    // Cmdk item click
+    const c = e.target.closest("[data-cmdk-action]");
+    if (c) { handleCmdkAction(c.getAttribute("data-cmdk-action")); render(); return; }
+    // Setter buttons (segment)
+    const setter = e.target.closest("[data-set]");
+    if (setter) { state[setter.getAttribute("data-set")] = setter.getAttribute("data-val"); render(); return; }
+    // Tweak setter
+    const tk = e.target.closest("[data-tweak-set]");
+    if (tk) { setTweak(tk.getAttribute("data-tweak-set"), tk.getAttribute("data-val")); return; }
+    // Sort headers
+    const th = e.target.closest("th[data-sort]");
+    if (th && th.getAttribute("data-sort")) {
+      const k = th.getAttribute("data-sort");
+      state.stockSort = { key: k, dir: state.stockSort.key === k && state.stockSort.dir === "asc" ? "desc" : "asc" };
+      render(); return;
+    }
+    return;
+  }
+  const action = t.getAttribute("data-action");
+  if (action === "login") { state.loggedIn = true; state.route = "dashboard"; }
+  else if (action === "nav") { state.route = t.getAttribute("data-route"); state.notifsOpen = false; }
+  else if (action === "open-modal") { state.modal = t.getAttribute("data-modal"); }
+  else if (action === "close-modal") { state.modal = null; }
+  else if (action === "open-cmdk") { state.cmdkOpen = true; state.cmdkQuery = ""; state.cmdkActive = 0; }
+  else if (action === "close-cmdk") { state.cmdkOpen = false; }
+  else if (action === "open-notifs") { state.notifsOpen = true; }
+  else if (action === "close-notifs") { state.notifsOpen = false; }
+  else if (action === "toggle-tweaks") { state.tweaksOpen = !state.tweaksOpen; state.tweaksHidden = false; }
+  else if (action === "close-tweaks") { state.tweaksOpen = false; state.tweaksHidden = false; }
+  else if (action === "hide-tweaks") { state.tweaksOpen = false; state.tweaksHidden = true; }
+  else if (action === "show-tweaks-pill") { state.tweaksHidden = false; state.tweaksOpen = true; }
+  else if (action === "open-supplier") { state.supplierId = t.getAttribute("data-id"); state.supTab = "info"; state.route = "supplierDetail"; }
+  else if (action === "toggle-all") {
+    const checks = document.querySelectorAll('[data-action="toggle-row"]');
+    if (state.stockSelected.size > 0) state.stockSelected.clear();
+    else checks.forEach(c => state.stockSelected.add(c.getAttribute("data-sku")));
+  }
+  else if (action === "toggle-row") {
+    const sku = t.getAttribute("data-sku");
+    if (state.stockSelected.has(sku)) state.stockSelected.delete(sku);
+    else state.stockSelected.add(sku);
+  }
+  else if (action === "clear-selection") { state.stockSelected.clear(); }
+  render();
+});
+
+document.addEventListener("input", (e) => {
+  const t = e.target.closest("[data-bind]");
+  if (t) {
+    state[t.getAttribute("data-bind")] = t.value;
+    // Re-render but preserve focus on this input
+    const id = t.getAttribute("data-bind");
+    render();
+    const el = document.querySelector(`[data-bind="${id}"]`);
+    if (el) { el.focus(); if (el.setSelectionRange) try { el.setSelectionRange(el.value.length, el.value.length); } catch(_){} }
+    return;
+  }
+  if (e.target.id === "cmdk-input") {
+    state.cmdkQuery = e.target.value;
+    state.cmdkActive = 0;
+    render();
+  }
+});
+
+document.addEventListener("change", (e) => {
+  const t = e.target.closest("[data-bind]");
+  if (t && (t.tagName === "SELECT")) { state[t.getAttribute("data-bind")] = t.value; render(); return; }
+  const tk = e.target.closest("[data-tweak-set]");
+  if (tk && tk.tagName === "SELECT") { setTweak(tk.getAttribute("data-tweak-set"), tk.value); return; }
+});
+
+document.addEventListener("keydown", (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+    e.preventDefault();
+    state.cmdkOpen = !state.cmdkOpen;
+    if (state.cmdkOpen) { state.cmdkQuery = ""; state.cmdkActive = 0; }
+    render();
+  }
+  if (state.cmdkOpen) {
+    if (e.key === "Escape") { state.cmdkOpen = false; render(); }
+    if (e.key === "ArrowDown") { state.cmdkActive++; render(); e.preventDefault(); }
+    if (e.key === "ArrowUp") { state.cmdkActive = Math.max(0, state.cmdkActive - 1); render(); e.preventDefault(); }
+    if (e.key === "Enter") {
+      const items = document.querySelectorAll(".cmdk__item");
+      const it = items[state.cmdkActive];
+      if (it) { handleCmdkAction(it.getAttribute("data-cmdk-action")); render(); }
+    }
+  }
+});
+
+/* ============== INIT ============== */
+applyTweaks();
+render();
+</script>
+</body>
+</html>

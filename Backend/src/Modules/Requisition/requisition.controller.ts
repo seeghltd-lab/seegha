@@ -8,23 +8,24 @@ import {
   Put,
   Query,
   Req,
-  SetMetadata,
   UseGuards,
 } from '@nestjs/common';
 import { RequisitionService } from './requisition.service';
 import { DualAuthGuard } from '../../Guards/dual-auth.guard';
-import { EmployeePermissionGuard } from '../../Guards/employee-permission.guard';
 
 @Controller('requisitions')
 export class RequisitionController {
   constructor(private readonly requisitionService: RequisitionService) {}
 
   @Post()
-  @SetMetadata('permission', 'create_requisition')
-  @UseGuards(DualAuthGuard, EmployeePermissionGuard)
+  @UseGuards(DualAuthGuard)
   create(@Body() body: any, @Req() req: any) {
-    const employeeId = req.admin ? body.employeeId : req.employee.id;
-    return this.requisitionService.create(body, employeeId);
+    const isAdmin = !!req.admin;
+    const creator = isAdmin
+      ? { type: 'ADMIN' as const, id: req.admin.id, name: req.admin.names || req.admin.email || 'Admin' }
+      : { type: 'EMPLOYEE' as const, id: req.employee.id, name: `${req.employee.firstName ?? ''} ${req.employee.lastName ?? ''}`.trim() || req.employee.email };
+    const payload = isAdmin ? { ...body, employeeId: body.employeeId || null } : { ...body, employeeId: req.employee.id };
+    return this.requisitionService.create(payload, creator);
   }
 
   @Get()
@@ -35,7 +36,6 @@ export class RequisitionController {
     return this.requisitionService.findAll(query, callerId, role);
   }
 
-  // Must be before /:id to avoid route collision
   @Get(':id/receiving-summary')
   @UseGuards(DualAuthGuard)
   getReceivingSummary(@Param('id') id: string) {
@@ -51,8 +51,7 @@ export class RequisitionController {
   }
 
   @Put(':id/approve')
-  @SetMetadata('permission', 'approve_requisition')
-  @UseGuards(DualAuthGuard, EmployeePermissionGuard)
+  @UseGuards(DualAuthGuard)
   approve(
     @Param('id') id: string,
     @Body() body: { items?: any[]; notes?: string },
@@ -64,8 +63,7 @@ export class RequisitionController {
   }
 
   @Put(':id/reject')
-  @SetMetadata('permission', 'approve_requisition')
-  @UseGuards(DualAuthGuard, EmployeePermissionGuard)
+  @UseGuards(DualAuthGuard)
   reject(
     @Param('id') id: string,
     @Body('reason') reason: string,
@@ -77,8 +75,7 @@ export class RequisitionController {
   }
 
   @Put(':id/receive')
-  @SetMetadata('permission', 'receive_requisition')
-  @UseGuards(DualAuthGuard, EmployeePermissionGuard)
+  @UseGuards(DualAuthGuard)
   receiveItems(
     @Param('id') id: string,
     @Body() body: { items: { itemId: string; receivedQty: number; note?: string }[] },
