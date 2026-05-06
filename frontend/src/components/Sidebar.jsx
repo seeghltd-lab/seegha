@@ -126,7 +126,7 @@ const Sidebar = ({ isOpen, onToggle, role }) => {
           <div className="brand-name">{shortName}</div>
           <div className="brand-meta">{role === 'admin' ? 'Management' : 'Staff Portal'}</div>
         </div>
-        <button
+        {/* <button
           onClick={onToggle}
           style={{
             marginLeft: 'auto', display: 'grid', placeItems: 'center',
@@ -137,7 +137,7 @@ const Sidebar = ({ isOpen, onToggle, role }) => {
           className="lg:hidden"
         >
           <X size={16} />
-        </button>
+        </button> */}
       </div>
 
       {/* Navigation */}

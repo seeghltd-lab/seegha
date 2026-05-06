@@ -27,7 +27,7 @@ CREATE TABLE `Site` (
     `startDate` DATETIME(3) NULL,
     `endDate` DATETIME(3) NULL,
     `image` VARCHAR(191) NULL,
-    `adminId` VARCHAR(191) NOT NULL,
+    `adminId` VARCHAR(191) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
@@ -43,7 +43,7 @@ CREATE TABLE `SiteWorkerRecord` (
     `workerCount` INTEGER NOT NULL,
     `notes` TEXT NULL,
     `recordedBy` VARCHAR(191) NOT NULL,
-    `adminId` VARCHAR(191) NOT NULL,
+    `adminId` VARCHAR(191) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
     INDEX `SiteWorkerRecord_siteId_idx`(`siteId`),
@@ -60,7 +60,7 @@ CREATE TABLE `SiteExpense` (
     `date` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `reference` VARCHAR(191) NULL,
     `notes` TEXT NULL,
-    `adminId` VARCHAR(191) NOT NULL,
+    `adminId` VARCHAR(191) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
@@ -113,7 +113,7 @@ CREATE TABLE `Supplier` (
     `rating` DOUBLE NULL DEFAULT 0,
     `status` ENUM('ACTIVE', 'INACTIVE', 'SUSPENDED') NOT NULL DEFAULT 'ACTIVE',
     `notes` TEXT NULL,
-    `adminId` VARCHAR(191) NOT NULL,
+    `adminId` VARCHAR(191) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
@@ -127,7 +127,7 @@ CREATE TABLE `Category` (
     `id` VARCHAR(191) NOT NULL,
     `name` VARCHAR(191) NOT NULL,
     `description` VARCHAR(191) NULL,
-    `adminId` VARCHAR(191) NOT NULL,
+    `adminId` VARCHAR(191) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
@@ -192,6 +192,7 @@ CREATE TABLE `Requisition` (
     `employeeId` VARCHAR(191) NULL,
     `createdByAdminId` VARCHAR(191) NULL,
     `supplierId` VARCHAR(191) NULL,
+    `siteId` VARCHAR(191) NULL,
     `approvedAt` DATETIME(3) NULL,
     `completedAt` DATETIME(3) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -199,6 +200,7 @@ CREATE TABLE `Requisition` (
 
     INDEX `Requisition_supplierId_idx`(`supplierId`),
     INDEX `Requisition_employeeId_idx`(`employeeId`),
+    INDEX `Requisition_siteId_idx`(`siteId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -214,6 +216,7 @@ CREATE TABLE `RequisitionItem` (
     `costPrice` DOUBLE NULL,
     `receivedQty` DOUBLE NOT NULL DEFAULT 0,
     `receivingStatus` ENUM('NOT_RECEIVED', 'PARTIALLY_RECEIVED', 'FULLY_RECEIVED') NOT NULL DEFAULT 'NOT_RECEIVED',
+    `paymentType` VARCHAR(191) NOT NULL DEFAULT 'NONE',
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
@@ -289,8 +292,10 @@ CREATE TABLE `SupplierPayment` (
     `id` VARCHAR(191) NOT NULL,
     `supplierId` VARCHAR(191) NOT NULL,
     `stockId` VARCHAR(191) NULL,
+    `requisitionItemId` VARCHAR(191) NULL,
     `type` ENUM('CREDIT', 'DEBIT') NOT NULL,
     `amount` DECIMAL(14, 2) NOT NULL,
+    `quantity` DECIMAL(14, 4) NULL,
     `reference` VARCHAR(191) NULL,
     `notes` TEXT NULL,
     `date` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -300,6 +305,7 @@ CREATE TABLE `SupplierPayment` (
 
     INDEX `SupplierPayment_supplierId_idx`(`supplierId`),
     INDEX `SupplierPayment_stockId_idx`(`stockId`),
+    INDEX `SupplierPayment_requisitionItemId_idx`(`requisitionItemId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -364,6 +370,9 @@ ALTER TABLE `Requisition` ADD CONSTRAINT `Requisition_employeeId_fkey` FOREIGN K
 ALTER TABLE `Requisition` ADD CONSTRAINT `Requisition_supplierId_fkey` FOREIGN KEY (`supplierId`) REFERENCES `Supplier`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE `Requisition` ADD CONSTRAINT `Requisition_siteId_fkey` FOREIGN KEY (`siteId`) REFERENCES `Site`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE `RequisitionItem` ADD CONSTRAINT `RequisitionItem_requisitionId_fkey` FOREIGN KEY (`requisitionId`) REFERENCES `Requisition`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -383,3 +392,6 @@ ALTER TABLE `SupplierPayment` ADD CONSTRAINT `SupplierPayment_supplierId_fkey` F
 
 -- AddForeignKey
 ALTER TABLE `SupplierPayment` ADD CONSTRAINT `SupplierPayment_stockId_fkey` FOREIGN KEY (`stockId`) REFERENCES `Stock`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `SupplierPayment` ADD CONSTRAINT `SupplierPayment_requisitionItemId_fkey` FOREIGN KEY (`requisitionItemId`) REFERENCES `RequisitionItem`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
