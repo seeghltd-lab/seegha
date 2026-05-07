@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
 import { ArrowLeft, AlertCircle, CheckCircle, Package, Clock, RefreshCw, List, LayoutGrid, ChevronDown, Plus, Link2 } from 'lucide-react';
 import requisitionService from '../../../services/requisitionService';
@@ -131,6 +131,7 @@ export default function ReceiveRequisition() {
             const sd = newStockInputs[itemId];
             if (sd?.unitCost && Number(sd.unitCost) > 0) {
               payload.newStockData = {
+                unit: item.unit,
                 unitCost: Number(sd.unitCost),
                 siteId: sd.siteId || undefined,
                 categoryId: sd.categoryId || undefined,

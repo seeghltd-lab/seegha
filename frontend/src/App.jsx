@@ -1,51 +1,54 @@
-﻿import React, { useEffect } from "react";
+﻿import React, { useEffect, lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { SocketProvider } from "./context/SocketContext";
 import { AdminAuthProvider, useAdminAuth } from "./context/AdminAuthContext";
 import { EmployeeAuthProvider, useEmployeeAuth } from "./context/EmployeeAuthContext";
 import { NotificationProvider, useNotification } from "./context/NotificationContext";
 import { AdminRoute, EmployeeRoute } from "./components/ProtectedRoute";
+import LoadingScreen from "./components/LoadingScreen";
 
+// Eager load: auth and core layout
 import AdminLogin from "./pages/admin/Login";
-import AdminDashboard from "./pages/admin/Dashboard";
 import EmployeeLogin from "./pages/employee/Login";
+import AdminDashboard from "./pages/admin/Dashboard";
 import EmployeeDashboard from "./pages/employee/Dashboard";
 import DashboardLayout from "./components/DashboardLayout";
 import NotFound from "./pages/NotFound";
 
-// Admin Employee Pages
-import EmployeeList from "./pages/admin/employee/EmployeeList";
-import CreateEmployee from "./pages/admin/employee/CreateEmployee";
-import UpdateEmployee from "./pages/admin/employee/UpdateEmployee";
-import EmployeeDetail from "./pages/admin/employee/EmployeeDetail";
+// Admin Employee Pages — lazy loaded
+const EmployeeList        = lazy(() => import("./pages/admin/employee/EmployeeList"));
+const CreateEmployee      = lazy(() => import("./pages/admin/employee/CreateEmployee"));
+const UpdateEmployee      = lazy(() => import("./pages/admin/employee/UpdateEmployee"));
+const EmployeeDetail      = lazy(() => import("./pages/admin/employee/EmployeeDetail"));
 
-// Admin Supplier & Stock Pages
-import SupplierPage from "./pages/admin/SupplierPage";
-import SupplierDetail from "./pages/admin/supplier/SupplierDetail";
-import StockManagement from "./pages/admin/stock/StockManagement";
-import AddStock from "./pages/admin/stock/AddStock";
-import DirectReceipt from "./pages/admin/stock/DirectReceipt";
-import StockHistory from "./pages/admin/stock/StockHistory";
-import ActivityLogPage from "./pages/admin/ActivityLogPage";
+// Admin Supplier & Stock Pages — lazy loaded
+const SupplierPage        = lazy(() => import("./pages/admin/SupplierPage"));
+const SupplierDetail      = lazy(() => import("./pages/admin/supplier/SupplierDetail"));
+const StockManagement     = lazy(() => import("./pages/admin/stock/StockManagement"));
+const StockDetail         = lazy(() => import("./pages/admin/stock/StockDetail"));
+const AddStock            = lazy(() => import("./pages/admin/stock/AddStock"));
+const DirectReceipt       = lazy(() => import("./pages/admin/stock/DirectReceipt"));
+const StockHistory        = lazy(() => import("./pages/admin/stock/StockHistory"));
+const ActivityLogPage     = lazy(() => import("./pages/admin/ActivityLogPage"));
 
-// Other pages
-import AddEditSupplier from "./pages/admin/supplier/AddEditSupplier";
-import CategoryPage from "./pages/admin/category/CategoryPage";
-import AddEditCategory from "./pages/admin/category/AddEditCategory";
-import AdminProfile from "./pages/admin/AdminProfile";
-import SiteManagement from "./pages/admin/SiteManagement";
-import AddEditSite from "./pages/admin/site/AddEditSite";
-import SiteDetail from "./pages/admin/site/SiteDetail";
-import EmployeeProfile from "./pages/employee/EmployeeProfile";
-import RequisitionManagement from "./pages/admin/RequisitionManagement";
-import ApproveRequisition from "./pages/admin/requisition/ApproveRequisition";
-import ReceiveRequisition from "./pages/admin/requisition/ReceiveRequisition";
-import PermissionManagement from "./pages/admin/PermissionManagement";
-import NotificationsPage from "./pages/admin/NotificationsPage";
-import EmployeeRequisitionPage from "./pages/employee/RequisitionPage";
-import EmployeeRequisitionDetail from "./pages/employee/RequisitionDetail";
-import RequisitionDetail from "./pages/admin/requisition/RequisitionDetail";
-import CreateRequisition from "./pages/admin/requisition/CreateRequisition";
+// Other pages — lazy loaded
+const AddEditSupplier     = lazy(() => import("./pages/admin/supplier/AddEditSupplier"));
+const CategoryPage        = lazy(() => import("./pages/admin/category/CategoryPage"));
+const AddEditCategory     = lazy(() => import("./pages/admin/category/AddEditCategory"));
+const AdminProfile        = lazy(() => import("./pages/admin/AdminProfile"));
+const SiteManagement      = lazy(() => import("./pages/admin/SiteManagement"));
+const AddEditSite         = lazy(() => import("./pages/admin/site/AddEditSite"));
+const SiteDetail          = lazy(() => import("./pages/admin/site/SiteDetail"));
+const EmployeeProfile     = lazy(() => import("./pages/employee/EmployeeProfile"));
+const RequisitionManagement = lazy(() => import("./pages/admin/RequisitionManagement"));
+const ApproveRequisition  = lazy(() => import("./pages/admin/requisition/ApproveRequisition"));
+const ReceiveRequisition  = lazy(() => import("./pages/admin/requisition/ReceiveRequisition"));
+const PermissionManagement = lazy(() => import("./pages/admin/PermissionManagement"));
+const NotificationsPage   = lazy(() => import("./pages/admin/NotificationsPage"));
+const EmployeeRequisitionPage = lazy(() => import("./pages/employee/RequisitionPage"));
+const EmployeeRequisitionDetail = lazy(() => import("./pages/employee/RequisitionDetail"));
+const RequisitionDetail   = lazy(() => import("./pages/admin/requisition/RequisitionDetail"));
+const CreateRequisition   = lazy(() => import("./pages/admin/requisition/CreateRequisition"));
 
 function NotificationBridge() {
   const { admin, isAuthenticated: adminAuth } = useAdminAuth();
@@ -67,7 +70,8 @@ function App() {
           <NotificationProvider>
             <BrowserRouter>
               <NotificationBridge />
-              <Routes>
+              <Suspense fallback={<LoadingScreen />}>
+                <Routes>
                 <Route path="/" element={<Navigate to="/login" replace />} />
 
                 {/* Employee Routes */}
@@ -92,6 +96,7 @@ function App() {
                     <Route path="/stock/edit/:id"            element={<AddStock />} />
                     <Route path="/stock/direct-receipt"      element={<DirectReceipt />} />
                     <Route path="/stock/history"             element={<StockHistory />} />
+                    <Route path="/stock/:id"                 element={<StockDetail />} />
 
                     {/* Categories — matches Sidebar path="/categories" */}
                     <Route path="/categories"                element={<CategoryPage />} />
@@ -139,6 +144,7 @@ function App() {
                     <Route path="/admin/stock/edit/:id"      element={<AddStock />} />
                     <Route path="/admin/stock/direct-receipt" element={<DirectReceipt />} />
                     <Route path="/admin/stock/history"       element={<StockHistory />} />
+                    <Route path="/admin/stock/:id"           element={<StockDetail />} />
 
                     <Route path="/admin/activity-log"        element={<ActivityLogPage />} />
 
@@ -163,6 +169,7 @@ function App() {
                 {/* Global 404 */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
+              </Suspense>
             </BrowserRouter>
           </NotificationProvider>
         </EmployeeAuthProvider>

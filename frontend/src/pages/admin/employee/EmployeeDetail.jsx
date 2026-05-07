@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Mail, Phone, Briefcase, Calendar, ShieldCheck, FileText, Lock, Unlock, Pencil, AlertCircle, RefreshCw } from 'lucide-react';
 import employeeService from '../../../services/employeeService';

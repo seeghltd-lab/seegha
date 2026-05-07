@@ -101,10 +101,11 @@ model Site {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
-  stocks        Stock[]
-  workerRecords SiteWorkerRecord[]
-  expenses      SiteExpense[]
-  requisitions  Requisition[]
+  stocks          Stock[]
+  workerRecords   SiteWorkerRecord[]
+  expenses        SiteExpense[]
+  requisitions    Requisition[]
+  stockQuantities StockSiteQuantity[]
 
   @@index([adminId])
   @@map("Site")
@@ -243,12 +244,13 @@ model Stock {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  category         Category?        @relation(fields: [categoryId], references: [id])
-  supplier         Supplier?        @relation(fields: [supplierId], references: [id])
-  site             Site?            @relation(fields: [siteId], references: [id])
+  category         Category?          @relation(fields: [categoryId], references: [id])
+  supplier         Supplier?          @relation(fields: [supplierId], references: [id])
+  site             Site?              @relation(fields: [siteId], references: [id])
   history          StockHistory[]
   requisitionItems RequisitionItem[]
   payments         SupplierPayment[]
+  siteQuantities   StockSiteQuantity[]
 
   @@index([adminId])
   @@index([categoryId])
@@ -270,6 +272,7 @@ model StockHistory {
   notes               String?
   createdByAdminId    String?
   createdByEmployeeId String?
+  siteId              String?
   createdAt           DateTime     @default(now())
 
   stock Stock @relation(fields: [stockId], references: [id], onDelete: Cascade)
@@ -461,4 +464,24 @@ model PushSubscription {
   @@unique([endpoint(length: 255)])
   @@index([userId, type])
   @@map("PushSubscription")
+}
+
+// ─── STOCK SITE QUANTITY ─────────────────────────────
+
+model StockSiteQuantity {
+  id           String   @id @default(cuid())
+  stockId      String
+  siteId       String
+  quantity     Int      @default(0)
+  reorderLevel Int      @default(5)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  stock Stock @relation(fields: [stockId], references: [id], onDelete: Cascade)
+  site  Site  @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@unique([stockId, siteId])
+  @@index([stockId])
+  @@index([siteId])
+  @@map("StockSiteQuantity")
 }

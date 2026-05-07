@@ -53,7 +53,7 @@ function PaymentModal({ stock, onClose, onSuccess }) {
         <div className="stoq-modal__head">
           <div>
             <div className="stoq-modal__title">Record Payment</div>
-            <div className="stoq-modal__sub">{stock.itemName} Â· {stock.sku}</div>
+            <div className="stoq-modal__sub">{stock.itemName} - {stock.sku}</div>
           </div>
           <button className="stoq-btn stoq-btn--ghost stoq-btn--icon" onClick={onClose}><X size={14} /></button>
         </div>
@@ -86,7 +86,7 @@ function PaymentModal({ stock, onClose, onSuccess }) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <div className="stoq-field">
                 <label className="stoq-field__label">Reference</label>
-                <input className="stoq-input" value={reference} onChange={e => setReference(e.target.value)} placeholder="Invoice #â€¦" />
+                <input className="stoq-input" value={reference} onChange={e => setReference(e.target.value)} placeholder="Invoice #..." />
               </div>
               <div className="stoq-field">
                 <label className="stoq-field__label">Date</label>
@@ -95,7 +95,7 @@ function PaymentModal({ stock, onClose, onSuccess }) {
             </div>
             <div className="stoq-field">
               <label className="stoq-field__label">Notes</label>
-              <textarea className="stoq-input" value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="Optional notesâ€¦" style={{ height: 'auto', paddingTop: 8, paddingBottom: 8, resize: 'none' }} />
+              <textarea className="stoq-input" value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="Optional notes..." style={{ height: 'auto', paddingTop: 8, paddingBottom: 8, resize: 'none' }} />
             </div>
             {error && <p style={{ fontSize: 12, color: 'var(--danger)' }}>{error}</p>}
           </div>
@@ -178,9 +178,8 @@ export default function StockManagement() {
     finally { setSubmitting(false); }
   };
 
-  const openDetail = async (stock) => {
-    try { const detail = await stockService.getOne(stock.id); setSelected(detail); setShowDetail(true); }
-    catch { showToast('Failed to load details', 'error'); }
+  const openDetail = (stock) => {
+    navigate(path(`/stock/${stock.id}`));
   };
 
   const exportCSV = () => {
@@ -254,7 +253,7 @@ export default function StockManagement() {
       <div className="stoq-panel">
         <div className="stoq-toolbar">
           <div className="stoq-toolbar__search">
-            <input className="stoq-input stoq-input--search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by item, SKU, locationâ€¦" />
+            <input className="stoq-input stoq-input--search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by item, SKU, location..." />
           </div>
           <select className="stoq-select" value={categoryId} onChange={e => { setCategoryId(e.target.value); setPage(1); }} style={{ width: 160 }}>
             <option value="">All categories</option>
@@ -295,7 +294,7 @@ export default function StockManagement() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={9} className="stoq-empty">Loadingâ€¦</td></tr>
+                  <tr><td colSpan={9} className="stoq-empty">Loading...</td></tr>
                 ) : visibleStocks.length === 0 ? (
                   <tr><td colSpan={9} className="stoq-empty">No stock items found</td></tr>
                 ) : visibleStocks.map(s => (
@@ -304,9 +303,9 @@ export default function StockManagement() {
                       <span className="cell-stack__main">{s.itemName}</span>
                       <span className="cell-stack__sub">{s.sku}</span>
                     </td>
-                    <td><span className="stoq-badge stoq-badge--plain">{s.category?.name || 'â€”'}</span></td>
-                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-muted)' }}>{s.site?.name || 'â€”'}</td>
-                    <td style={{ color: 'var(--fg-muted)', fontSize: 12 }}>{s.supplier?.name || 'â€”'}</td>
+                    <td><span className="stoq-badge stoq-badge--plain">{s.category?.name || '-'}</span></td>
+                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-muted)' }}>{s.site?.name || '-'}</td>
+                    <td style={{ color: 'var(--fg-muted)', fontSize: 12 }}>{s.supplier?.name || '-'}</td>
                     <td className="num-cell">
                       <span style={{ fontWeight: 600, color: s.quantity <= s.reorderLevel ? 'var(--warning)' : 'var(--fg)' }}>{s.quantity}</span>
                       <span style={{ color: 'var(--fg-subtle)', fontSize: 10, marginLeft: 4 }}>{s.unit}</span>
@@ -317,7 +316,7 @@ export default function StockManagement() {
                       {s.quantity === 0
                         ? <span className="stoq-badge stoq-badge--danger">Out</span>
                         : s.quantity <= s.reorderLevel
-                          ? <span className="stoq-badge stoq-badge--warning">Low Â· {s.quantity}/{s.reorderLevel}</span>
+                          ? <span className="stoq-badge stoq-badge--warning">Low - {s.quantity}/{s.reorderLevel}</span>
                           : <span className="stoq-badge stoq-badge--success">In stock</span>}
                     </td>
                     <td className="col-actions"><ActionBtns s={s} /></td>
@@ -331,7 +330,7 @@ export default function StockManagement() {
         {/* Grid View */}
         {viewMode === 'grid' && (
           <div style={{ padding: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 'var(--gap-card)' }}>
-            {loading ? <div className="stoq-empty" style={{ gridColumn: '1/-1' }}>Loadingâ€¦</div>
+            {loading ? <div className="stoq-empty" style={{ gridColumn: '1/-1' }}>Loading...</div>
               : visibleStocks.length === 0 ? <div className="stoq-empty" style={{ gridColumn: '1/-1' }}>No stock items found</div>
               : visibleStocks.map(s => (
               <div key={s.id} style={{ border: '1px solid var(--border)', borderRadius: 'var(--r-md)', overflow: 'hidden', background: 'var(--panel)' }}>
@@ -347,7 +346,7 @@ export default function StockManagement() {
                     <LowBadge stock={s} />
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
-                    <span style={{ color: 'var(--fg-muted)' }}>{s.category?.name || 'â€”'}</span>
+                    <span style={{ color: 'var(--fg-muted)' }}>{s.category?.name || '-'}</span>
                     <span style={{ fontWeight: 700, color: s.quantity <= s.reorderLevel ? 'var(--warning)' : 'var(--fg)' }}>{s.quantity} {s.unit}</span>
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--fg-muted)', fontFamily: 'var(--font-mono)' }}>RWF {parseFloat(s.totalValue).toLocaleString()}</div>
@@ -367,7 +366,7 @@ export default function StockManagement() {
         {/* Pagination */}
         {totalPages > 1 && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderTop: '1px solid var(--border)' }}>
-            <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>Page {page} of {totalPages} Â· {total} total</span>
+            <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>Page {page} of {totalPages} - {total} total</span>
             <div style={{ display: 'flex', gap: 4 }}>
               <button className="stoq-btn stoq-btn--icon" disabled={page<=1} style={{ opacity: page<=1?0.4:1 }} onClick={() => setPage(p=>p-1)}><ChevronLeft size={14}/></button>
               <button className="stoq-btn stoq-btn--icon" disabled={page>=totalPages} style={{ opacity: page>=totalPages?0.4:1 }} onClick={() => setPage(p=>p+1)}><ChevronRight size={14}/></button>
@@ -388,9 +387,9 @@ export default function StockManagement() {
             <div className="stoq-modal__head">
               <div>
                 <div className="stoq-modal__title">Delete Stock Item</div>
-                <div className="stoq-modal__sub">{selected.itemName} Â· {selected.sku}</div>
+                <div className="stoq-modal__sub">{selected.itemName} - {selected.sku}</div>
               </div>
-              <button className="stoq-btn stoq-btn--ghost stoq-btn--icon" onClick={() => setShowDelete(false)}>âœ•</button>
+              <button className="stoq-btn stoq-btn--ghost stoq-btn--icon" onClick={() => setShowDelete(false)}><X size={14} /></button>
             </div>
             <div className="stoq-modal__body">
               <p style={{ fontSize: 13, color: 'var(--fg-muted)' }}>This cannot be undone.</p>
@@ -398,7 +397,7 @@ export default function StockManagement() {
             <div className="stoq-modal__foot">
               <button className="stoq-btn" onClick={() => setShowDelete(false)}>Cancel</button>
               <button className="stoq-btn stoq-btn--primary" style={{ background: 'var(--danger)', borderColor: 'transparent' }} onClick={handleDelete} disabled={submitting}>
-                {submitting ? 'Deletingâ€¦' : 'Delete'}
+                {submitting ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>
@@ -421,16 +420,16 @@ export default function StockManagement() {
               <div className="detail-grid">
                 {[
                   ['SKU', selected.sku],
-                  ['Category', selected.category?.name||'â€”'],
-                  ['Supplier', selected.supplier?.name||'â€”'],
-                  ['Site', selected.site?.name||'â€”'],
+                  ['Category', selected.category?.name||'-'],
+                  ['Supplier', selected.supplier?.name||'-'],
+                  ['Site', selected.site?.name||'-'],
                   ['Quantity', `${selected.quantity} ${selected.unit}`],
                   ['Unit Cost', `RWF ${parseFloat(selected.unitCost).toLocaleString()}`],
                   ['Total Value', `RWF ${parseFloat(selected.totalValue).toLocaleString()}`],
                   ['Reorder Level', selected.reorderLevel],
-                  ['Location', selected.warehouseLocation||'â€”'],
+                  ['Location', selected.warehouseLocation||'-'],
                   ['Received', new Date(selected.receivedDate).toLocaleDateString()],
-                  ['Expiry', selected.expiryDate ? new Date(selected.expiryDate).toLocaleDateString() : 'â€”'],
+                  ['Expiry', selected.expiryDate ? new Date(selected.expiryDate).toLocaleDateString() : '-'],
                 ].map(([k,v]) => (
                   <div className="detail-cell" key={k}>
                     <div className="detail-cell__label">{k}</div>
@@ -450,7 +449,7 @@ export default function StockManagement() {
                   {selected.history.slice(0, 5).map(h => (
                     <div key={h.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 12px', background: 'var(--bg-sunk)', borderRadius: 'var(--r-xs)', marginBottom: 4, fontSize: 11 }}>
                       <span style={{ fontWeight: 700, color: h.movementType==='IN'?'var(--success)':h.movementType==='OUT'?'var(--danger)':'var(--warning)' }}>{h.movementType}</span>
-                      <span style={{ color: 'var(--fg-muted)', fontFamily: 'var(--font-mono)' }}>{h.qtyBefore} â†’ {h.qtyAfter}</span>
+                      <span style={{ color: "var(--fg-muted)", fontFamily: "var(--font-mono)" }}>{h.qtyBefore} → {h.qtyAfter}</span>
                       <span style={{ color: 'var(--fg-subtle)', fontFamily: 'var(--font-mono)' }}>{new Date(h.createdAt).toLocaleDateString()}</span>
                     </div>
                   ))}

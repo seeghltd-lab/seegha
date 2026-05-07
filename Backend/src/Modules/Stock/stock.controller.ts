@@ -152,6 +152,16 @@ export class StockController {
     return this.stockService.getStockPayments(id);
   }
 
+  @Post(':id/transfer')
+  transfer(
+    @Param('id') id: string,
+    @Body() body: { fromSiteId: string; toSiteId: string; qty: number },
+    @Req() req: any,
+  ) {
+    const adminId = req.admin?.id ?? req.employee?.id;
+    return this.stockService.transferBetweenSites(id, body.fromSiteId, body.toSiteId, body.qty, adminId);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.stockService.findOne(id);

@@ -1,4 +1,4 @@
-export default function Sparkline({ data, color = 'var(--accent)', height = 32 }) {
+﻿export default function Sparkline({ data, color = 'var(--accent)', height = 32 }) {
   if (!data || data.length < 2) return null;
   const w = 120, h = height;
   const min = Math.min(...data), max = Math.max(...data), span = max - min || 1;

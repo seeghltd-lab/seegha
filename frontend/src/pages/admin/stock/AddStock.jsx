@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Upload, X, RefreshCw, Plus, Trash2, ChevronDown, PackagePlus, List, LayoutGrid, AlertCircle, CheckCircle } from 'lucide-react';
 import stockService from '../../../services/stockService';
@@ -9,23 +10,65 @@ import siteService from '../../../services/siteService';
 import { useRole } from '../../../hooks/useRole';
 import { useViewMode } from '../../../hooks/useViewMode';
 
-// â”€â”€â”€ Searchable Select Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Searchable Select Component (Portal-based to escape overflow) ----------
 
 function SearchableSelect({ label, options, value, onChange, placeholder, onCreate, createLabel, error }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const [creating, setCreating] = useState(false);
-  const ref = useRef(null);
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 });
+  const triggerRef = useRef(null);
+  const dropRef = useRef(null);
+  const inputRef = useRef(null);
 
   const filtered = options.filter(o => o.label.toLowerCase().includes(q.toLowerCase()));
   const selected = options.find(o => o.value === value);
   const showCreate = onCreate && q.trim();
 
+  const calcPos = () => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const minW = 160;
+    const naturalW = Math.max(rect.width, minW);
+    const overflows = rect.left + naturalW > window.innerWidth - 8;
+    setDropPos({
+      top: rect.bottom + window.scrollY + 2,
+      left: overflows ? Math.max(8, rect.right + window.scrollX - naturalW) : rect.left + window.scrollX,
+      width: naturalW,
+    });
+  };
+
+  const openDropdown = () => {
+    calcPos();
+    setOpen(true);
+    setQ('');
+  };
+
   useEffect(() => {
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    if (!open) return;
+    const handler = (e) => {
+      if (triggerRef.current && !triggerRef.current.contains(e.target) && dropRef.current && !dropRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const reposition = () => calcPos();
+    window.addEventListener('scroll', reposition, true);
+    window.addEventListener('resize', reposition);
+    return () => {
+      window.removeEventListener('scroll', reposition, true);
+      window.removeEventListener('resize', reposition);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (open) setTimeout(() => inputRef.current?.focus(), 30);
+  }, [open]);
 
   const handleCreate = async () => {
     if (!q.trim() || creating) return;
@@ -40,35 +83,65 @@ function SearchableSelect({ label, options, value, onChange, placeholder, onCrea
     }
   };
 
-  return (
-    <div ref={ref} className="stoq-field" style={{ position: 'relative' }}>
-      {label && <label className="stoq-field__label">{label}</label>}
-      <button
-        type="button"
-        onClick={() => { setOpen(!open); setQ(''); }}
-        className="stoq-input"
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', textAlign: 'left', ...(error ? { borderColor: 'var(--danger)' } : {}) }}
-      >
-        <span style={{ color: selected ? 'var(--fg)' : 'var(--fg-subtle)', fontWeight: selected ? 500 : 400 }}>
-          {selected ? selected.label : placeholder}
-        </span>
-        <ChevronDown size={13} style={{ color: 'var(--fg-subtle)', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }} />
-      </button>
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (showCreate) handleCreate();
+    }
+    if (e.key === 'Escape') setOpen(false);
+  };
 
-      {open && (
-        <div style={{ position: 'absolute', zIndex: 30, width: '100%', marginTop: 2, background: 'var(--bg-elev)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', boxShadow: 'var(--shadow-lg)', maxHeight: 220, overflowY: 'auto' }}>
-          <div style={{ padding: 6, borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, background: 'var(--bg-elev)' }}>
+  return (
+    <>
+      <div className="stoq-field">
+        {label && <label className="stoq-field__label">{label}</label>}
+        <button
+          ref={triggerRef}
+          type="button"
+          onClick={openDropdown}
+          className="stoq-input"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', textAlign: 'left', width: '100%', ...(error ? { borderColor: 'var(--danger)' } : {}) }}
+        >
+          <span style={{ color: selected ? 'var(--fg)' : 'var(--fg-subtle)', fontWeight: selected ? 500 : 400 }}>
+            {selected ? selected.label : placeholder}
+          </span>
+          <ChevronDown size={13} style={{ color: 'var(--fg-subtle)', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }} />
+        </button>
+        {error && <p style={{ fontSize: 11, color: 'var(--danger)', marginTop: 2 }}>{error}</p>}
+      </div>
+
+      {open && createPortal(
+        <div
+          ref={dropRef}
+          style={{
+            position: 'fixed',
+            top: dropPos.top,
+            left: dropPos.left,
+            minWidth: dropPos.width,
+            width: dropPos.width,
+            zIndex: 99999,
+            background: 'var(--bg-elev)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--r-sm)',
+            boxShadow: 'var(--shadow-lg)',
+            maxHeight: 240,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          }}
+        >
+          <div style={{ padding: 6, borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
             <input
-              autoFocus
+              ref={inputRef}
               value={q}
               onChange={e => setQ(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (showCreate) handleCreate(); } }}
+              onKeyDown={handleKeyDown}
               className="stoq-input"
               style={{ height: 28, fontSize: 11 }}
-              placeholder={onCreate ? 'Search or type to createâ€¦' : 'Searchâ€¦'}
+              placeholder={onCreate ? 'Search or type to create...' : 'Search...'}
             />
           </div>
-          <div>
+          <div style={{ overflowY: 'auto', flex: 1 }}>
             <button type="button" onClick={() => { onChange(''); setOpen(false); }}
               style={{ width: '100%', textAlign: 'left', padding: '7px 10px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--fg-subtle)' }}>
               None
@@ -85,7 +158,7 @@ function SearchableSelect({ label, options, value, onChange, placeholder, onCrea
               <button type="button" onClick={handleCreate} disabled={creating}
                 style={{ width: '100%', textAlign: 'left', padding: '7px 10px', background: 'none', border: 'none', borderTop: '1px solid var(--border)', cursor: 'pointer', fontSize: 12, color: 'var(--accent-soft-fg)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Plus size={12} />
-                {creating ? 'Creatingâ€¦' : `Create ${createLabel} "${q.trim()}"`}
+                {creating ? 'Creating...' : `Create ${createLabel} "${q.trim()}"`}
               </button>
             )}
             {!q.trim() && options.length === 0 && (
@@ -93,9 +166,8 @@ function SearchableSelect({ label, options, value, onChange, placeholder, onCrea
             )}
           </div>
         </div>
-      )}
-      {error && <p style={{ fontSize: 11, color: 'var(--danger)', marginTop: 2 }}>{error}</p>}
-    </div>
+      , document.body)}
+    </>
   );
 }
 
@@ -109,7 +181,7 @@ const Field = ({ label, required, error, children }) => (
   </div>
 );
 
-// â”€â”€â”€ Empty item factory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Empty item factory ---
 
 const makeEmptyItem = () => ({
   itemName: '',
@@ -127,7 +199,7 @@ const makeEmptyItem = () => ({
   paymentType: 'CREDIT',
 });
 
-// â”€â”€â”€ Single Stock Item Row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Single Stock Item Row ---
 
 function StockItemRow({
   item, index, onChange, onRemove, canRemove,
@@ -295,7 +367,7 @@ function StockItemRow({
   );
 }
 
-// â”€â”€â”€ Main Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Main Page ----------------------------------------------------
 
 export default function AddStock() {
   const navigate = useNavigate();
@@ -440,11 +512,11 @@ export default function AddStock() {
         await stockService.update(id, fd);
         showToast('Stock updated');
       } else if (items.length === 1 && !imageFile) {
-        // Single item, no image â€” use batch for consistency
+        // Single item, no image - use batch for consistency
         await stockService.batchCreate(items.map(cleanItem));
         showToast('Stock item created');
       } else if (items.length === 1 && imageFile) {
-        // Single item with image â€” use multipart
+        // Single item with image - use multipart
         const fd = new FormData();
         const item = items[0];
         Object.entries(item).forEach(([k, v]) => { if (v !== '' && v !== null && v !== undefined) fd.append(k, v); });
@@ -452,7 +524,7 @@ export default function AddStock() {
         await stockService.create(fd);
         showToast('Stock item created');
       } else {
-        // Multiple items â€” use batch
+        // Multiple items - use batch
         await stockService.batchCreate(items.map(cleanItem));
         showToast(`${items.length} stock items created`);
       }
@@ -473,7 +545,7 @@ export default function AddStock() {
   if (loading) return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 160, gap: 10, color: 'var(--fg-subtle)' }}>
       <RefreshCw size={20} style={{ animation: 'spin 1s linear infinite' }} />
-      <span style={{ fontSize: 12 }}>Loading stockâ€¦</span>
+      <span style={{ fontSize: 12 }}>Loading stock...</span>
     </div>
   );
 
@@ -499,7 +571,7 @@ export default function AddStock() {
             <h1>{isEdit ? 'Edit Stock Item' : 'Add Stock'}</h1>
             <div className="page-head__sub">
               {isEdit ? <span style={{ fontFamily: 'var(--font-mono)' }}>{sku}</span>
-                : `Fill in ${items.length > 1 ? `${items.length} items` : 'the item below'} â€” all created at once`}
+                : `Fill in ${items.length > 1 ? `${items.length} items` : 'the item below'} - all created at once`}
             </div>
           </div>
         </div>
@@ -509,7 +581,7 @@ export default function AddStock() {
             style={{ opacity: submitting ? 0.6 : 1 }}>
             {submitting && <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} />}
             <PackagePlus size={13} />
-            {submitting ? 'Savingâ€¦' : isEdit ? 'Save Changes' : items.length > 1 ? `Create ${items.length} Items` : 'Create Stock'}
+            {submitting ? 'Saving...' : isEdit ? 'Save Changes' : items.length > 1 ? `Create ${items.length} Items` : 'Create Stock'}
           </button>
         </div>
       </div>
@@ -517,13 +589,13 @@ export default function AddStock() {
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
         {/* Items panel with view toggle */}
-        <div className="stoq-panel">
+        <div className="stoq-panel" style={{ overflow: 'visible' }}>
           <div className="stoq-panel__head">
             <span className="stoq-panel__title">
               {isEdit ? 'Stock Item' : `Items (${items.length})`}
             </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {/* View toggle â€” only in multi-item / create mode */}
+              {/* View toggle - only in multi-item / create mode */}
               {!isEdit && (
                 <div className="stoq-segment">
                   <button type="button" data-active={itemView === 'cards' ? 'true' : undefined}
@@ -540,9 +612,9 @@ export default function AddStock() {
             </div>
           </div>
 
-          {/* â”€â”€ TABLE VIEW â”€â”€ */}
+          {/* --- TABLE VIEW --- */}
           {itemView === 'table' && !isEdit && (
-            <div style={{ overflowX: 'auto' }}>
+            <div className="table-wrap">
               <table className="stoq-tbl" style={{ minWidth: 1100 }}>
                 <thead>
                   <tr>
@@ -583,31 +655,37 @@ export default function AddStock() {
                           {errs.itemName && <div style={{ fontSize: 10, color: 'var(--danger)', marginTop: 2 }}>{errs.itemName}</div>}
                         </td>
                         {/* Category */}
-                        <td>
-                          <select className="stoq-select" value={item.categoryId}
-                            onChange={e => updateItem(idx, { ...item, categoryId: e.target.value })}
-                            style={{ width: '100%', height: 28, fontSize: 11 }}>
-                            <option value="">â€” None â€”</option>
-                            {categories.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-                          </select>
+                        <td style={{ position: 'relative', zIndex: 100 - idx }}>
+                          <SearchableSelect
+                            options={categories}
+                            value={item.categoryId}
+                            onChange={v => updateItem(idx, { ...item, categoryId: v })}
+                            placeholder="Select..."
+                            onCreate={handleCreateCategory}
+                            createLabel="category"
+                          />
                         </td>
                         {/* Supplier */}
-                        <td>
-                          <select className="stoq-select" value={item.supplierId}
-                            onChange={e => updateItem(idx, { ...item, supplierId: e.target.value })}
-                            style={{ width: '100%', height: 28, fontSize: 11 }}>
-                            <option value="">â€” None â€”</option>
-                            {suppliers.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                          </select>
+                        <td style={{ position: 'relative', zIndex: 100 - idx }}>
+                          <SearchableSelect
+                            options={suppliers}
+                            value={item.supplierId}
+                            onChange={v => updateItem(idx, { ...item, supplierId: v })}
+                            placeholder="Select..."
+                            onCreate={handleCreateSupplier}
+                            createLabel="supplier"
+                          />
                         </td>
                         {/* Unit */}
-                        <td>
-                          <select className="stoq-select" value={item.unit}
-                            onChange={e => updateItem(idx, { ...item, unit: e.target.value })}
-                            style={{ width: '100%', height: 28, fontSize: 11, ...(errs.unit ? { borderColor: 'var(--danger)' } : {}) }}>
-                            <option value="">â€”</option>
-                            {units.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
-                          </select>
+                        <td style={{ position: 'relative', zIndex: 100 - idx }}>
+                          <SearchableSelect
+                            options={units}
+                            value={item.unit}
+                            onChange={v => updateItem(idx, { ...item, unit: v })}
+                            placeholder="Select..."
+                            onCreate={handleCreateUnit}
+                            createLabel="unit"
+                          />
                         </td>
                         {/* Qty */}
                         <td>
@@ -628,7 +706,7 @@ export default function AddStock() {
                         {/* Total */}
                         <td className="num-cell">
                           <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--success)', fontFamily: 'var(--font-mono)' }}>
-                            {totalValue > 0 ? `RWF ${totalValue.toLocaleString()}` : 'â€”'}
+                            {totalValue > 0 ? `RWF ${totalValue.toLocaleString()}` : '-'}
                           </span>
                         </td>
                         {/* Site */}
@@ -636,7 +714,7 @@ export default function AddStock() {
                           <select className="stoq-select" value={item.siteId}
                             onChange={e => updateItem(idx, { ...item, siteId: e.target.value })}
                             style={{ width: '100%', height: 28, fontSize: 11 }}>
-                            <option value="">â€” None â€”</option>
+                            <option value="">- None -</option>
                             {sites.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                           </select>
                         </td>
@@ -711,7 +789,7 @@ export default function AddStock() {
             </div>
           )}
 
-          {/* â”€â”€ CARDS VIEW (or edit mode) â”€â”€ */}
+          {/* --- CARDS VIEW (or edit mode) */}
           {(itemView === 'cards' || isEdit) && (
             <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 14 }}>
               {items.map((item, index) => (
@@ -765,7 +843,7 @@ export default function AddStock() {
           </div>
         )}
 
-        {/* Add item button â€” only in cards view */}
+        {/* Add item button - only in cards view */}
         {!isEdit && itemView === 'cards' && (
           <button type="button" onClick={addItem}
             style={{ width: '100%', padding: '10px 0', borderRadius: 'var(--r-md)', border: '2px dashed var(--border)', background: 'transparent', color: 'var(--accent-soft-fg)', fontWeight: 600, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
@@ -779,7 +857,7 @@ export default function AddStock() {
           <button type="submit" className="stoq-btn stoq-btn--primary" disabled={submitting} style={{ opacity: submitting ? 0.6 : 1 }}>
             {submitting && <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} />}
             <PackagePlus size={13} />
-            {submitting ? 'Savingâ€¦' : isEdit ? 'Save Changes' : items.length > 1 ? `Create ${items.length} Items` : 'Create Stock'}
+            {submitting ? 'Saving...' : isEdit ? 'Save Changes' : items.length > 1 ? `Create ${items.length} Items` : 'Create Stock'}
           </button>
         </div>
       </form>

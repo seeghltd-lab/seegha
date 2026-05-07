@@ -1,4 +1,4 @@
-import { useOutletContext } from 'react-router-dom';
+﻿import { useOutletContext } from 'react-router-dom';
 
 /**
  * Returns the role ('admin' | 'employee') from the DashboardLayout outlet context.

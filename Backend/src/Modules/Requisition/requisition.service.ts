@@ -423,6 +423,7 @@ export class RequisitionService {
       note?: string;
       // Optional: create & link a new stock entry for unlinked items
       newStockData?: {
+        unit?: string;
         unitCost: number;
         siteId?: string;
         categoryId?: string;
@@ -505,7 +506,7 @@ export class RequisitionService {
             sku,
             adminId: resolvedAdminId,
             itemName: item.itemName,
-            unit: item.unit,
+            unit: sd.unit || item.unit,
             quantity: receiveData.receivedQty,
             unitCost,
             totalValue,
@@ -521,6 +522,7 @@ export class RequisitionService {
           },
         });
 
+        const siteidForAlloc = sd.siteId || (requisition as any).siteId;
         await this.prisma.stockHistory.create({
           data: {
             stockId: newStock.id,
@@ -532,8 +534,17 @@ export class RequisitionService {
             notes: `Created & received via requisition REQ-${requisitionId.slice(-6).toUpperCase()}`,
             createdByAdminId: receivedByType === 'ADMIN' ? receivedById : null,
             createdByEmployeeId: receivedByType === 'EMPLOYEE' ? receivedById : null,
+            siteId: siteidForAlloc || null,
           },
         });
+
+        if (siteidForAlloc) {
+          await this.prisma.stockSiteQuantity.upsert({
+            where: { stockId_siteId: { stockId: newStock.id, siteId: siteidForAlloc } },
+            create: { stockId: newStock.id, siteId: siteidForAlloc, quantity: receiveData.receivedQty },
+            update: { quantity: { increment: receiveData.receivedQty } },
+          });
+        }
 
         // Link the RequisitionItem to the new stock
         await this.prisma.requisitionItem.update({
@@ -614,6 +625,7 @@ export class RequisitionService {
           data: { quantity: qtyAfter, totalValue },
         });
 
+        const reqSiteId = (requisition as any).siteId;
         await this.prisma.stockHistory.create({
           data: {
             stockId: effectiveStockId,
@@ -623,8 +635,17 @@ export class RequisitionService {
             qtyAfter,
             notes: `Received via requisition #${requisitionId.slice(-6).toUpperCase()}`,
             createdByAdminId: receivedByType === 'ADMIN' ? receivedById : null,
+            siteId: reqSiteId || null,
           },
         });
+
+        if (reqSiteId) {
+          await this.prisma.stockSiteQuantity.upsert({
+            where: { stockId_siteId: { stockId: effectiveStockId, siteId: reqSiteId } },
+            create: { stockId: effectiveStockId, siteId: reqSiteId, quantity: receiveData.receivedQty },
+            update: { quantity: { increment: receiveData.receivedQty } },
+          });
+        }
 
         // Auto-create payment if paymentType is set and supplier is linked
         const paymentType = item.paymentType ?? 'NONE';

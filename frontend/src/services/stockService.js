@@ -1,4 +1,4 @@
-import api from '../lib/axios';
+﻿import api from '../lib/axios';
 
 class StockService {
   async create(formData) {
@@ -62,6 +62,11 @@ class StockService {
 
   async getStockPayments(stockId) {
     const { data } = await api.get(`/stock/${stockId}/payments`);
+    return data;
+  }
+
+  async transfer(stockId, transferData) {
+    const { data } = await api.post(`/stock/${stockId}/transfer`, transferData);
     return data;
   }
 }
