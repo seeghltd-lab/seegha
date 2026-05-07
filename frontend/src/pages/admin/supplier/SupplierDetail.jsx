@@ -10,11 +10,11 @@ import supplierService from '../../../services/supplierService';
 import { useRole } from '../../../hooks/useRole';
 import ReceiptModal, { buildPaymentReceipt } from '../../../components/ReceiptModal';
 
-// â"€â"€â"€ Helpers â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// --- Helpers -----------------------------------------------------------------
 
 const fmt = (n) => `RWF ${parseFloat(n || 0).toLocaleString()}`;
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'â€"';
-const fmtDateGroup = (d) => d ? new Date(d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' }) : 'â€"';
+const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
+const fmtDateGroup = (d) => d ? new Date(d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' }) : '-';
 
 const STATUS_BADGE = {
   ACTIVE: 'stoq-badge stoq-badge--success',
@@ -30,7 +30,7 @@ const REQ_BADGE = {
   REJECTED: 'stoq-badge stoq-badge--danger',
 };
 
-// â"€â"€â"€ Date filter helpers â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// --- Date filter helpers ------------------------------------------------------
 
 const DATE_PRESETS = [
   { label: 'All time', value: '' },
@@ -66,14 +66,14 @@ function inRange(dateStr, range) {
   return d >= range.from && d <= range.to;
 }
 
-// â"€â"€â"€ Pagination helper â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// --- Pagination helper --------------------------------------------------------
 
 function Pagination({ page, totalPages, total, onPage, label = 'items' }) {
   if (totalPages <= 1) return null;
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderTop: '1px solid var(--border)', background: 'var(--bg-sunk)' }}>
       <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>
-        Page {page} of {totalPages} Â· {total} {label}
+        Page {page} of {totalPages} - {total} {label}
       </span>
       <div style={{ display: 'flex', gap: 4 }}>
         <button className="stoq-btn stoq-btn--icon" disabled={page <= 1} style={{ opacity: page <= 1 ? 0.4 : 1 }} onClick={() => onPage(page - 1)}>
@@ -87,7 +87,7 @@ function Pagination({ page, totalPages, total, onPage, label = 'items' }) {
   );
 }
 
-// â"€â"€â"€ Date Filter Bar â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// --- Date Filter Bar ----------------------------------------------------------
 
 function DateFilterBar({ preset, customFrom, customTo, onPreset, onCustomFrom, onCustomTo }) {
   return (
@@ -128,7 +128,7 @@ function StarRating({ rating }) {
   );
 }
 
-// â"€â"€â"€ Payment Modal â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// --- Payment Modal ------------------------------------------------------------
 
 function PaymentModal({ supplierId, stocks, onClose, onSuccess }) {
   const [type, setType] = useState('DEBIT');
@@ -173,8 +173,8 @@ function PaymentModal({ supplierId, stocks, onClose, onSuccess }) {
             <label className="stoq-field__label">Transaction Type</label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               {[
-                { val: 'CREDIT', Icon: ArrowUpCircle, label: 'Credit', sub: 'Invoice Â· We owe', color: 'var(--warning)' },
-                { val: 'DEBIT', Icon: ArrowDownCircle, label: 'Debit', sub: 'Payment Â· We paid', color: 'var(--success)' },
+                { val: 'CREDIT', Icon: ArrowUpCircle, label: 'Credit', sub: 'Invoice - We owe', color: 'var(--warning)' },
+                { val: 'DEBIT', Icon: ArrowDownCircle, label: 'Debit', sub: 'Payment - We paid', color: 'var(--success)' },
               ].map(({ val, Icon, label, sub, color }) => (
                 <button key={val} type="button" onClick={() => setType(val)}
                   style={{
@@ -203,7 +203,7 @@ function PaymentModal({ supplierId, stocks, onClose, onSuccess }) {
             <div className="stoq-field">
               <label className="stoq-field__label">Linked Stock Item (optional)</label>
               <select value={stockId} onChange={e => setStockId(e.target.value)} className="stoq-select" style={{ width: '100%' }}>
-                <option value="">â€" No specific item â€"</option>
+                <option value="">- No specific item -</option>
                 {stocks.map(s => <option key={s.id} value={s.id}>{s.itemName} ({s.sku})</option>)}
               </select>
             </div>
@@ -251,7 +251,7 @@ function PaymentModal({ supplierId, stocks, onClose, onSuccess }) {
   );
 }
 
-// â"€â"€â"€ Tab: Info â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// --- Tab: Info ----------------------------------------------------------------
 
 function TabInfo({ supplier }) {
   return (
@@ -356,7 +356,7 @@ function TabInfo({ supplier }) {
   );
 }
 
-// â"€â"€â"€ Tab: Items & Requisitions â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// --- Tab: Items & Requisitions ------------------------------------------------
 
 function TabItems({ supplier, datePreset, customFrom, customTo }) {
   const [expandedDates, setExpandedDates] = useState({});
@@ -404,7 +404,7 @@ function TabItems({ supplier, datePreset, customFrom, customTo }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      {/* â"€â"€ Stock Items â"€â"€ */}
+      {/* -- Stock Items -- */}
       <div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -459,7 +459,7 @@ function TabItems({ supplier, datePreset, customFrom, customTo }) {
                                 <td style={{ color: 'var(--fg-subtle)' }}>{item.unit}</td>
                                 <td className="num-cell">{fmt(item.unitCost)}</td>
                                 <td className="num-cell" style={{ fontWeight: 700 }}>{fmt(item.totalValue)}</td>
-                                <td style={{ color: 'var(--fg-subtle)' }}>{item.site?.name || 'â€"'}</td>
+                                <td style={{ color: 'var(--fg-subtle)' }}>{item.site?.name || '-'}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -487,7 +487,7 @@ function TabItems({ supplier, datePreset, customFrom, customTo }) {
                         : null}
                   </div>
                   <div style={{ fontWeight: 600, fontSize: 12, lineHeight: 1.3, marginBottom: 4 }}>{item.itemName}</div>
-                  <div style={{ fontSize: 10, color: 'var(--fg-subtle)', marginBottom: 10 }}>{item.category?.name || 'â€"'} Â· {item.site?.name || 'â€"'}</div>
+                  <div style={{ fontSize: 10, color: 'var(--fg-subtle)', marginBottom: 10 }}>{item.category?.name || '-'} - {item.site?.name || '-'}</div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                     <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em' }}>
                       {item.quantity} <span style={{ fontSize: 10, color: 'var(--fg-subtle)', fontWeight: 400 }}>{item.unit}</span>
@@ -502,7 +502,7 @@ function TabItems({ supplier, datePreset, customFrom, customTo }) {
         )}
       </div>
 
-      {/* â"€â"€ Requisitions â"€â"€ */}
+      {/* -- Requisitions -- */}
       <div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', color: 'var(--fg-subtle)', textTransform: 'uppercase' }}>Linked Requisitions</span>
@@ -529,7 +529,7 @@ function TabItems({ supplier, datePreset, customFrom, customTo }) {
                       <tr key={req.id}>
                         <td><span className="cell-stack__sub" style={{ display: 'inline' }}>#{req.id.slice(-6).toUpperCase()}</span></td>
                         <td>{fmtDate(req.createdAt)}</td>
-                        <td><span className="cell-stack__main">{req.employee ? `${req.employee.firstName} ${req.employee.lastName}` : 'â€"'}</span></td>
+                        <td><span className="cell-stack__main">{req.employee ? `${req.employee.firstName} ${req.employee.lastName}` : '-'}</span></td>
                         <td>{req.items?.length ?? req._count?.items ?? 0}</td>
                         <td><span className={badgeCls}>{label}</span></td>
                       </tr>
@@ -546,7 +546,7 @@ function TabItems({ supplier, datePreset, customFrom, customTo }) {
   );
 }
 
-// â"€â"€â"€ Tab: Finance â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// --- Tab: Finance -------------------------------------------------------------
 
 const PAGE_SIZE = 20;
 
@@ -837,7 +837,7 @@ function TabFinance({ supplier, onRecordPayment }) {
   );
 }
 
-// â"€â"€â"€ Main Page â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// --- Main Page ----------------------------------------------------------------
 
 const TABS = [
   { id: 'info', label: 'Info', icon: Building2 },
@@ -857,7 +857,7 @@ export default function SupplierDetail() {
   const [showPayment, setShowPayment] = useState(false);
   const [toast, setToast] = useState(null);
 
-  // Date filter â€" persisted in URL
+  // Date filter - persisted in URL
   const datePreset  = searchParams.get('date') || '';
   const customFrom  = searchParams.get('from') || '';
   const customTo    = searchParams.get('to')   || '';
@@ -911,7 +911,7 @@ export default function SupplierDetail() {
   if (loading) return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', color: 'var(--fg-subtle)', gap: 10 }}>
       <RefreshCw size={24} style={{ animation: 'spin 1s linear infinite' }} />
-      <span style={{ fontSize: 12 }}>Loading supplier detailsâ€¦</span>
+      <span style={{ fontSize: 12 }}>Loading supplier details...</span>
     </div>
   );
 
@@ -979,7 +979,7 @@ export default function SupplierDetail() {
         </button>
       </div>
 
-      {/* Date filter â€" shown on items tab */}
+      {/* Date filter - shown on items tab */}
       {activeTab === 'items' && (
         <DateFilterBar
           preset={datePreset}

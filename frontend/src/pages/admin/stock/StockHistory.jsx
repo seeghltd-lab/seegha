@@ -8,7 +8,7 @@ import {
 import { useRole } from '../../../hooks/useRole';
 import stockService from '../../../services/stockService';
 
-// â”€â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- helpers ---
 
 function fmt(n) {
   return Number(n ?? 0).toLocaleString();
@@ -32,7 +32,7 @@ function MovementBadge({ type }) {
   return <span className={`stoq-badge ${m.cls}`} style={{ fontSize: 10, fontWeight: 700 }}>{m.label}</span>;
 }
 
-// â”€â”€â”€ QtyFlow â€” the before â†’ change â†’ after visual â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- QtyFlow - the before → change → after visual ---
 function QtyFlow({ before, change, after, type, unit }) {
   const isIn  = type === 'IN';
   const isOut = type === 'OUT';
@@ -49,9 +49,9 @@ function QtyFlow({ before, change, after, type, unit }) {
           fontSize: 9, fontWeight: 700, letterSpacing: 0.5,
           color: isIn ? 'var(--success)' : isOut ? 'var(--danger)' : 'var(--warning)',
         }}>
-          {isIn ? `+${fmt(change)}` : isOut ? `-${fmt(change)}` : `Â±${fmt(change)}`}
+          {isIn ? `+${fmt(change)}` : isOut ? `-${fmt(change)}` : `±${fmt(change)}`}
         </span>
-        <span style={{ color: 'var(--fg-subtle)', fontSize: 14, lineHeight: 1 }}>â†’</span>
+        <span style={{ color: 'var(--fg-subtle)', fontSize: 14, lineHeight: 1 }}>→</span>
       </div>
 
       {/* After */}
@@ -67,7 +67,7 @@ function QtyFlow({ before, change, after, type, unit }) {
   );
 }
 
-// â”€â”€â”€ main page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- main page ---
 
 export default function StockHistory() {
   const navigate = useNavigate();
@@ -241,7 +241,7 @@ export default function StockHistory() {
               className="stoq-input stoq-input--search"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search item, SKU, notesâ€¦"
+              placeholder="Search item, SKU, notes..."
             />
           </div>
 
@@ -260,7 +260,7 @@ export default function StockHistory() {
             <Filter size={12} style={{ color: 'var(--fg-subtle)', flexShrink: 0 }} />
             <input type="date" className="stoq-input" value={dateFrom}
               onChange={e => setDateFrom(e.target.value)} style={{ width: 140 }} title="From" />
-            <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>â€“</span>
+            <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>-</span>
             <input type="date" className="stoq-input" value={dateTo}
               onChange={e => setDateTo(e.target.value)} style={{ width: 140 }} title="To" />
           </div>
@@ -280,7 +280,7 @@ export default function StockHistory() {
                 <th className="no-sort">Date & Time</th>
                 <th className="no-sort">Item</th>
                 <th className="no-sort">Movement</th>
-                <th className="no-sort">Before â†’ Change â†’ After</th>
+                <th className="no-sort">Before → Change → After</th>
                 <th className="no-sort num-cell">Unit Price</th>
                 <th className="no-sort">Notes</th>
               </tr>
@@ -378,7 +378,7 @@ export default function StockHistory() {
         {totalPages > 1 && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderTop: '1px solid var(--border)' }}>
             <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>
-              Page {page} of {totalPages} Â· {total.toLocaleString()} records
+              Page {page} of {totalPages} - {total.toLocaleString()} records
             </span>
             <div style={{ display: 'flex', gap: 4 }}>
               <button className="stoq-btn stoq-btn--icon" disabled={page <= 1}

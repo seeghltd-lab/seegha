@@ -190,7 +190,7 @@ export default function AddEditSupplier() {
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40vh', gap: 10, color: 'var(--fg-subtle)' }}>
       <RefreshCw size={18} style={{ animation: 'spin 1s linear infinite' }} />
-      <span style={{ fontSize: 12 }}>Loading supplierâ€¦</span>
+      <span style={{ fontSize: 12 }}>Loading supplier...</span>
     </div>
   );
 
@@ -233,7 +233,7 @@ export default function AddEditSupplier() {
             style={{ opacity: submitting ? 0.6 : 1 }}
           >
             {submitting
-              ? <><RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Savingâ€¦</>
+              ? <><RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Saving...</>
               : <><Save size={13} /> {isEdit ? 'Save Changes' : 'Create Supplier'}</>
             }
           </button>
@@ -305,7 +305,7 @@ export default function AddEditSupplier() {
                 value={form.notes}
                 onChange={set('notes')}
                 rows={4}
-                placeholder="Any internal notes, special conditions, or remarks about this supplierâ€¦"
+                placeholder="Any internal notes, special conditions, or remarks about this supplier..."
                 style={{ height: 'auto', padding: '8px 10px', resize: 'vertical', lineHeight: 1.6 }}
               />
             </div>

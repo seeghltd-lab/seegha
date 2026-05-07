@@ -12,7 +12,7 @@ import UnitPicker from '../../../components/UnitPicker';
 import { useAdminAuth } from '../../../context/AdminAuthContext';
 import { useEmployeeAuth } from '../../../context/EmployeeAuthContext';
 
-// â”€â”€ Searchable Select â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Searchable Select --------------------------------------------------------
 // Uses a portal-style fixed dropdown to avoid overflow:hidden clipping
 
 function SearchableSelect({ value, onChange, options, placeholder, loading, disabled }) {
@@ -114,7 +114,7 @@ function SearchableSelect({ value, onChange, options, placeholder, loading, disa
                 autoFocus
                 value={query}
                 onChange={e => setQuery(e.target.value)}
-                placeholder="Searchâ€¦"
+                placeholder="Search..."
                 style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 12, color: 'var(--fg)' }}
               />
             </div>
@@ -149,7 +149,7 @@ function Toast({ toast }) {
   );
 }
 
-// â”€â”€ Item Row (card view) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Item Row (card view) -----------------------------------------------------
 
 function ItemRow({ item, index, onChange, onRemove, canRemove, categories, loadingDropdowns }) {
   const update = (field, val) => onChange(index, { ...item, [field]: val });
@@ -168,7 +168,7 @@ function ItemRow({ item, index, onChange, onRemove, canRemove, categories, loadi
       <div className="stoq-field" style={{ marginBottom: 10 }}>
         <label className="stoq-field__label">Item Name <span style={{ color: 'var(--danger)' }}>*</span></label>
         <input type="text" className="stoq-input" value={item.itemName}
-          onChange={e => update('itemName', e.target.value)} placeholder="e.g. Cement bags, Steel rodsâ€¦" />
+          onChange={e => update('itemName', e.target.value)} placeholder="e.g. Cement bags, Steel rods..." />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
@@ -196,14 +196,14 @@ function ItemRow({ item, index, onChange, onRemove, canRemove, categories, loadi
         <div className="stoq-field">
           <label className="stoq-field__label">Category</label>
           <SearchableSelect value={item.categoryId} onChange={v => update('categoryId', v)}
-            options={categories} placeholder="Select categoryâ€¦" loading={loadingDropdowns} />
+            options={categories} placeholder="Select category..." loading={loadingDropdowns} />
         </div>
       </div>
 
       <div className="stoq-field">
         <label className="stoq-field__label">Notes</label>
         <input type="text" className="stoq-input" value={item.notes}
-          onChange={e => update('notes', e.target.value)} placeholder="Optional notesâ€¦" />
+          onChange={e => update('notes', e.target.value)} placeholder="Optional notes..." />
       </div>
     </div>
   );
@@ -211,7 +211,7 @@ function ItemRow({ item, index, onChange, onRemove, canRemove, categories, loadi
 
 const makeEmptyItem = () => ({ itemName: '', quantity: 1, unit: '', unitCost: '', categoryId: '', notes: '' });
 
-// â”€â”€ Main Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Main Component -----------------------------------------------------------
 
 export default function DirectReceipt() {
   const navigate = useNavigate();
@@ -266,7 +266,7 @@ export default function DirectReceipt() {
     if (!siteId) errs.siteId = 'Site is required';
     items.forEach((it, i) => {
       if (!it.itemName.trim()) errs[`item_${i}_name`] = 'Item name required';
-      if (!it.quantity || Number(it.quantity) < 1) errs[`item_${i}_qty`] = 'Quantity must be â‰¥ 1';
+      if (!it.quantity || Number(it.quantity) < 1) errs[`item_${i}_qty`] = 'Quantity must be >= 1';
     });
     return errs;
   };
@@ -323,7 +323,7 @@ export default function DirectReceipt() {
           <button className="stoq-btn stoq-btn--primary" disabled={submitting} onClick={handleSubmit}
             style={{ opacity: submitting ? 0.6 : 1 }}>
             {submitting
-              ? <><Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> Recordingâ€¦</>
+              ? <><Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> Recording...</>
               : <><PackagePlus size={13} /> Record Receipt</>}
           </button>
         </div>
@@ -331,7 +331,7 @@ export default function DirectReceipt() {
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-        {/* â”€â”€ Receipt Details (Site + Supplier) â”€â”€ */}
+        {/* -- Receipt Details (Site + Supplier) -- */}
         {/* overflow:visible so the fixed-position dropdowns aren't clipped */}
         <div className="stoq-panel" style={{ overflow: 'visible' }}>
           <div className="stoq-panel__head">
@@ -344,7 +344,7 @@ export default function DirectReceipt() {
             <div className="stoq-field">
               <label className="stoq-field__label">Site <span style={{ color: 'var(--danger)' }}>*</span></label>
               <SearchableSelect value={siteId} onChange={setSiteId} options={sites}
-                placeholder="Select siteâ€¦" loading={loadingDropdowns} />
+                placeholder="Select site..." loading={loadingDropdowns} />
               {errors.siteId && <span style={{ fontSize: 11, color: 'var(--danger)' }}>{errors.siteId}</span>}
             </div>
             <div className="stoq-field">
@@ -352,12 +352,12 @@ export default function DirectReceipt() {
                 <Truck size={11} /> Supplier <span style={{ color: 'var(--fg-subtle)', fontWeight: 400 }}>(optional)</span>
               </label>
               <SearchableSelect value={supplierId} onChange={setSupplierId} options={suppliers}
-                placeholder="Select supplierâ€¦" loading={loadingDropdowns} />
+                placeholder="Select supplier..." loading={loadingDropdowns} />
             </div>
           </div>
         </div>
 
-        {/* â”€â”€ Items â”€â”€ */}
+        {/* -- Items -- */}
         <div className="stoq-panel" style={{ overflow: 'visible' }}>
           <div className="stoq-panel__head">
             <span className="stoq-panel__title">Items Received ({items.length})</span>
@@ -374,7 +374,7 @@ export default function DirectReceipt() {
             </div>
           </div>
 
-          {/* â”€â”€ TABLE VIEW â”€â”€ */}
+          {/* -- TABLE VIEW -- */}
           {itemView === 'table' && (
             <div style={{ overflowX: 'auto' }}>
               <table className="stoq-tbl" style={{ minWidth: 800 }}>
@@ -427,14 +427,14 @@ export default function DirectReceipt() {
                         </td>
                         <td className="num-cell">
                           <span style={{ fontSize: 11, fontWeight: 600, color: total > 0 ? 'var(--success)' : 'var(--fg-subtle)', fontFamily: 'var(--font-mono)' }}>
-                            {total > 0 ? `RWF ${total.toLocaleString()}` : 'â€”'}
+                            {total > 0 ? `RWF ${total.toLocaleString()}` : '-'}
                           </span>
                         </td>
                         <td>
                           <select className="stoq-select" value={item.categoryId}
                             onChange={e => handleItemChange(i, { ...item, categoryId: e.target.value })}
                             style={{ width: '100%', height: 28, fontSize: 11 }}>
-                            <option value="">â€” None â€”</option>
+                            <option value="">- None -</option>
                             {categories.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
                           </select>
                         </td>
@@ -469,7 +469,7 @@ export default function DirectReceipt() {
             </div>
           )}
 
-          {/* â”€â”€ CARDS VIEW â”€â”€ */}
+          {/* -- CARDS VIEW -- */}
           {itemView === 'cards' && (
             <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
               {items.map((item, i) => (

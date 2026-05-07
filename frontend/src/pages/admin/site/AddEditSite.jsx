@@ -118,7 +118,7 @@ export default function AddEditSite() {
           <button className="stoq-btn" onClick={() => navigate(siteListPath)}>Cancel</button>
           <button className="stoq-btn stoq-btn--primary" disabled={submitting} onClick={handleSubmit}
             style={{ opacity: submitting ? 0.6 : 1 }}>
-            {submitting ? <><RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Savingâ€¦</> : <><Save size={13} /> {isEdit ? 'Save Changes' : 'Create Site'}</>}
+            {submitting ? <><RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Saving...</> : <><Save size={13} /> {isEdit ? 'Save Changes' : 'Create Site'}</>}
           </button>
         </div>
       </div>
@@ -183,13 +183,13 @@ export default function AddEditSite() {
             <div className="stoq-panel__head"><span className="stoq-panel__title">Description</span></div>
             <div style={{ padding: 16 }}>
               <textarea className="stoq-input" value={form.description} onChange={set('description')} rows={4}
-                placeholder="Scope, construction highlights, or notes about this siteâ€¦"
+                placeholder="Scope, construction highlights, or notes about this site..."
                 style={{ height: 'auto', padding: '8px 10px', resize: 'vertical', lineHeight: 1.6 }} />
             </div>
           </div>
         </div>
 
-        {/* Sidebar â€” image */}
+        {/* Sidebar - image */}
         <div className="stoq-panel">
           <div className="stoq-panel__head"><span className="stoq-panel__title">Site Image</span></div>
           <div style={{ padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>

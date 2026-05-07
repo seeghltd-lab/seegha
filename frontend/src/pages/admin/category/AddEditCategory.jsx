@@ -63,7 +63,7 @@ export default function AddEditCategory() {
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40vh', gap: 10, color: 'var(--fg-subtle)' }}>
       <RefreshCw size={18} style={{ animation: 'spin 1s linear infinite' }} />
-      <span style={{ fontSize: 12 }}>Loadingâ€¦</span>
+      <span style={{ fontSize: 12 }}>Loading...</span>
     </div>
   );
 
@@ -93,7 +93,7 @@ export default function AddEditCategory() {
           <button type="button" className="stoq-btn stoq-btn--primary" disabled={submitting}
             onClick={handleSubmit} style={{ opacity: submitting ? 0.6 : 1 }}>
             {submitting
-              ? <><RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Savingâ€¦</>
+              ? <><RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Saving...</>
               : <><Save size={13} /> {isEdit ? 'Save Changes' : 'Create Category'}</>}
           </button>
         </div>
@@ -140,7 +140,7 @@ export default function AddEditCategory() {
                     value={form.description}
                     onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                     rows={5}
-                    placeholder="Brief description of what this category coversâ€¦"
+                    placeholder="Brief description of what this category covers..."
                     style={{ height: 'auto', padding: '8px 10px 8px 30px', resize: 'vertical', lineHeight: 1.6 }}
                   />
                 </div>

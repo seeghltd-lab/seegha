@@ -11,8 +11,8 @@ import Sparkline, { genSpark } from '../../../components/Sparkline';
 import ReceiptModal, { buildRequisitionReceipt } from '../../../components/ReceiptModal';
 
 const fmt    = n => new Intl.NumberFormat('en-RW', { style: 'currency', currency: 'RWF', minimumFractionDigits: 0 }).format(n ?? 0);
-const fmtDate = d => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'â€”';
-const fmtTime = d => d ? new Date(d).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'â€”';
+const fmtDate = d => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '-';
+const fmtTime = d => d ? new Date(d).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-';
 
 const STATUS_CFG = {
   PENDING:            { label: 'Pending',            cls: 'stoq-badge stoq-badge--warning',  icon: Clock },
@@ -203,7 +203,7 @@ export default function RequisitionDetail() {
         </div>
         <div className="kpi">
           <div className="kpi__label"><span className="kpi__icon"><DollarSign size={12} /></span>Est. total cost</div>
-          <div className="kpi__value" style={{ fontSize: hasCost ? 18 : 26 }}>{hasCost ? fmt(totalCost) : 'â€”'}</div>
+          <div className="kpi__value" style={{ fontSize: hasCost ? 18 : 26 }}>{hasCost ? fmt(totalCost) : '-'}</div>
           <div className="kpi__foot"><span>{hasCost ? 'at cost price' : 'no cost prices set'}</span></div>
           <Sparkline data={genSpark(7, 14, 0.2)} />
         </div>
@@ -223,7 +223,7 @@ export default function RequisitionDetail() {
         })}
       </div>
 
-      {/* â”€â”€ OVERVIEW TAB â”€â”€ */}
+      {/* -- OVERVIEW TAB -- */}
       {tab === 'overview' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 'var(--gap-card)', alignItems: 'start' }}>
           {/* Left: description + supplier */}
@@ -312,7 +312,7 @@ export default function RequisitionDetail() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 {[
-                  { label: 'Employee',  icon: User,         value: `${requisition.employee?.firstName ?? ''} ${requisition.employee?.lastName ?? ''}`.trim() || 'â€”', sub: requisition.employee?.position },
+                  { label: 'Employee',  icon: User,         value: `${requisition.employee?.firstName ?? ''} ${requisition.employee?.lastName ?? ''}`.trim() || '-', sub: requisition.employee?.position },
                   { label: 'Submitted', icon: Calendar,     value: fmtDate(requisition.createdAt) },
                   requisition.approvedAt && { label: 'Approved',  icon: CheckCircle, value: fmtDate(requisition.approvedAt) },
                   requisition.completedAt && { label: 'Completed', icon: CheckCheck,  value: fmtDate(requisition.completedAt) },
@@ -339,7 +339,7 @@ export default function RequisitionDetail() {
         </div>
       )}
 
-      {/* â”€â”€ ITEMS TAB â”€â”€ */}
+      {/* -- ITEMS TAB -- */}
       {tab === 'items' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {/* Toolbar */}
@@ -357,7 +357,7 @@ export default function RequisitionDetail() {
             </div>
 
           ) : itemsView === 'table' ? (
-            /* â”€â”€ TABLE VIEW â”€â”€ */
+            /* -- TABLE VIEW -- */
             <div className="stoq-panel">
               <div className="table-wrap">
                 <table className="stoq-tbl">
@@ -385,7 +385,7 @@ export default function RequisitionDetail() {
                         <td className="num-cell" style={{ color: item.receivedQty > 0 ? 'var(--success)' : 'var(--fg-subtle)' }}>
                           {item.receivedQty ?? 0} <span style={{ fontSize: 10, color: 'var(--fg-subtle)' }}>{item.unit}</span>
                         </td>
-                        <td className="num-cell">{item.costPrice != null ? fmt(item.costPrice) : 'â€”'}</td>
+                        <td className="num-cell">{item.costPrice != null ? fmt(item.costPrice) : '-'}</td>
                         <td style={{ minWidth: 100 }}>
                           {item.quantity > 0 && (
                             <div>
@@ -420,7 +420,7 @@ export default function RequisitionDetail() {
             </div>
 
           ) : (
-            /* â”€â”€ CARDS VIEW â”€â”€ */
+            /* -- CARDS VIEW -- */
             <>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 'var(--gap-card)' }}>
                 {items.map((item, i) => {
@@ -453,7 +453,7 @@ export default function RequisitionDetail() {
                           </div>
                           <div className="detail-cell">
                             <div className="detail-cell__label">Cost</div>
-                            <div className="detail-cell__value" style={{ fontSize: 12 }}>{item.costPrice != null ? fmt(item.costPrice) : 'â€”'}</div>
+                            <div className="detail-cell__value" style={{ fontSize: 12 }}>{item.costPrice != null ? fmt(item.costPrice) : '-'}</div>
                           </div>
                         </div>
 
@@ -501,7 +501,7 @@ export default function RequisitionDetail() {
         </div>
       )}
 
-      {/* â”€â”€ TIMELINE TAB â”€â”€ */}
+      {/* -- TIMELINE TAB -- */}
       {tab === 'timeline' && (
         <div className="stoq-panel">
           <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -533,7 +533,7 @@ export default function RequisitionDetail() {
                     </div>
                     <div style={{ paddingTop: 4, paddingBottom: i < arr.length - 1 ? 0 : 0, minWidth: 0 }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: step.done ? 'var(--fg)' : 'var(--fg-subtle)' }}>{step.label}</div>
-                      <div style={{ fontSize: 11, color: 'var(--fg-subtle)', fontFamily: 'var(--font-mono)', marginTop: 1 }}>{step.date ? fmtTime(step.date) : 'â€”'}</div>
+                      <div style={{ fontSize: 11, color: 'var(--fg-subtle)', fontFamily: 'var(--font-mono)', marginTop: 1 }}>{step.date ? fmtTime(step.date) : '-'}</div>
                     </div>
                   </div>
                 );
@@ -585,7 +585,7 @@ export default function RequisitionDetail() {
                 className="stoq-input"
                 value={rejectReason}
                 onChange={e => setRejectReason(e.target.value)}
-                placeholder="Reason for rejectionâ€¦"
+                placeholder="Reason for rejection..."
                 rows={3}
                 style={{ height: 'auto', padding: '8px 10px', resize: 'none', width: '100%' }}
               />
@@ -594,7 +594,7 @@ export default function RequisitionDetail() {
               <button className="stoq-btn" onClick={() => { setRejectModal(false); setRejectReason(''); }}>Cancel</button>
               <button className="stoq-btn stoq-btn--primary" disabled={acting} onClick={handleReject}
                 style={{ background: 'var(--danger)', borderColor: 'transparent', opacity: acting ? 0.6 : 1 }}>
-                {acting ? <><RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Rejectingâ€¦</> : 'Reject'}
+                {acting ? <><RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Rejecting...</> : 'Reject'}
               </button>
             </div>
           </div>

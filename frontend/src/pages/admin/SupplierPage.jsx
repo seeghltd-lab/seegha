@@ -80,7 +80,7 @@ export default function SupplierPage() {
       <div className="page-head">
         <div>
           <h1>Suppliers</h1>
-          <div className="page-head__sub">{total} vendors Â· {activeCount} active</div>
+          <div className="page-head__sub">{total} vendors - {activeCount} active</div>
         </div>
         <div className="page-head__actions">
           <button className="stoq-btn stoq-btn--primary" onClick={() => navigate(path('/suppliers/add'))}>
@@ -120,7 +120,7 @@ export default function SupplierPage() {
               className="stoq-input stoq-input--search"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search by name, email, phone, codeâ€¦"
+              placeholder="Search by name, email, phone, code..."
             />
           </div>
           <select className="stoq-select" value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }} style={{ width: 140 }}>
@@ -154,7 +154,7 @@ export default function SupplierPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={6} className="stoq-empty">Loadingâ€¦</td></tr>
+                  <tr><td colSpan={6} className="stoq-empty">Loading...</td></tr>
                 ) : suppliers.length === 0 ? (
                   <tr><td colSpan={6} className="stoq-empty">No suppliers found</td></tr>
                 ) : suppliers.map(s => (
@@ -170,7 +170,7 @@ export default function SupplierPage() {
                         {s.phone && <span style={{ fontSize: 11, color: 'var(--fg-subtle)', display: 'flex', alignItems: 'center', gap: 4 }}><Phone size={10} />{s.phone}</span>}
                       </div>
                     </td>
-                    <td style={{ color: 'var(--fg-muted)', fontSize: 11 }}>{[s.city, s.country].filter(Boolean).join(', ') || 'â€”'}</td>
+                    <td style={{ color: 'var(--fg-muted)', fontSize: 11 }}>{[s.city, s.country].filter(Boolean).join(', ') || '-'}</td>
                     <td><StatusBadge status={s.status} /></td>
                     <td className="num-cell">{s._count?.stocks ?? 0}</td>
                     <td className="col-actions" onClick={e => e.stopPropagation()}>
@@ -190,7 +190,7 @@ export default function SupplierPage() {
         {/* Grid View */}
         {viewMode === 'grid' && (
           <div style={{ padding: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 'var(--gap-card)' }}>
-            {loading ? <div className="stoq-empty" style={{ gridColumn: '1/-1' }}>Loadingâ€¦</div>
+            {loading ? <div className="stoq-empty" style={{ gridColumn: '1/-1' }}>Loading...</div>
               : suppliers.length === 0 ? <div className="stoq-empty" style={{ gridColumn: '1/-1' }}>No suppliers found</div>
               : suppliers.map(s => (
               <div key={s.id} style={{ background: 'var(--bg-sunk)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -221,7 +221,7 @@ export default function SupplierPage() {
         {/* List View */}
         {viewMode === 'list' && (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {loading ? <div className="stoq-empty">Loadingâ€¦</div>
+            {loading ? <div className="stoq-empty">Loading...</div>
               : suppliers.length === 0 ? <div className="stoq-empty">No suppliers found</div>
               : suppliers.map((s, i) => (
               <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderBottom: i < suppliers.length - 1 ? '1px solid var(--border)' : 'none' }}>
@@ -232,7 +232,7 @@ export default function SupplierPage() {
                   <span style={{ fontWeight: 600, fontSize: 13 }}>{s.name}</span>
                   <span style={{ marginLeft: 8, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-subtle)' }}>{s.code}</span>
                 </div>
-                <span style={{ fontSize: 11, color: 'var(--fg-muted)' }}>{s.phone || 'â€”'}</span>
+                <span style={{ fontSize: 11, color: 'var(--fg-muted)' }}>{s.phone || '-'}</span>
                 <StatusBadge status={s.status} />
                 <div className="stoq-btn-group">
                   <button className="stoq-btn stoq-btn--ghost stoq-btn--icon stoq-btn--sm" onClick={() => navigate(path(`/suppliers/${s.id}`))}><Eye size={13} /></button>
@@ -247,7 +247,7 @@ export default function SupplierPage() {
         {/* Pagination */}
         {totalPages > 1 && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderTop: '1px solid var(--border)' }}>
-            <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>Page {page} of {totalPages} Â· {total} total</span>
+            <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>Page {page} of {totalPages} - {total} total</span>
             <div style={{ display: 'flex', gap: 4 }}>
               <button className="stoq-btn stoq-btn--icon" disabled={page <= 1} onClick={() => setPage(p => p - 1)} style={{ opacity: page <= 1 ? 0.4 : 1 }}><ChevronLeft size={14} /></button>
               <button className="stoq-btn stoq-btn--icon" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} style={{ opacity: page >= totalPages ? 0.4 : 1 }}><ChevronRight size={14} /></button>
@@ -265,7 +265,7 @@ export default function SupplierPage() {
                 <div className="stoq-modal__title">Delete Supplier</div>
                 <div className="stoq-modal__sub">This action cannot be undone.</div>
               </div>
-              <button className="stoq-btn stoq-btn--ghost stoq-btn--icon" onClick={() => setDeleteTarget(null)}>âœ•</button>
+              <button className="stoq-btn stoq-btn--ghost stoq-btn--icon" onClick={() => setDeleteTarget(null)}>X</button>
             </div>
             <div className="stoq-modal__body">
               <p style={{ fontSize: 13, color: 'var(--fg-muted)' }}>Delete <strong style={{ color: 'var(--fg)' }}>{deleteTarget.name}</strong>?</p>
@@ -273,7 +273,7 @@ export default function SupplierPage() {
             <div className="stoq-modal__foot">
               <button className="stoq-btn" onClick={() => setDeleteTarget(null)}>Cancel</button>
               <button className="stoq-btn stoq-btn--primary" style={{ background: 'var(--danger)', borderColor: 'transparent' }} onClick={handleDelete} disabled={deleting}>
-                {deleting ? 'Deletingâ€¦' : 'Delete'}
+                {deleting ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>

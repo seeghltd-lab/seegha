@@ -102,7 +102,7 @@ export default function CategoryPage() {
               className="stoq-input stoq-input--search"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search categoriesâ€¦"
+              placeholder="Search categories..."
             />
           </div>
           <div style={{ flex: 1 }} />
@@ -128,7 +128,7 @@ export default function CategoryPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={3} className="stoq-empty">Loading categoriesâ€¦</td></tr>
+                  <tr><td colSpan={3} className="stoq-empty">Loading categories...</td></tr>
                 ) : filtered.length === 0 ? (
                   <tr><td colSpan={3} className="stoq-empty">No categories found</td></tr>
                 ) : paged.map(c => (
@@ -167,7 +167,7 @@ export default function CategoryPage() {
         {viewMode === 'grid' && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, padding: 14 }}>
             {loading ? (
-              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 32, color: 'var(--fg-subtle)', fontSize: 12 }}>Loadingâ€¦</div>
+              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 32, color: 'var(--fg-subtle)', fontSize: 12 }}>Loading...</div>
             ) : filtered.length === 0 ? (
               <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 32, color: 'var(--fg-subtle)', fontSize: 12 }}>No categories found</div>
             ) : paged.map(c => (
@@ -196,7 +196,7 @@ export default function CategoryPage() {
         {/* Pagination */}
         {totalPages > 1 && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderTop: '1px solid var(--border)' }}>
-            <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>Page {page} of {totalPages} Â· {filtered.length} total</span>
+            <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>Page {page} of {totalPages} - {filtered.length} total</span>
             <div style={{ display: 'flex', gap: 4 }}>
               <button className="stoq-btn stoq-btn--icon" disabled={page <= 1} style={{ opacity: page <= 1 ? 0.4 : 1 }} onClick={() => setPage(p => p - 1)}><ChevronLeft size={14} /></button>
               <button className="stoq-btn stoq-btn--icon" disabled={page >= totalPages} style={{ opacity: page >= totalPages ? 0.4 : 1 }} onClick={() => setPage(p => p + 1)}><ChevronRight size={14} /></button>
@@ -214,7 +214,7 @@ export default function CategoryPage() {
                 <div className="stoq-modal__title">Delete Category</div>
                 <div className="stoq-modal__sub">This action cannot be undone.</div>
               </div>
-              <button className="stoq-btn stoq-btn--ghost stoq-btn--icon" onClick={() => setDeleteTarget(null)}>âœ•</button>
+              <button className="stoq-btn stoq-btn--ghost stoq-btn--icon" onClick={() => setDeleteTarget(null)}>X</button>
             </div>
             <div className="stoq-modal__body">
               <p style={{ fontSize: 13, color: 'var(--fg-muted)' }}>Delete <strong style={{ color: 'var(--fg)' }}>{deleteTarget.name}</strong>?</p>
@@ -222,7 +222,7 @@ export default function CategoryPage() {
             <div className="stoq-modal__foot">
               <button className="stoq-btn" onClick={() => setDeleteTarget(null)}>Cancel</button>
               <button className="stoq-btn stoq-btn--primary" style={{ background: 'var(--danger)', borderColor: 'transparent' }} onClick={handleDelete} disabled={deleting}>
-                {deleting ? 'Deletingâ€¦' : 'Delete'}
+                {deleting ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>

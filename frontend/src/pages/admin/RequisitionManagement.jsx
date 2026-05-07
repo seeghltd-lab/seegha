@@ -175,7 +175,7 @@ export default function RequisitionManagement() {
               className="stoq-input stoq-input--search"
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
-              placeholder="Search by employee or descriptionâ€¦"
+              placeholder="Search by employee or description..."
             />
           </div>
           <select className="stoq-select" value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }} style={{ width: 160 }}>
@@ -209,7 +209,7 @@ export default function RequisitionManagement() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={6} className="stoq-empty">Loadingâ€¦</td></tr>
+                  <tr><td colSpan={6} className="stoq-empty">Loading...</td></tr>
                 ) : requisitions.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="stoq-empty">
@@ -290,7 +290,7 @@ export default function RequisitionManagement() {
         {viewMode === 'grid' && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12, padding: 14 }}>
             {loading ? (
-              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 32, color: 'var(--fg-subtle)', fontSize: 12 }}>Loadingâ€¦</div>
+              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 32, color: 'var(--fg-subtle)', fontSize: 12 }}>Loading...</div>
             ) : requisitions.length === 0 ? (
               <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 32, color: 'var(--fg-subtle)', fontSize: 12 }}>No requisitions found</div>
             ) : requisitions.map(req => (
@@ -336,7 +336,7 @@ export default function RequisitionManagement() {
       {/* Pagination */}
       {totalPages > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', fontSize: 12, color: 'var(--fg-muted)' }}>
-          <span>Page {page} of {totalPages} Â· {total} total</span>
+          <span>Page {page} of {totalPages} - {total} total</span>
           <div className="stoq-btn-group">
             <button className="stoq-btn stoq-btn--ghost stoq-btn--icon stoq-btn--sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
               <ChevronLeft size={14} />
@@ -357,13 +357,13 @@ export default function RequisitionManagement() {
                 <div className="stoq-modal__title">Reject Requisition</div>
                 <div className="stoq-modal__sub">Provide a reason for the employee.</div>
               </div>
-              <button className="stoq-btn stoq-btn--ghost stoq-btn--icon" onClick={() => { setRejectTarget(null); setRejectReason(''); }}>âœ•</button>
+              <button className="stoq-btn stoq-btn--ghost stoq-btn--icon" onClick={() => { setRejectTarget(null); setRejectReason(''); }}>X</button>
             </div>
             <div className="stoq-modal__body">
               <textarea
                 value={rejectReason}
                 onChange={e => setRejectReason(e.target.value)}
-                placeholder="Reason for rejectionâ€¦"
+                placeholder="Reason for rejection..."
                 rows={3}
                 className="stoq-input"
                 style={{ width: '100%', resize: 'vertical', minHeight: 80 }}
@@ -372,7 +372,7 @@ export default function RequisitionManagement() {
             <div className="stoq-modal__foot">
               <button className="stoq-btn" onClick={() => { setRejectTarget(null); setRejectReason(''); }}>Cancel</button>
               <button className="stoq-btn stoq-btn--primary" style={{ background: 'var(--danger)', borderColor: 'transparent' }} onClick={handleReject} disabled={acting}>
-                {acting ? 'Rejectingâ€¦' : 'Reject'}
+                {acting ? 'Rejecting...' : 'Reject'}
               </button>
             </div>
           </div>
@@ -388,7 +388,7 @@ export default function RequisitionManagement() {
                 <div className="stoq-modal__title">Delete Requisition</div>
                 <div className="stoq-modal__sub">This action cannot be undone.</div>
               </div>
-              <button className="stoq-btn stoq-btn--ghost stoq-btn--icon" onClick={() => setDeleteTarget(null)}>âœ•</button>
+              <button className="stoq-btn stoq-btn--ghost stoq-btn--icon" onClick={() => setDeleteTarget(null)}>X</button>
             </div>
             <div className="stoq-modal__body">
               <p style={{ fontSize: 13, color: 'var(--fg-muted)' }}>Are you sure you want to delete this requisition?</p>
@@ -396,7 +396,7 @@ export default function RequisitionManagement() {
             <div className="stoq-modal__foot">
               <button className="stoq-btn" onClick={() => setDeleteTarget(null)}>Cancel</button>
               <button className="stoq-btn stoq-btn--primary" style={{ background: 'var(--danger)', borderColor: 'transparent' }} onClick={handleDelete} disabled={acting}>
-                {acting ? 'Deletingâ€¦' : 'Delete'}
+                {acting ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>
