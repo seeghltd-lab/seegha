@@ -458,6 +458,36 @@ export function buildRequisitionReceipt(requisition) {
 }
 
 /**
+ * Build receipt data from a group of stock items received on one date
+ */
+export function buildGroupReceipt(supplierName, date, items) {
+  const receiptItems = items.map(s => ({
+    name:     s.itemName,
+    sku:      s.sku ?? '',
+    quantity: s.quantity,
+    unit:     s.unit ?? '',
+    unitCost: parseFloat(s.unitCost ?? 0),
+    total:    parseFloat(s.totalValue ?? (s.quantity * (s.unitCost ?? 0))),
+  }));
+  const totalAmount = receiptItems.reduce((s, i) => s + (i.total ?? 0), 0);
+  const refId = `GRP-${Date.now().toString(36).toUpperCase().slice(-8)}`;
+  return {
+    id:          refId,
+    type:        'PAYMENT',
+    title:       'STOCK RECEIPT',
+    reference:   refId,
+    issuedTo:    supplierName,
+    issuedBy:    '—',
+    supplierName,
+    createdAt:   date,
+    completedAt: null,
+    items:       receiptItems,
+    totalAmount,
+    notes:       null,
+  };
+}
+
+/**
  * Build receipt data from a supplier payment object + supplier name
  */
 export function buildPaymentReceipt(payment, supplierName = '') {
