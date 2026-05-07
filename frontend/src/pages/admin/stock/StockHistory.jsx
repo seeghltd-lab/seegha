@@ -324,7 +324,7 @@ export default function StockHistory() {
                         </span>
                         <div>
                           <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)' }}>
-                            {h.stock?.itemName || 'â€”'}
+                            {h.stock?.itemName || '-'}
                           </div>
                           <div style={{ fontSize: 10, color: 'var(--fg-subtle)', fontFamily: 'var(--font-mono)' }}>
                             {h.stock?.sku || ''}
@@ -341,7 +341,7 @@ export default function StockHistory() {
                       </div>
                     </td>
 
-                    {/* Qty flow â€” the key column */}
+                    {/* Qty flow - the key column */}
                     <td>
                       <QtyFlow
                         before={h.qtyBefore}
@@ -358,13 +358,13 @@ export default function StockHistory() {
                         ? <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>
                             RWF {Number(h.unitPrice).toLocaleString()}
                           </span>
-                        : <span style={{ color: 'var(--fg-subtle)' }}>â€”</span>}
+                        : <span style={{ color: 'var(--fg-subtle)' }}>-</span>}
                     </td>
 
                     {/* Notes */}
                     <td style={{ maxWidth: 260 }}>
                       <span style={{ fontSize: 11, color: 'var(--fg-muted)', lineHeight: 1.4, display: 'block' }}>
-                        {h.notes || <span style={{ color: 'var(--fg-subtle)' }}>â€”</span>}
+                        {h.notes || <span style={{ color: 'var(--fg-subtle)' }}>-</span>}
                       </span>
                     </td>
                   </tr>

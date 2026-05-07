@@ -22,7 +22,7 @@ const emptyForm = {
   notes: '',
 };
 
-// â”€â”€â”€ Reusable field wrapper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Reusable field wrapper ---
 
 function Field({ label, required, error, children }) {
   return (
@@ -40,7 +40,7 @@ function Field({ label, required, error, children }) {
   );
 }
 
-// â”€â”€â”€ Input with leading icon â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Input with leading icon ---
 
 function IconInput({ icon: Icon, error, ...props }) {
   return (
@@ -59,7 +59,7 @@ function IconInput({ icon: Icon, error, ...props }) {
   );
 }
 
-// â”€â”€â”€ Star rating picker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Star rating picker ---
 
 function StarPicker({ value, onChange }) {
   const [hovered, setHovered] = useState(0);
@@ -94,7 +94,7 @@ function StarPicker({ value, onChange }) {
   );
 }
 
-// â”€â”€â”€ Section header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Section header ---
 
 function SectionHead({ icon: Icon, title, sub }) {
   return (
@@ -108,7 +108,7 @@ function SectionHead({ icon: Icon, title, sub }) {
   );
 }
 
-// â”€â”€â”€ Main component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Main component ---
 
 export default function AddEditSupplier() {
   const navigate = useNavigate();
@@ -243,7 +243,7 @@ export default function AddEditSupplier() {
       {/* Two-column layout: main form + sidebar */}
       <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 14, alignItems: 'start' }}>
 
-        {/* â”€â”€ LEFT COLUMN â”€â”€ */}
+        {/* -- LEFT COLUMN -- */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
           {/* Identity */}
@@ -313,7 +313,7 @@ export default function AddEditSupplier() {
 
         </div>
 
-        {/* â”€â”€ RIGHT COLUMN (sidebar) â”€â”€ */}
+        {/* -- RIGHT COLUMN (sidebar) -- */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
           {/* Status */}

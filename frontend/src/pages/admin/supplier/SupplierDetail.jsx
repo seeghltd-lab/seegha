@@ -104,7 +104,7 @@ function DateFilterBar({ preset, customFrom, customTo, onPreset, onCustomFrom, o
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <input type="date" className="stoq-input" value={customFrom} onChange={e => onCustomFrom(e.target.value)}
             style={{ width: 140, height: 28, fontSize: 11 }} />
-          <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>â†'</span>
+          <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>→</span>
           <input type="date" className="stoq-input" value={customTo} onChange={e => onCustomTo(e.target.value)}
             style={{ width: 140, height: 28, fontSize: 11 }} />
         </div>
