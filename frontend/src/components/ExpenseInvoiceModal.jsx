@@ -102,7 +102,7 @@ export default function ExpenseInvoiceModal({ expense, siteName, onClose }) {
           <div className="ltr-paper" ref={docRef}>
 
             {/* Letterhead */}
-            <div className="header">AMZA Management System</div>
+            <div className="header">SEEGH LTD</div>
             <div className="subheader">Finance & Operations Division</div>
             <div className="divider" />
 
@@ -183,7 +183,7 @@ export default function ExpenseInvoiceModal({ expense, siteName, onClose }) {
 
             {/* Footer */}
             <div className="footer">
-              <div>AMZA Management System — Confidential</div>
+              <div>SEEGH LTD — Confidential</div>
               <div>Reference: {refNo} | Generated: {fmtDateShort(new Date())}</div>
             </div>
 

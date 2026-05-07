@@ -248,7 +248,7 @@ export default function LoadingScreen() {
               fontVariationSettings: '"wght" 800',
             }}
           >
-            AMZA
+            SEEGH LTD
           </div>
           <div
             style={{

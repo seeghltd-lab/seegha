@@ -201,12 +201,12 @@ export default function ReceiptModal({ data, onClose }) {
 
   <div class="stamp">
     <div class="stamp-inner"></div>
-    <div class="stamp-top">AMZA SYS</div>
+    <div class="stamp-top">SEEGH</div>
     <div class="stamp-check">&#10003;</div>
     <div class="stamp-bot">VERIFIED</div>
   </div>
 
-  <div class="company">AMZA MANAGEMENT SYSTEM</div>
+  <div class="company">SEEGH LTD</div>
   <div style="height:3px"></div>
   <div class="subtitle">
     ${data.title ?? 'TRANSACTION RECEIPT'}<br>
@@ -251,7 +251,7 @@ export default function ReceiptModal({ data, onClose }) {
   <div class="sep-dbl"></div>
 
   <div class="footer-main">End of Receipt</div>
-  <div class="footer-sub">Powered by AMZA System</div>
+  <div class="footer-sub">Powered by SEEGH LTD</div>
 
   <div class="qr-wrap">
     ${qrSvgHtml}
@@ -308,13 +308,13 @@ export default function ReceiptModal({ data, onClose }) {
             {/* Circular stamp */}
             <div style={{ width:64,height:64,border:'2.5px solid #1a1a1a',borderRadius:'50%',margin:'4px auto 16px',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',position:'relative' }}>
               <div style={{ position:'absolute',inset:4,border:'1px solid #1a1a1a',borderRadius:'50%' }} />
-              <div style={{ fontSize:5.5,fontWeight:700,letterSpacing:'0.25em',textTransform:'uppercase' }}>AMZA SYS</div>
+              <div style={{ fontSize:5.5,fontWeight:700,letterSpacing:'0.25em',textTransform:'uppercase' }}>SEEGH</div>
               <div style={{ fontSize:18,lineHeight:1,fontWeight:700 }}>✓</div>
               <div style={{ fontSize:5,letterSpacing:'0.2em',textTransform:'uppercase' }}>VERIFIED</div>
             </div>
 
             {/* Header */}
-            <div style={{ fontSize:11,fontWeight:700,textAlign:'center',letterSpacing:'0.05em' }}>AMZA MANAGEMENT SYSTEM</div>
+            <div style={{ fontSize:11,fontWeight:700,textAlign:'center',letterSpacing:'0.05em' }}>SEEGH LTD</div>
             <div style={{ height:4 }} />
             <div style={{ fontSize:8.5,textAlign:'center',lineHeight:1.6,color:'#2a2a2a',textTransform:'uppercase' }}>
               {data.title || 'TRANSACTION RECEIPT'}<br />
@@ -392,7 +392,7 @@ export default function ReceiptModal({ data, onClose }) {
             <Sep double />
 
             <div style={{ textAlign:'center',fontSize:8.5,fontWeight:700,color:'#1a1a1a' }}>End of Receipt</div>
-            <div style={{ textAlign:'center',fontSize:8,letterSpacing:'0.1em',textTransform:'uppercase',color:'#444',marginTop:4 }}>Powered by AMZA System</div>
+            <div style={{ textAlign:'center',fontSize:8,letterSpacing:'0.1em',textTransform:'uppercase',color:'#444',marginTop:4 }}>Powered by SEEGH LTD</div>
 
             {/* QR Code */}
             <div ref={qrRef} style={{ width:80,height:80,margin:'10px auto 4px',background:'#fefdf8',padding:4 }}>
@@ -468,6 +468,7 @@ export function buildGroupReceipt(supplierName, date, items) {
     unit:     s.unit ?? '',
     unitCost: parseFloat(s.unitCost ?? 0),
     total:    parseFloat(s.totalValue ?? (s.quantity * (s.unitCost ?? 0))),
+    site:     s.site?.name ?? '',
   }));
   const totalAmount = receiptItems.reduce((s, i) => s + (i.total ?? 0), 0);
   const refId = `GRP-${Date.now().toString(36).toUpperCase().slice(-8)}`;
@@ -485,6 +486,278 @@ export function buildGroupReceipt(supplierName, date, items) {
     totalAmount,
     notes:       null,
   };
+}
+
+/* ── Supplier Document Receipt Modal ─────────────────────────────────────── */
+
+export function SupplierReceiptModal({ data, supplier, onClose }) {
+  if (!data) return null;
+
+  const items = data.items ?? [];
+  const totalAmount = data.totalAmount ?? items.reduce((s, i) => s + (i.total ?? ((i.unitCost ?? 0) * i.quantity)), 0);
+  const hasSite = items.some(i => i.site);
+  const hasUnitCost = items.some(i => i.unitCost != null && i.unitCost > 0);
+
+  const supplierBlock = supplier ? `
+    <div class="sup-block">
+      <div class="sup-col">
+        <div class="sup-label">Supplier</div>
+        <div class="sup-name">${supplier.name || ''}</div>
+        ${supplier.code ? `<div class="sup-detail mono">${supplier.code}</div>` : ''}
+        ${supplier.address ? `<div class="sup-detail">${supplier.address}</div>` : ''}
+        ${(supplier.city || supplier.country) ? `<div class="sup-detail">${[supplier.city, supplier.country].filter(Boolean).join(', ')}</div>` : ''}
+      </div>
+      <div class="sup-col">
+        ${supplier.contactPerson ? `<div class="sup-detail"><b>Contact:</b> ${supplier.contactPerson}</div>` : ''}
+        ${supplier.email ? `<div class="sup-detail"><b>Email:</b> ${supplier.email}</div>` : ''}
+        ${supplier.phone ? `<div class="sup-detail"><b>Phone:</b> ${supplier.phone}</div>` : ''}
+        ${supplier.paymentTerms ? `<div class="sup-detail"><b>Terms:</b> ${supplier.paymentTerms}</div>` : ''}
+      </div>
+    </div>` : '';
+
+  const handlePrint = () => {
+    const rowsHtml = items.map((item, idx) => `
+      <tr${idx % 2 !== 0 ? ' class="alt"' : ''}>
+        <td style="color:#bbb;font-size:8.5pt;text-align:center">${idx + 1}</td>
+        <td class="mono" style="font-size:9pt;color:#555">${item.sku || '—'}</td>
+        <td style="font-weight:500">${item.name || ''}</td>
+        <td class="r">${item.quantity}</td>
+        <td style="color:#666;font-size:9pt">${item.unit || '—'}</td>
+        ${hasUnitCost ? `<td class="r">${item.unitCost != null ? fmtMoney(item.unitCost) : '—'}</td>` : ''}
+        ${hasUnitCost ? `<td class="r" style="font-weight:700">${fmtMoney(item.total ?? (item.unitCost != null ? item.quantity * item.unitCost : 0))}</td>` : ''}
+        ${hasSite ? `<td style="font-size:9pt;color:#666">${item.site || '—'}</td>` : ''}
+      </tr>`).join('');
+
+    const win = window.open('', '_blank', 'width=1200,height=900');
+    win.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>${data.reference || 'Receipt'}</title>
+  <style>
+    @page { size: A4 landscape; margin: 16mm 20mm; }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Segoe UI',Arial,sans-serif; font-size:10pt; color:#111; background:#fff; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .doc-hdr { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:18px; }
+    .co-name { font-size:22pt; font-weight:800; letter-spacing:-0.5px; }
+    .co-sub { font-size:9pt; color:#666; margin-top:3px; }
+    .doc-ttl { text-align:right; }
+    .doc-ttl h1 { font-size:15pt; font-weight:700; text-transform:uppercase; letter-spacing:1px; }
+    .doc-meta { font-size:9.5pt; color:#444; margin-top:6px; line-height:1.8; }
+    .doc-meta strong { color:#111; }
+    .div2 { border:none; border-top:2px solid #111; margin:12px 0; }
+    .sup-block { display:flex; gap:40px; background:#f8f8f8; border:1px solid #e5e5e5; border-radius:4px; padding:14px 18px; margin-bottom:16px; }
+    .sup-col { flex:1; }
+    .sup-label { font-size:7.5pt; font-weight:700; text-transform:uppercase; letter-spacing:1.5px; color:#999; margin-bottom:5px; }
+    .sup-name { font-size:13pt; font-weight:700; margin-bottom:3px; }
+    .sup-detail { font-size:9.5pt; color:#555; line-height:1.8; }
+    .mono { font-family:'Courier New',monospace; }
+    table { width:100%; border-collapse:collapse; }
+    thead tr { background:#111; color:#fff; }
+    th { padding:8px 10px; text-align:left; font-size:8pt; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; }
+    .r { text-align:right; }
+    td { padding:8px 10px; border-bottom:1px solid #eee; font-size:9.5pt; }
+    tr.alt { background:#fafafa; }
+    .gt { display:flex; justify-content:space-between; align-items:center; padding:12px 10px 0; border-top:2px solid #111; }
+    .gt-items { font-size:9pt; color:#888; }
+    .gt-right { display:flex; align-items:center; gap:16px; }
+    .gt-label { font-size:9pt; font-weight:700; text-transform:uppercase; color:#444; letter-spacing:0.06em; }
+    .gt-value { font-size:15pt; font-weight:800; font-family:'Courier New',monospace; }
+    .notes { margin-top:14px; padding:10px 14px; background:#fffdf0; border:1px solid #e8e3c0; border-radius:4px; font-size:9pt; color:#444; }
+    .doc-ftr { margin-top:20px; padding-top:10px; border-top:1px solid #e0e0e0; display:flex; justify-content:space-between; font-size:7.5pt; color:#bbb; }
+  </style>
+</head>
+<body>
+  <div class="doc-hdr">
+    <div>
+      <div class="co-name">SEEGH LTD</div>
+      <div class="co-sub">Stock Management System</div>
+    </div>
+    <div class="doc-ttl">
+      <h1>${data.title || 'STOCK RECEIPT'}</h1>
+      <div class="doc-meta">
+        Ref: <strong>${data.reference || ''}</strong><br>
+        Date: <strong>${fmtDateTime(data.createdAt)}</strong>
+        ${data.issuedTo ? `<br>${data.type === 'REQUISITION' ? 'Employee' : 'Supplier'}: <strong>${data.issuedTo}</strong>` : ''}
+        ${data.status ? `<br>Status: <strong>${data.status.replace(/_/g, ' ')}</strong>` : ''}
+      </div>
+    </div>
+  </div>
+  <div class="div2"></div>
+  ${supplierBlock}
+  <table>
+    <thead>
+      <tr>
+        <th style="width:36px">#</th>
+        <th style="width:110px">SKU</th>
+        <th>Item Name</th>
+        <th class="r" style="width:70px">Qty</th>
+        <th style="width:60px">Unit</th>
+        ${hasUnitCost ? `<th class="r" style="width:110px">Unit Cost</th>` : ''}
+        ${hasUnitCost ? `<th class="r" style="width:130px">Total</th>` : ''}
+        ${hasSite ? `<th style="width:90px">Site</th>` : ''}
+      </tr>
+    </thead>
+    <tbody>${rowsHtml}</tbody>
+  </table>
+  <div class="gt">
+    <span class="gt-items">${items.length} item${items.length !== 1 ? 's' : ''}</span>
+    <div class="gt-right">
+      <span class="gt-label">Grand Total</span>
+      <span class="gt-value">${fmtMoney(totalAmount)}</span>
+    </div>
+  </div>
+  ${data.notes ? `<div class="notes"><strong>Notes:</strong> ${data.notes}</div>` : ''}
+  <div class="doc-ftr">
+    <span>Powered by SEEGH LTD Management System</span>
+    <span>Printed: ${new Date().toLocaleString('en-GB')}</span>
+  </div>
+</body>
+</html>`);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); win.close(); }, 600);
+  };
+
+  const thStyle = { padding: '9px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#fff', background: '#0f1014', whiteSpace: 'nowrap' };
+  const tdStyle = { padding: '10px 12px', borderBottom: '1px solid #eee', fontSize: 13 };
+
+  return (
+    <>
+      <style>{`
+        .sdoc-overlay { position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.72);backdrop-filter:blur(4px);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:24px 16px 60px; }
+        .sdoc-wrap { width:960px;max-width:95vw;display:flex;flex-direction:column; }
+        .sdoc-toolbar { background:#111;border-radius:10px 10px 0 0;padding:10px 18px;display:flex;justify-content:space-between;align-items:center; }
+        .sdoc-paper { background:#fff;padding:44px 52px 52px;border-radius:0 0 10px 10px;box-shadow:0 8px 40px rgba(0,0,0,.25); }
+      `}</style>
+
+      <div className="sdoc-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+        <div className="sdoc-wrap">
+          <div className="sdoc-toolbar">
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>
+              {data.title || 'Receipt'} — {data.reference}
+            </span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={handlePrint} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 6, border: 'none', background: '#fff', color: '#111', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                <Printer size={14} /> Print / Save PDF
+              </button>
+              <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,.3)', background: 'transparent', color: 'rgba(255,255,255,.8)', fontSize: 12, cursor: 'pointer' }}>
+                <X size={14} /> Close
+              </button>
+            </div>
+          </div>
+
+          <div className="sdoc-paper">
+            {/* Document header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
+              <div>
+                <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-0.5px', color: '#0f1014', lineHeight: 1 }}>SEEGH LTD</div>
+                <div style={{ fontSize: 11, color: '#888', marginTop: 5 }}>Stock Management System</div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 17, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#0f1014' }}>
+                  {data.title || 'STOCK RECEIPT'}
+                </div>
+                <div style={{ fontSize: 12, color: '#444', marginTop: 6, lineHeight: 1.9 }}>
+                  Ref: <strong style={{ color: '#111' }}>{data.reference}</strong>
+                  <br />Date: <strong style={{ color: '#111' }}>{fmtDateTime(data.createdAt)}</strong>
+                  {data.issuedTo && (
+                    <><br />{data.type === 'REQUISITION' ? 'Employee' : 'Supplier'}: <strong style={{ color: '#111' }}>{data.issuedTo}</strong></>
+                  )}
+                  {data.status && (
+                    <><br />Status: <strong style={{ color: '#111' }}>{data.status.replace(/_/g, ' ')}</strong></>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ borderTop: '2px solid #0f1014', marginBottom: 22 }} />
+
+            {/* Supplier info block */}
+            {supplier && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 28, background: '#f8f8f8', border: '1px solid #e5e5e5', borderRadius: 6, padding: '16px 22px', marginBottom: 26 }}>
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#999', marginBottom: 6 }}>Supplier</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#0f1014', marginBottom: 2 }}>{supplier.name}</div>
+                  {supplier.code && <div style={{ fontSize: 11, fontFamily: 'monospace', color: '#777', marginBottom: 4 }}>{supplier.code}</div>}
+                  {supplier.address && <div style={{ fontSize: 12, color: '#555' }}>{supplier.address}</div>}
+                  {(supplier.city || supplier.country) && (
+                    <div style={{ fontSize: 12, color: '#555' }}>{[supplier.city, supplier.country].filter(Boolean).join(', ')}</div>
+                  )}
+                </div>
+                <div style={{ fontSize: 12, color: '#555', lineHeight: 2 }}>
+                  {supplier.contactPerson && <div><strong style={{ color: '#333' }}>Contact:</strong> {supplier.contactPerson}</div>}
+                  {supplier.email && <div><strong style={{ color: '#333' }}>Email:</strong> {supplier.email}</div>}
+                  {supplier.phone && <div><strong style={{ color: '#333' }}>Phone:</strong> {supplier.phone}</div>}
+                  {supplier.paymentTerms && <div><strong style={{ color: '#333' }}>Terms:</strong> {supplier.paymentTerms}</div>}
+                </div>
+              </div>
+            )}
+
+            {/* Items table */}
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={{ ...thStyle, width: 40, textAlign: 'center' }}>#</th>
+                  <th style={{ ...thStyle, width: 110 }}>SKU</th>
+                  <th style={thStyle}>Item Name</th>
+                  <th style={{ ...thStyle, textAlign: 'right', width: 72 }}>Qty</th>
+                  <th style={{ ...thStyle, width: 64 }}>Unit</th>
+                  {hasUnitCost && <th style={{ ...thStyle, textAlign: 'right', width: 130 }}>Unit Cost</th>}
+                  {hasUnitCost && <th style={{ ...thStyle, textAlign: 'right', width: 140 }}>Total</th>}
+                  {hasSite && <th style={{ ...thStyle, width: 100 }}>Site</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item, idx) => (
+                  <tr key={idx} style={{ background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
+                    <td style={{ ...tdStyle, textAlign: 'center', color: '#ccc', fontSize: 11 }}>{idx + 1}</td>
+                    <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: 11, color: '#555' }}>{item.sku || '—'}</td>
+                    <td style={{ ...tdStyle, fontWeight: 500 }}>{item.name}</td>
+                    <td style={{ ...tdStyle, textAlign: 'right', fontFamily: 'monospace' }}>{item.quantity}</td>
+                    <td style={{ ...tdStyle, color: '#666', fontSize: 12 }}>{item.unit || '—'}</td>
+                    {hasUnitCost && (
+                      <td style={{ ...tdStyle, textAlign: 'right', fontFamily: 'monospace', color: '#444' }}>
+                        {item.unitCost != null ? fmtMoney(item.unitCost) : '—'}
+                      </td>
+                    )}
+                    {hasUnitCost && (
+                      <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700, fontFamily: 'monospace' }}>
+                        {fmtMoney(item.total ?? (item.unitCost != null ? item.quantity * item.unitCost : 0))}
+                      </td>
+                    )}
+                    {hasSite && <td style={{ ...tdStyle, color: '#666', fontSize: 12 }}>{item.site || '—'}</td>}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* Grand total */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 12px 0', borderTop: '2px solid #0f1014', marginTop: 0 }}>
+              <span style={{ fontSize: 12, color: '#888' }}>{items.length} item{items.length !== 1 ? 's' : ''} total</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#555' }}>Grand Total</span>
+                <span style={{ fontSize: 22, fontWeight: 800, fontFamily: 'monospace', color: '#0f1014' }}>{fmtMoney(totalAmount)}</span>
+              </div>
+            </div>
+
+            {/* Notes */}
+            {data.notes && (
+              <div style={{ marginTop: 20, padding: '12px 16px', background: '#fffdf0', border: '1px solid #e8e3c0', borderRadius: 4, fontSize: 12, color: '#444' }}>
+                <strong>Notes:</strong> {data.notes}
+              </div>
+            )}
+
+            {/* Footer */}
+            <div style={{ marginTop: 40, paddingTop: 12, borderTop: '1px solid #e5e5e5', display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#ccc' }}>
+              <span>Powered by SEEGH LTD Management System</span>
+              <span>Printed: {new Date().toLocaleString('en-GB')}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
 }
 
 /**

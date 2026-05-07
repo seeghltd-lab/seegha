@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import supplierService from '../../../services/supplierService';
 import { useRole } from '../../../hooks/useRole';
-import ReceiptModal, { buildPaymentReceipt, buildGroupReceipt } from '../../../components/ReceiptModal';
+import ReceiptModal, { buildPaymentReceipt, buildGroupReceipt, buildRequisitionReceipt, SupplierReceiptModal } from '../../../components/ReceiptModal';
 
 // --- Helpers -----------------------------------------------------------------
 
@@ -510,7 +510,7 @@ function TabItems({ supplier, datePreset, customFrom, customTo }) {
 
   return (
     <>
-      {receipt && <ReceiptModal data={receipt} onClose={() => setReceipt(null)} />}
+      {receipt && <SupplierReceiptModal data={receipt} supplier={supplier} onClose={() => setReceipt(null)} />}
       {groupModal && (
         <GroupReceiptModal
           supplierName={supplier.name}
@@ -651,7 +651,7 @@ function TabItems({ supplier, datePreset, customFrom, customTo }) {
               <div className="table-wrap">
                 <table className="stoq-tbl">
                   <thead>
-                    <tr>{['ID', 'Date', 'Employee', 'Items', 'Status'].map(h => <th key={h} className="no-sort">{h}</th>)}</tr>
+                    <tr>{['ID', 'Date', 'Employee', 'Items', 'Status', ''].map(h => <th key={h} className="no-sort">{h}</th>)}</tr>
                   </thead>
                   <tbody>
                     {pagedReqs.map(req => {
@@ -664,6 +664,12 @@ function TabItems({ supplier, datePreset, customFrom, customTo }) {
                           <td><span className="cell-stack__main">{req.employee ? `${req.employee.firstName} ${req.employee.lastName}` : '-'}</span></td>
                           <td>{req.items?.length ?? req._count?.items ?? 0}</td>
                           <td><span className={badgeCls}>{label}</span></td>
+                          <td style={{ width: 36 }}>
+                            <button className="stoq-btn stoq-btn--sm stoq-btn--icon" title="View Receipt"
+                              onClick={() => setReceipt(buildRequisitionReceipt(req))}>
+                              <FileText size={12} />
+                            </button>
+                          </td>
                         </tr>
                       );
                     })}
