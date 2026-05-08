@@ -245,6 +245,7 @@ model Stock {
   siteId            String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
 
   category         Category?          @relation(fields: [categoryId], references: [id])
   supplier         Supplier?          @relation(fields: [supplierId], references: [id])

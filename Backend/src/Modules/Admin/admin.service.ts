@@ -233,21 +233,21 @@ export class AdminService {
       totalCategories,
     ] = await Promise.all([
       this.prisma.stock.aggregate({
-        where: { adminId },
+        where: { deletedAt: null },
         _sum: { totalValue: true },
         _count: { id: true },
       }),
       this.prisma.requisition.count({ where: { status: 'PENDING' } }),
       this.prisma.employee.count(),
       this.prisma.employee.count({ where: { status: 'ACTIVE' } }),
-      this.prisma.supplier.count({ where: { adminId } }),
-      this.prisma.site.count({ where: { adminId } }),
-      this.prisma.category.count({ where: { adminId } }),
+      this.prisma.supplier.count(),
+      this.prisma.site.count(),
+      this.prisma.category.count(),
     ]);
 
     const lowStockResult = await this.prisma.$queryRaw<[{ count: bigint }]>`
       SELECT COUNT(*) as count FROM Stock
-      WHERE adminId = ${adminId} AND quantity <= reorderLevel
+      WHERE deletedAt IS NULL AND quantity <= reorderLevel
     `;
     const lowStockCount = Number(lowStockResult[0].count);
 
@@ -259,8 +259,7 @@ export class AdminService {
              SUM(ABS(sh.qtyChange)) as qty
       FROM StockHistory sh
       JOIN Stock s ON sh.stockId = s.id
-      WHERE s.adminId = ${adminId}
-        AND sh.createdAt >= ${start}
+      WHERE sh.createdAt >= ${start}
         AND sh.createdAt < ${end}
       GROUP BY DATE(sh.createdAt), sh.movementType
       ORDER BY DATE(sh.createdAt) ASC
@@ -287,7 +286,6 @@ export class AdminService {
 
     // Site utilization
     const sites = await this.prisma.site.findMany({
-      where: { adminId },
       select: {
         id: true,
         name: true,
@@ -301,7 +299,7 @@ export class AdminService {
       { siteId: string; total: number }[]
     >`
       SELECT siteId, SUM(CAST(totalValue AS DECIMAL(14,2))) as total
-      FROM Stock WHERE adminId = ${adminId} AND siteId IS NOT NULL
+      FROM Stock WHERE deletedAt IS NULL AND siteId IS NOT NULL
       GROUP BY siteId
     `;
     const siteValueMap = new Map(

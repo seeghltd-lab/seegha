@@ -345,7 +345,7 @@ export class StockService {
     } = filters;
     const skip = (page - 1) * limit;
 
-    const where: any = adminId ? { adminId } : {};
+    const where: any = { deletedAt: null };
     if (categoryId) where.categoryId = categoryId;
     if (siteId) where.siteId = siteId;
     if (dateFrom || dateTo) {
@@ -405,13 +405,13 @@ export class StockService {
         history: { orderBy: { createdAt: 'desc' }, take: 20 },
       },
     });
-    if (!stock) throw new NotFoundException('Stock not found');
+    if (!stock || stock.deletedAt !== null) throw new NotFoundException('Stock not found');
     return stock;
   }
 
   async update(id: string, data: Partial<CreateStockDto>, adminId: string, adminName?: string) {
     const stock = await this.prisma.stock.findUnique({ where: { id } });
-    if (!stock) throw new NotFoundException('Stock not found');
+    if (!stock || stock.deletedAt !== null) throw new NotFoundException('Stock not found');
 
     const oldQty = stock.quantity;
     const newQty = data.quantity !== undefined ? Number(data.quantity) : oldQty;
@@ -505,8 +505,11 @@ export class StockService {
 
   async remove(id: string, adminId?: string, adminName?: string) {
     const stock = await this.prisma.stock.findUnique({ where: { id } });
-    if (!stock) throw new NotFoundException('Stock not found');
-    await this.prisma.stock.delete({ where: { id } });
+    if (!stock || stock.deletedAt !== null) throw new NotFoundException('Stock not found');
+    await this.prisma.stock.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
     this.activityLog.log({
       action: 'STOCK_DELETED',
       entityType: 'Stock',
@@ -521,7 +524,7 @@ export class StockService {
 
   async getAlerts(adminId: string) {
     const stocks = await this.prisma.stock.findMany({
-      where: { adminId },
+      where: { deletedAt: null },
       include: { category: { select: { name: true } } },
     });
 
@@ -533,7 +536,7 @@ export class StockService {
     const { page = 1, limit = 20, movementType, dateFrom, dateTo, search } = filters;
     const skip = (page - 1) * limit;
 
-    const where: any = { stock: { adminId } };
+    const where: any = {};
     if (movementType) where.movementType = movementType;
     if (dateFrom || dateTo) {
       where.createdAt = {};
@@ -623,9 +626,9 @@ export class StockService {
   ) {
     const stock = await this.prisma.stock.findUnique({
       where: { id: stockId },
-      select: { id: true, supplierId: true, itemName: true },
+      select: { id: true, supplierId: true, itemName: true, deletedAt: true },
     });
-    if (!stock) throw new NotFoundException('Stock not found');
+    if (!stock || stock.deletedAt !== null) throw new NotFoundException('Stock not found');
     if (!stock.supplierId) throw new BadRequestException('This stock item has no linked supplier. Link a supplier first.');
 
     return this.prisma.supplierPayment.create({
@@ -645,7 +648,7 @@ export class StockService {
 
   async getStockPayments(stockId: string) {
     const stock = await this.prisma.stock.findUnique({ where: { id: stockId } });
-    if (!stock) throw new NotFoundException('Stock not found');
+    if (!stock || stock.deletedAt !== null) throw new NotFoundException('Stock not found');
 
     const payments = await this.prisma.supplierPayment.findMany({
       where: { stockId },
