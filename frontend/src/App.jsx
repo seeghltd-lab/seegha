@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { SocketProvider } from "./context/SocketContext";
 import { AdminAuthProvider, useAdminAuth } from "./context/AdminAuthContext";
 import { EmployeeAuthProvider, useEmployeeAuth } from "./context/EmployeeAuthContext";
@@ -14,6 +14,7 @@ import AdminDashboard from "./pages/admin/Dashboard";
 import EmployeeDashboard from "./pages/employee/Dashboard";
 import DashboardLayout from "./components/DashboardLayout";
 import NotFound from "./pages/NotFound";
+import PortalSelect from "./pages/PortalSelect";
 
 // Admin Employee Pages — lazy loaded
 const EmployeeList        = lazy(() => import("./pages/admin/employee/EmployeeList"));
@@ -74,7 +75,7 @@ function App() {
               <NotificationBridge />
               <Suspense fallback={<LoadingScreen />}>
                 <Routes>
-                <Route path="/" element={<Navigate to="/login" replace />} />
+                <Route path="/" element={<PortalSelect />} />
 
                 {/* Employee Routes */}
                 <Route path="/login" element={<EmployeeLogin />} />
