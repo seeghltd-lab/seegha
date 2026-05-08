@@ -65,20 +65,13 @@ const Header = ({ onToggleSidebar, role }) => {
 
   return (
     <header className="stoq-topbar">
-      {/* Mobile toggle */}
+      {/* Sidebar toggle — always visible */}
       <button
         onClick={onToggleSidebar}
         className="icon-btn"
-        style={{ display: 'none' }}
-        id="stoq-menu-btn"
-      >
-        <Menu size={16} />
-      </button>
-      {/* Mobile toggle visible via CSS */}
-      <button
-        onClick={onToggleSidebar}
-        className="stoq-mobile-menu-btn icon-btn"
-        aria-label="Toggle menu"
+        aria-label="Toggle sidebar"
+        title="Toggle sidebar"
+        style={{ flexShrink: 0 }}
       >
         <Menu size={16} />
       </button>
@@ -177,12 +170,10 @@ const Header = ({ onToggleSidebar, role }) => {
       <style>{`
         @keyframes stoqSlide { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         @media (max-width: 768px) {
-          .stoq-mobile-menu-btn { display: grid !important; }
           .stoq-crumbs { display: none; }
           .stoq-profile-name { display: block !important; }
         }
         @media (min-width: 769px) {
-          .stoq-mobile-menu-btn { display: none !important; }
           .stoq-profile-name { display: block !important; }
         }
       `}</style>

@@ -1,16 +1,21 @@
-﻿import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Landmark, MapPin, User, Calendar, DollarSign, Activity, Package, Users, Plus, Trash2, X, Save, Edit2, AlertCircle, RefreshCw, CheckCircle, ChevronLeft, ChevronRight, Printer } from "lucide-react";
+import { ArrowLeft, Landmark, MapPin, User, Calendar, DollarSign, Activity, Package, Users, Plus, Trash2, X, Save, Edit2, AlertCircle, RefreshCw, CheckCircle, ChevronLeft, ChevronRight, Printer, PackageMinus, LayoutGrid, List, Search, AlertTriangle, TrendingDown, Eye } from "lucide-react";
 import siteService from "../../../services/siteService";
 import stockService from "../../../services/stockService";
+import categoryService from "../../../services/categoryService";
 import { useRole } from "../../../hooks/useRole";
+import { useViewMode } from "../../../hooks/useViewMode";
+import { useSocketEvent } from "../../../context/SocketContext";
 import ReceiptModal from "../../../components/ReceiptModal";
+import Sparkline, { genSpark } from "../../../components/Sparkline";
 
-const TABS = [
-  { id: "info", label: "Info", icon: Landmark },
-  { id: "workers", label: "Workers", icon: Users },
-  { id: "expenses", label: "Expenses", icon: DollarSign },
-  { id: "stock", label: "Stock", icon: Package },
+const ALL_TABS = [
+  { id: "info",     label: "Info",      icon: Landmark },
+  { id: "workers",  label: "Workers",   icon: Users },
+  { id: "expenses", label: "Expenses",  icon: DollarSign },
+  { id: "stock",    label: "Stock",     icon: Package },
+  { id: "stockout", label: "Stock Out", icon: PackageMinus },
 ];
 
 const fmtCurrency = (v) => new Intl.NumberFormat("en-RW", { style: "currency", currency: "RWF", maximumFractionDigits: 0 }).format(v ?? 0);
@@ -142,10 +147,20 @@ function WorkersTab({ siteId, datePreset, customFrom, customTo }) {
         <div className="kpi">
           <div className="kpi__label"><span className="kpi__icon"><Users size={12} /></span>Entries{datePreset ? " (filtered)" : ""}</div>
           <div className="kpi__value">{filtered.length}</div>
+          <div className="kpi__foot"><span>daily records logged</span></div>
+          <Sparkline data={genSpark(3, 14, 0.2)} />
         </div>
         <div className="kpi">
           <div className="kpi__label"><span className="kpi__icon"><Users size={12} /></span>Workers{datePreset ? " (filtered)" : " Recorded"}</div>
           <div className="kpi__value">{filteredTotal.toLocaleString()}</div>
+          <div className="kpi__foot"><span>total headcount entries</span></div>
+          <Sparkline data={genSpark(5, 14, 0.3)} />
+        </div>
+        <div className="kpi">
+          <div className="kpi__label"><span className="kpi__icon"><Users size={12} /></span>Avg / Entry</div>
+          <div className="kpi__value">{filtered.length > 0 ? Math.round(filteredTotal / filtered.length) : 0}</div>
+          <div className="kpi__foot"><span>workers per record</span></div>
+          <Sparkline data={genSpark(2, 14, 0.1)} />
         </div>
       </div>
 
@@ -242,13 +257,7 @@ function buildExpenseReceipt(ex, siteName) {
     status:      ex.category || null,
     createdAt:   ex.date || ex.createdAt,
     completedAt: null,
-    items: [{
-      name:     ex.description,
-      sku:      ex.category || '',
-      quantity: 1,
-      unitCost: Number(ex.amount),
-      total:    Number(ex.amount),
-    }],
+    items: [{ name: ex.description, sku: ex.category || '', quantity: 1, unitCost: Number(ex.amount), total: Number(ex.amount) }],
     totalAmount: Number(ex.amount),
     notes:       ex.notes || null,
   };
@@ -310,8 +319,21 @@ function ExpensesTab({ siteId, siteName, datePreset, customFrom, customTo }) {
       <div className="kpi-grid kpi-grid--3">
         <div className="kpi">
           <div className="kpi__label"><span className="kpi__icon" data-tone="warning"><DollarSign size={12} /></span>Total Expenses{datePreset ? " (filtered)" : ""}</div>
-          <div className="kpi__value" style={{ fontSize: 20, color: "var(--danger)" }}>{fmtCurrency(filteredTotal)}</div>
-          <div className="kpi__foot">{filtered.length} entries</div>
+          <div className="kpi__value" style={{ fontSize: 18, color: "var(--danger)" }}>{fmtCurrency(filteredTotal)}</div>
+          <div className="kpi__foot"><span>{filtered.length} entries</span>{filtered.length > 0 && <span className="kpi__delta kpi__delta--down">{filtered.length} txns</span>}</div>
+          <Sparkline data={genSpark(7, 14, 0)} color="var(--warning)" />
+        </div>
+        <div className="kpi">
+          <div className="kpi__label"><span className="kpi__icon"><DollarSign size={12} /></span>Avg per Entry</div>
+          <div className="kpi__value" style={{ fontSize: 18 }}>{fmtCurrency(filtered.length > 0 ? filteredTotal / filtered.length : 0)}</div>
+          <div className="kpi__foot"><span>average expense amount</span></div>
+          <Sparkline data={genSpark(4, 14, 0.1)} />
+        </div>
+        <div className="kpi">
+          <div className="kpi__label"><span className="kpi__icon" data-tone="warning"><DollarSign size={12} /></span>Largest Expense</div>
+          <div className="kpi__value" style={{ fontSize: 18 }}>{fmtCurrency(filtered.length > 0 ? Math.max(...filtered.map(e => Number(e.amount))) : 0)}</div>
+          <div className="kpi__foot"><span>single highest amount</span></div>
+          <Sparkline data={genSpark(6, 14, -0.1)} color="var(--danger)" />
         </div>
       </div>
 
@@ -432,60 +454,386 @@ function ExpensesTab({ siteId, siteName, datePreset, customFrom, customTo }) {
 
 // ── Stock Tab ────────────────────────────────────────────────────────────────
 
-function StockTab({ siteId }) {
+const STOCK_STATUS_FILTERS = [
+  { label: "All",      value: "" },
+  { label: "In stock", value: "ok" },
+  { label: "Low",      value: "low" },
+  { label: "Out",      value: "out" },
+];
+
+function StockTab({ siteId, navigate, path }) {
   const [stocks, setStocks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [viewMode, setViewMode] = useViewMode("site-stock");
+  const [categories, setCategories] = useState([]);
   const PAGE = 12;
 
-  useEffect(() => {
-    stockService.getAll({ siteId, limit: 200 }).then(d => setStocks(d.stocks || [])).catch(() => {}).finally(() => setLoading(false));
+  const load = useCallback(() => {
+    setLoading(true);
+    stockService.getAll({ siteId, limit: 200 })
+      .then(d => setStocks(d.stocks || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, [siteId]);
 
-  const totalValue = stocks.reduce((s, x) => s + parseFloat(x.totalValue || 0), 0);
-  const totalPages = Math.max(1, Math.ceil(stocks.length / PAGE));
-  const paged = stocks.slice((page - 1) * PAGE, page * PAGE);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { categoryService.getAll().then(setCategories).catch(() => {}); }, []);
+  useEffect(() => { setPage(1); }, [search, categoryId, statusFilter]);
+
+  const filtered = stocks
+    .filter(s => !search || s.itemName?.toLowerCase().includes(search.toLowerCase()) || s.sku?.toLowerCase().includes(search.toLowerCase()))
+    .filter(s => !categoryId || s.category?.id === categoryId)
+    .filter(s => {
+      if (statusFilter === "ok")  return s.quantity > (s.reorderLevel || 0);
+      if (statusFilter === "low") return s.quantity > 0 && s.quantity <= (s.reorderLevel || 0);
+      if (statusFilter === "out") return s.quantity <= 0;
+      return true;
+    });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE));
+  const paged = filtered.slice((page - 1) * PAGE, page * PAGE);
+
+  const totalValue = stocks.reduce((s, i) => s + parseFloat(i.totalValue || 0), 0);
+  const lowCount   = stocks.filter(s => s.quantity > 0 && s.quantity <= (s.reorderLevel || 0)).length;
+  const outCount   = stocks.filter(s => s.quantity <= 0).length;
+
+  const StockBadge = ({ s }) => {
+    if (s.quantity <= 0) return <span className="stoq-badge stoq-badge--danger">Out</span>;
+    if (s.quantity <= (s.reorderLevel || 0)) return <span className="stoq-badge stoq-badge--warning"><AlertTriangle size={9} /> Low</span>;
+    return <span className="stoq-badge stoq-badge--success">In stock</span>;
+  };
 
   return (
-    <div className="stoq-panel">
-      {loading ? (
-        <div style={{ display: "flex", justifyContent: "center", padding: 32 }}>
-          <RefreshCw size={20} style={{ animation: "spin 1s linear infinite", color: "var(--fg-subtle)" }} />
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {/* KPI row */}
+      <div className="kpi-grid kpi-grid--3">
+        <div className="kpi">
+          <div className="kpi__label"><span className="kpi__icon"><Package size={12} /></span>Total Items</div>
+          <div className="kpi__value">{stocks.length}</div>
+          <div className="kpi__foot"><span>SKUs on this site</span></div>
+          <Sparkline data={genSpark(1, 14, 0.4)} />
         </div>
-      ) : stocks.length === 0 ? (
-        <div className="stoq-empty">
-          <Package size={24} className="stoq-empty__icon" />
-          <div className="stoq-empty__title">No stock assigned to this site</div>
+        <div className="kpi">
+          <div className="kpi__label"><span className="kpi__icon"><DollarSign size={12} /></span>Total Stock Value</div>
+          <div className="kpi__value" style={{ fontSize: 18 }}>RWF {(totalValue / 1_000).toFixed(1)}K</div>
+          <div className="kpi__foot"><span>across all items</span></div>
+          <Sparkline data={genSpark(2, 14, 0.3)} />
         </div>
-      ) : (
-        <>
-          <div className="stoq-toolbar">
-            <span style={{ fontSize: 11, color: "var(--fg-subtle)" }}>{stocks.length} item{stocks.length !== 1 ? "s" : ""}</span>
+        <div className="kpi">
+          <div className="kpi__label"><span className="kpi__icon" data-tone="warning"><TrendingDown size={12} /></span>Low / Out of Stock</div>
+          <div className="kpi__value">{lowCount + outCount}</div>
+          <div className="kpi__foot"><span>below minimum threshold</span>{(lowCount + outCount) > 0 && <span className="kpi__delta kpi__delta--down">{outCount} out</span>}</div>
+          <Sparkline data={genSpark(7, 14, 0)} color="var(--warning)" />
+        </div>
+      </div>
+
+      <div className="stoq-panel">
+        {loading ? (
+          <div style={{ display: "flex", justifyContent: "center", padding: 40 }}>
+            <RefreshCw size={20} style={{ animation: "spin 1s linear infinite", color: "var(--fg-subtle)" }} />
           </div>
-          <div style={{ padding: "12px 16px", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 }}>
-            {paged.map(s => (
-              <div key={s.id} style={{ background: "var(--bg-sunk)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", padding: 12 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--fg-subtle)" }}>{s.sku}</span>
-                  <div style={{ display: "flex", gap: 4 }}>
-                    {s.quantity <= 0 && <span className="stoq-badge stoq-badge--danger">Out</span>}
-                    {s.quantity > 0 && s.quantity <= (s.reorderLevel || 5) && <span className="stoq-badge stoq-badge--warning">Low</span>}
-                  </div>
+        ) : stocks.length === 0 ? (
+          <div className="stoq-empty">
+            <Package size={28} className="stoq-empty__icon" />
+            <div className="stoq-empty__title">No stock assigned to this site</div>
+            <button className="stoq-btn stoq-btn--primary" style={{ marginTop: 12 }}
+              onClick={() => navigate(`${path("/sites/" + siteId)}/stock/add`)}>
+              <Plus size={13} /> Add Stock
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Toolbar */}
+            <div className="stoq-toolbar">
+              <div className="stoq-toolbar__search" style={{ position: "relative" }}>
+                <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--fg-subtle)", pointerEvents: "none" }} />
+                <input className="stoq-input stoq-input--search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search item, SKU…" style={{ paddingLeft: 32 }} />
+              </div>
+              <select className="stoq-select" value={categoryId} onChange={e => setCategoryId(e.target.value)} style={{ width: 150 }}>
+                <option value="">All categories</option>
+                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <div className="stoq-segment">
+                {STOCK_STATUS_FILTERS.map(f => (
+                  <button key={f.value} data-active={statusFilter === f.value ? "true" : undefined} onClick={() => setStatusFilter(f.value)}>{f.label}</button>
+                ))}
+              </div>
+              <div style={{ flex: 1 }} />
+              <div className="stoq-segment">
+                <button data-active={viewMode === "table" ? "true" : undefined} onClick={() => setViewMode("table")}><List size={13} /></button>
+                <button data-active={viewMode === "grid" ? "true" : undefined} onClick={() => setViewMode("grid")}><LayoutGrid size={13} /></button>
+              </div>
+              <button className="stoq-btn stoq-btn--icon" onClick={load} title="Refresh"><RefreshCw size={13} /></button>
+              <button className="stoq-btn stoq-btn--primary stoq-btn--sm" onClick={() => navigate(`${path("/sites/" + siteId)}/stock/add`)}>
+                <Plus size={12} /> Add Stock
+              </button>
+            </div>
+
+            {filtered.length === 0 ? (
+              <div className="stoq-empty" style={{ padding: "32px 0" }}>
+                <Package size={22} className="stoq-empty__icon" />
+                <div className="stoq-empty__title">No items match your filters</div>
+              </div>
+            ) : viewMode === "table" ? (
+              <>
+                <div className="table-wrap">
+                  <table className="stoq-tbl">
+                    <thead>
+                      <tr>
+                        <th className="no-sort">SKU / Item</th>
+                        <th className="no-sort">Category</th>
+                        <th className="no-sort num-cell">On Hand</th>
+                        <th className="no-sort">Unit</th>
+                        <th className="no-sort num-cell">Unit Cost</th>
+                        <th className="no-sort num-cell">Total Value</th>
+                        <th className="no-sort">Status</th>
+                        <th className="no-sort col-actions"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paged.map(s => (
+                        <tr key={s.id}>
+                          <td>
+                            <span className="cell-stack__main">{s.itemName}</span>
+                            <span className="cell-stack__sub" style={{ fontFamily: "var(--font-mono)" }}>{s.sku}</span>
+                          </td>
+                          <td>{s.category?.name ? <span className="stoq-badge stoq-badge--plain">{s.category.name}</span> : "—"}</td>
+                          <td className="num-cell" style={{ fontWeight: 700, fontSize: 14 }}>{s.quantity}</td>
+                          <td style={{ color: "var(--fg-subtle)", fontSize: 11 }}>{s.unit}</td>
+                          <td className="num-cell" style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{fmtCurrency(s.unitCost)}</td>
+                          <td className="num-cell" style={{ fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 600 }}>{fmtCurrency(s.totalValue)}</td>
+                          <td><StockBadge s={s} /></td>
+                          <td>
+                            <div className="stoq-btn-group" style={{ justifyContent: "flex-end" }}>
+                              <button className="stoq-btn stoq-btn--ghost stoq-btn--icon stoq-btn--sm" title="Details" onClick={() => navigate(path("/stock/" + s.id))}><Eye size={13} /></button>
+                              <button className="stoq-btn stoq-btn--ghost stoq-btn--icon stoq-btn--sm" title="Edit" onClick={() => navigate(path("/stock/edit/" + s.id))}><Edit2 size={13} /></button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-                <div style={{ fontWeight: 600, fontSize: 12, lineHeight: 1.3, marginBottom: 4 }}>{s.itemName}</div>
-                <div style={{ fontSize: 10, color: "var(--fg-subtle)", marginBottom: 10 }}>{s.category?.name || "—"}</div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                  <div style={{ fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 700, letterSpacing: "-0.02em" }}>
-                    {s.quantity} <span style={{ fontSize: 10, color: "var(--fg-subtle)", fontWeight: 400 }}>{s.unit}</span>
-                  </div>
-                  <div style={{ fontSize: 11, color: "var(--accent-soft-fg)", fontFamily: "var(--font-mono)", fontWeight: 600 }}>{fmtCurrency(s.totalValue)}</div>
+                <Pagination page={page} totalPages={totalPages} total={filtered.length} onPage={setPage} label="items" />
+              </>
+            ) : (
+              <>
+                <div style={{ padding: "12px 16px", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 }}>
+                  {paged.map(s => (
+                    <div key={s.id} style={{ background: "var(--bg-sunk)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", padding: 12, cursor: "pointer" }}
+                      onClick={() => navigate(path("/stock/" + s.id))}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--fg-subtle)" }}>{s.sku}</span>
+                        <StockBadge s={s} />
+                      </div>
+                      <div style={{ fontWeight: 600, fontSize: 12, lineHeight: 1.3, marginBottom: 4 }}>{s.itemName}</div>
+                      <div style={{ fontSize: 10, color: "var(--fg-subtle)", marginBottom: 10 }}>{s.category?.name || "—"}</div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                        <div style={{ fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 700, letterSpacing: "-0.02em" }}>
+                          {s.quantity} <span style={{ fontSize: 10, color: "var(--fg-subtle)", fontWeight: 400 }}>{s.unit}</span>
+                        </div>
+                        <div style={{ fontSize: 11, color: "var(--accent-soft-fg)", fontFamily: "var(--font-mono)", fontWeight: 600 }}>{fmtCurrency(s.totalValue)}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <Pagination page={page} totalPages={totalPages} total={filtered.length} onPage={setPage} label="items" />
+              </>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Stock Out Tab ─────────────────────────────────────────────────────────────
+
+function StockOutTab({ siteId, datePreset, customFrom, customTo, navigate, path }) {
+  const [data, setData] = useState({ records: [], total: 0, totalPages: 1 });
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [toast, setToast] = useState(null);
+  const [editTarget, setEditTarget] = useState(null);
+  const [form, setForm] = useState({ stockId: "", quantity: "", notes: "", date: new Date().toISOString().slice(0, 10) });
+  const [submitting, setSubmitting] = useState(false);
+
+  const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = { page, limit: 15 };
+      if (datePreset === "custom" && customFrom) { params.dateFrom = customFrom; if (customTo) params.dateTo = customTo; }
+      else if (datePreset === "today") { const t = new Date(); params.dateFrom = t.toISOString().slice(0, 10); params.dateTo = t.toISOString().slice(0, 10); }
+      else if (datePreset === "week") { const t = new Date(); const s = new Date(t); s.setDate(t.getDate()-7); params.dateFrom = s.toISOString().slice(0, 10); params.dateTo = t.toISOString().slice(0, 10); }
+      else if (datePreset === "month") { const t = new Date(); params.dateFrom = new Date(t.getFullYear(), t.getMonth(), 1).toISOString().slice(0, 10); params.dateTo = t.toISOString().slice(0, 10); }
+      setData(await siteService.getStockOuts(siteId, params));
+    } catch { showToast("Failed to load stock out records", "error"); }
+    finally { setLoading(false); }
+  }, [siteId, page, datePreset, customFrom, customTo]);
+
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { setPage(1); }, [datePreset, customFrom, customTo]);
+
+  const resetForm = () => setForm({ stockId: "", quantity: "", notes: "", date: new Date().toISOString().slice(0, 10) });
+
+  const handleUpdate = async (e) => {
+    e.preventDefault();
+    if (!form.quantity || Number(form.quantity) <= 0) return showToast("Enter a valid quantity", "error");
+    setSubmitting(true);
+    try {
+      await siteService.updateStockOut(siteId, editTarget.id, {
+        quantity: Number(form.quantity),
+        notes: form.notes || undefined,
+        date: form.date,
+      });
+      showToast("Record updated");
+      setEditTarget(null);
+      resetForm();
+      load();
+    } catch (err) { showToast(err.response?.data?.message || "Failed to update", "error"); }
+    finally { setSubmitting(false); }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Delete this stock out record? The quantity will be restored.")) return;
+    try {
+      await siteService.deleteStockOut(siteId, id);
+      showToast("Record deleted — quantity restored");
+      load();
+    } catch (err) { showToast(err.response?.data?.message || "Failed to delete", "error"); }
+  };
+
+  const openEdit = (record) => {
+    setEditTarget(record);
+    setForm({ stockId: record.stockId, quantity: record.quantity, notes: record.notes || "", date: new Date(record.date).toISOString().slice(0, 10) });
+  };
+
+  const totalQtyOut = data.records.reduce((s, r) => s + r.quantity, 0);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <Toast toast={toast} />
+
+      <div className="kpi-grid kpi-grid--3">
+        <div className="kpi">
+          <div className="kpi__label"><span className="kpi__icon"><PackageMinus size={12} /></span>Records{datePreset ? " (filtered)" : ""}</div>
+          <div className="kpi__value">{data.total}</div>
+          <div className="kpi__foot"><span>stock out entries</span></div>
+          <Sparkline data={genSpark(3, 14, 0.2)} />
+        </div>
+        <div className="kpi">
+          <div className="kpi__label"><span className="kpi__icon" data-tone="danger"><PackageMinus size={12} /></span>Total Qty Out{datePreset ? " (filtered)" : ""}</div>
+          <div className="kpi__value" style={{ color: "var(--danger)" }}>{totalQtyOut.toLocaleString()}</div>
+          <div className="kpi__foot"><span>units dispatched</span>{totalQtyOut > 0 && <span className="kpi__delta kpi__delta--down">–{totalQtyOut}</span>}</div>
+          <Sparkline data={genSpark(7, 14, 0)} color="var(--danger)" />
+        </div>
+        <div className="kpi">
+          <div className="kpi__label"><span className="kpi__icon"><PackageMinus size={12} /></span>Avg Qty / Record</div>
+          <div className="kpi__value">{data.records.length > 0 ? (totalQtyOut / data.records.length).toFixed(1) : 0}</div>
+          <div className="kpi__foot"><span>per dispatch entry</span></div>
+          <Sparkline data={genSpark(2, 14, 0.15)} />
+        </div>
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <button className="stoq-btn stoq-btn--primary" onClick={() => navigate(path("/sites/" + siteId + "/stock-out/add"))}>
+          <PackageMinus size={13} /> Record Stock Out
+        </button>
+      </div>
+
+      {/* Edit Modal */}
+      {editTarget && (
+        <div className="stoq-modal-backdrop">
+          <div className="stoq-modal" style={{ maxWidth: 440 }}>
+            <div className="stoq-modal__head">
+              <div className="stoq-modal__title">Edit Stock Out — {editTarget.stock?.itemName}</div>
+              <button className="icon-btn" onClick={() => { setEditTarget(null); resetForm(); }}><X size={14} /></button>
+            </div>
+            <form onSubmit={handleUpdate}>
+              <div className="stoq-modal__body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div className="stoq-field">
+                  <label className="stoq-field__label">Quantity *</label>
+                  <input type="number" min="0.01" step="0.01" className="stoq-input" value={form.quantity}
+                    onChange={e => setForm({ ...form, quantity: e.target.value })} />
+                </div>
+                <div className="stoq-field">
+                  <label className="stoq-field__label">Date</label>
+                  <input type="date" className="stoq-input" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
+                </div>
+                <div className="stoq-field">
+                  <label className="stoq-field__label">Notes</label>
+                  <textarea className="stoq-input" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} style={{ height: "auto", padding: "6px 10px", resize: "none" }} />
                 </div>
               </div>
-            ))}
+              <div className="stoq-modal__foot">
+                <button type="button" className="stoq-btn" onClick={() => { setEditTarget(null); resetForm(); }}>Cancel</button>
+                <button type="submit" className="stoq-btn stoq-btn--primary" disabled={submitting} style={{ opacity: submitting ? 0.6 : 1 }}>
+                  {submitting ? "Saving…" : "Save Changes"}
+                </button>
+              </div>
+            </form>
           </div>
-          <Pagination page={page} totalPages={totalPages} total={stocks.length} onPage={setPage} label="items" />
-        </>
+        </div>
       )}
+
+      <div className="stoq-panel">
+        {loading ? (
+          <div style={{ display: "flex", justifyContent: "center", padding: 32 }}>
+            <RefreshCw size={20} style={{ animation: "spin 1s linear infinite", color: "var(--fg-subtle)" }} />
+          </div>
+        ) : data.records.length === 0 ? (
+          <div className="stoq-empty">
+            <PackageMinus size={24} className="stoq-empty__icon" />
+            <div className="stoq-empty__title">No stock out records{datePreset ? " in this period" : " yet"}</div>
+          </div>
+        ) : (
+          <>
+            <div className="table-wrap">
+              <table className="stoq-tbl">
+                <thead>
+                  <tr>
+                    <th className="no-sort">Date</th>
+                    <th className="no-sort">Item</th>
+                    <th className="no-sort num-cell">Qty Out</th>
+                    <th className="no-sort">Notes</th>
+                    <th className="no-sort">Recorded By</th>
+                    <th className="no-sort col-actions"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.records.map(r => (
+                    <tr key={r.id}>
+                      <td style={{ color: "var(--fg-muted)" }}>{fmtDate(r.date)}</td>
+                      <td>
+                        <span className="cell-stack__main">{r.stock?.itemName || "—"}</span>
+                        <span className="cell-stack__sub" style={{ fontFamily: "var(--font-mono)" }}>{r.stock?.sku}</span>
+                      </td>
+                      <td className="num-cell">
+                        <span style={{ fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 700, color: "var(--danger)" }}>
+                          {r.quantity} <span style={{ fontSize: 10, fontWeight: 400, color: "var(--fg-subtle)" }}>{r.unit}</span>
+                        </span>
+                      </td>
+                      <td style={{ color: "var(--fg-muted)" }}>{r.notes || "—"}</td>
+                      <td style={{ color: "var(--fg-subtle)", fontSize: 11 }}>{r.recordedByName || r.recordedByType}</td>
+                      <td style={{ display: "flex", gap: 4 }}>
+                        <button className="icon-btn" onClick={() => openEdit(r)}><Edit2 size={12} /></button>
+                        <button className="icon-btn" style={{ color: "var(--danger)" }} onClick={() => handleDelete(r.id)}><Trash2 size={13} /></button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pagination page={page} totalPages={data.totalPages} total={data.total} onPage={setPage} label="records" />
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -497,24 +845,38 @@ function InfoTab({ site }) {
   const expenses = site.totalExpenses || 0;
   const utilPct = budget > 0 ? Math.min(Math.round((expenses / budget) * 100), 100) : 0;
 
+  const remaining = budget - expenses;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div className="kpi-grid kpi-grid--4">
         <div className="kpi">
           <div className="kpi__label"><span className="kpi__icon"><Package size={12} /></span>Stock Items</div>
           <div className="kpi__value">{site._count?.stocks ?? 0}</div>
+          <div className="kpi__foot"><span>items on this site</span></div>
+          <Sparkline data={genSpark(1, 14, 0.4)} />
         </div>
         <div className="kpi">
           <div className="kpi__label"><span className="kpi__icon"><Users size={12} /></span>Workers Recorded</div>
           <div className="kpi__value">{(site.totalWorkersRecorded ?? 0).toLocaleString()}</div>
+          <div className="kpi__foot"><span>total entries</span></div>
+          <Sparkline data={genSpark(3, 14, 0.2)} />
         </div>
         <div className="kpi">
           <div className="kpi__label"><span className="kpi__icon" data-tone="warning"><DollarSign size={12} /></span>Total Expenses</div>
           <div className="kpi__value" style={{ fontSize: 18, color: "var(--danger)" }}>{fmtCurrency(site.totalExpenses)}</div>
+          <div className="kpi__foot"><span>budget used: {utilPct}%</span>{utilPct >= 100 && <span className="kpi__delta kpi__delta--down">Over</span>}</div>
+          <Sparkline data={genSpark(7, 14, 0)} color="var(--warning)" />
         </div>
         <div className="kpi">
           <div className="kpi__label"><span className="kpi__icon"><DollarSign size={12} /></span>Budget Remaining</div>
-          <div className="kpi__value" style={{ fontSize: 18, color: budget - expenses < 0 ? "var(--danger)" : "var(--success)" }}>{fmtCurrency(budget - expenses)}</div>
+          <div className="kpi__value" style={{ fontSize: 18, color: remaining < 0 ? "var(--danger)" : "var(--success)" }}>{fmtCurrency(remaining)}</div>
+          <div className="kpi__foot">
+            <span>of {fmtCurrency(budget)} total</span>
+            {remaining < 0 && <span className="kpi__delta kpi__delta--down">Over budget</span>}
+            {remaining >= 0 && budget > 0 && <span className="kpi__delta kpi__delta--up">{Math.round((remaining / budget) * 100)}% left</span>}
+          </div>
+          <Sparkline data={genSpark(5, 14, -0.3)} color={remaining < 0 ? "var(--danger)" : "var(--accent)"} />
         </div>
       </div>
 
@@ -585,8 +947,8 @@ export default function SiteDetail() {
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "info");
   const [loading, setLoading] = useState(true);
   const [siteReceipt, setSiteReceipt] = useState(null);
+  const [myAccess, setMyAccess] = useState(null);
 
-  // Date filter — persisted in URL
   const datePreset = searchParams.get("date") || "";
   const customFrom = searchParams.get("from") || "";
   const customTo   = searchParams.get("to")   || "";
@@ -621,6 +983,51 @@ export default function SiteDetail() {
     siteService.getOne(id).then(setSite).catch(() => navigate(siteListPath)).finally(() => setLoading(false));
   }, [id]);
 
+  useEffect(() => {
+    if (!isAdmin && id) {
+      siteService.getMyAccess(id).then(setMyAccess).catch(() => setMyAccess(null));
+    }
+  }, [id, isAdmin]);
+
+  // Real-time: react to access changes made by admin in PermissionManagement
+  useSocketEvent("siteAccessUpdated", ({ siteId }) => {
+    if (!isAdmin && siteId === id) {
+      siteService.getMyAccess(id).then(setMyAccess).catch(() => setMyAccess(null));
+    }
+  });
+  useSocketEvent("siteAccessRemoved", ({ siteId }) => {
+    if (!isAdmin && siteId === id) {
+      setMyAccess(null);
+      navigate(siteListPath);
+    }
+  });
+  useSocketEvent("siteAccessAssigned", ({ siteId }) => {
+    if (!isAdmin && siteId === id) {
+      siteService.getMyAccess(id).then(setMyAccess).catch(() => setMyAccess(null));
+    }
+  });
+
+  const canSeeTab = (tabId) => {
+    if (isAdmin) return true;
+    if (tabId === "info") return true;
+    if (!myAccess) return false;
+    const map = {
+      workers:  myAccess.canManageWorkers,
+      expenses: myAccess.canManageExpenses,
+      stock:    myAccess.canManageStock,
+      stockout: myAccess.canManageStockOut,
+    };
+    return !!map[tabId];
+  };
+
+  const visibleTabs = ALL_TABS.filter(t => canSeeTab(t.id));
+
+  useEffect(() => {
+    if (visibleTabs.length > 0 && !visibleTabs.find(t => t.id === activeTab)) {
+      handleTab("info");
+    }
+  }, [visibleTabs.map(t => t.id).join(","), activeTab]);
+
   if (loading) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "50vh", gap: 10, color: "var(--fg-subtle)" }}>
       <RefreshCw size={20} style={{ animation: "spin 1s linear infinite" }} />
@@ -640,15 +1047,15 @@ export default function SiteDetail() {
     createdAt:   site.startDate || site.createdAt,
     completedAt: site.endDate || null,
     items: [
-      { name: 'Budget',            quantity: 1, unitCost: Number(site.budget || 0),        total: Number(site.budget || 0) },
-      { name: 'Total Expenses',    quantity: 1, unitCost: Number(site.totalExpenses || 0),  total: Number(site.totalExpenses || 0) },
-      { name: 'Budget Remaining',  quantity: 1, unitCost: Number(site.budget || 0) - Number(site.totalExpenses || 0), total: Number(site.budget || 0) - Number(site.totalExpenses || 0) },
+      { name: 'Budget',           quantity: 1, unitCost: Number(site.budget || 0),       total: Number(site.budget || 0) },
+      { name: 'Total Expenses',   quantity: 1, unitCost: Number(site.totalExpenses || 0), total: Number(site.totalExpenses || 0) },
+      { name: 'Budget Remaining', quantity: 1, unitCost: Number(site.budget || 0) - Number(site.totalExpenses || 0), total: Number(site.budget || 0) - Number(site.totalExpenses || 0) },
     ],
     totalAmount: Number(site.totalExpenses || 0),
     notes:       site.description || null,
   });
 
-  const showDateFilter = activeTab === "workers" || activeTab === "expenses";
+  const showDateFilter = ["workers", "expenses", "stockout"].includes(activeTab);
 
   return (
     <div style={{ padding: "20px 24px 40px" }}>
@@ -678,19 +1085,24 @@ export default function SiteDetail() {
           </div>
         </div>
         <div className="page-head__actions">
-          <button className="stoq-btn" onClick={() => handleTab("workers")}>
-            <Users size={13} /> Record Workers
-          </button>
-          <button className="stoq-btn" onClick={() => setSiteReceipt(buildSiteReceipt())}>
-            <Printer size={13} /> Print Report
-          </button>
-          <button className="stoq-btn stoq-btn--primary" onClick={() => navigate(path(`/sites/edit/${id}`))}>
-            <Edit2 size={13} /> Edit Site
-          </button>
+          {canSeeTab("workers") && (
+            <button className="stoq-btn" onClick={() => handleTab("workers")}>
+              <Users size={13} /> Record Workers
+            </button>
+          )}
+          {isAdmin && (
+            <button className="stoq-btn" onClick={() => setSiteReceipt(buildSiteReceipt())}>
+              <Printer size={13} /> Print Report
+            </button>
+          )}
+          {(isAdmin || myAccess?.canManageInfo) && (
+            <button className="stoq-btn stoq-btn--primary" onClick={() => navigate(path(`/sites/edit/${id}`))}>
+              <Edit2 size={13} /> Edit Site
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Date filter — shown on workers and expenses tabs */}
       {showDateFilter && (
         <DateFilterBar
           preset={datePreset}
@@ -703,18 +1115,18 @@ export default function SiteDetail() {
       )}
 
       <div className="stoq-tabs">
-        {TABS.map(tab => (
+        {visibleTabs.map(tab => (
           <button key={tab.id} className="stoq-tab" data-active={activeTab === tab.id ? "true" : "false"} onClick={() => handleTab(tab.id)}>
             <tab.icon size={13} /> {tab.label}
           </button>
         ))}
       </div>
 
-      {activeTab === "info" && <InfoTab site={site} />}
-      {activeTab === "workers" && <WorkersTab siteId={id} datePreset={datePreset} customFrom={customFrom} customTo={customTo} />}
+      {activeTab === "info"     && <InfoTab site={site} />}
+      {activeTab === "workers"  && <WorkersTab siteId={id} datePreset={datePreset} customFrom={customFrom} customTo={customTo} />}
       {activeTab === "expenses" && <ExpensesTab siteId={id} siteName={site.name} datePreset={datePreset} customFrom={customFrom} customTo={customTo} />}
-      {activeTab === "stock" && <StockTab siteId={id} />}
+      {activeTab === "stock"    && <StockTab siteId={id} navigate={navigate} path={path} />}
+      {activeTab === "stockout" && <StockOutTab siteId={id} datePreset={datePreset} customFrom={customFrom} customTo={customTo} navigate={navigate} path={path} />}
     </div>
   );
 }
-

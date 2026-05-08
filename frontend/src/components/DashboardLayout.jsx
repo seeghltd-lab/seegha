@@ -5,30 +5,43 @@ import Header from './Header';
 import TweaksPanel from './TweaksPanel';
 
 const DashboardLayout = ({ role }) => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+  const [isMobileOpen, setIsMobileOpen]     = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(
+    () => localStorage.getItem('stoq-sidebar-collapsed') === 'true'
+  );
+
+  const handleToggle = () => {
+    if (window.innerWidth < 768) {
+      setIsMobileOpen(prev => !prev);
+    } else {
+      setIsCollapsed(prev => {
+        const next = !prev;
+        localStorage.setItem('stoq-sidebar-collapsed', next);
+        return next;
+      });
+    }
+  };
 
   return (
     <div className="stoq-app">
-      {/* Mobile overlay */}
-      {isSidebarOpen && (
-        <div className="stoq-sidebar-overlay" onClick={toggleSidebar} />
+      {isMobileOpen && (
+        <div className="stoq-sidebar-overlay" onClick={() => setIsMobileOpen(false)} />
       )}
 
       <Sidebar
-        isOpen={isSidebarOpen}
-        onToggle={toggleSidebar}
+        isOpen={isMobileOpen}
+        isCollapsed={isCollapsed}
+        onToggle={() => setIsMobileOpen(false)}
         role={role}
       />
 
-      <div className="stoq-main">
-        <Header onToggleSidebar={toggleSidebar} role={role} />
+      <div className="stoq-main" style={isCollapsed && window.innerWidth >= 768 ? { marginLeft: 0, width: '100%' } : {}}>
+        <Header onToggleSidebar={handleToggle} role={role} />
         <div className="stoq-content">
           <Outlet context={{ role }} />
         </div>
       </div>
 
-      {/* Tweaks panel — fixed, persisted in localStorage */}
       <TweaksPanel />
     </div>
   );

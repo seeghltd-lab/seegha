@@ -33,6 +33,8 @@ const siteImageStorage = diskStorage({
 export class SiteController {
   constructor(private readonly siteService: SiteService) {}
 
+  // ─── Static / prefix routes first ────────────────────
+
   @Get('stats')
   @UseGuards(DualAuthGuard)
   async getStats(@Req() req: any) {
@@ -40,6 +42,16 @@ export class SiteController {
     const callerType: 'ADMIN' | 'EMPLOYEE' = req.admin ? 'ADMIN' : 'EMPLOYEE';
     return this.siteService.getStats(callerId, callerType);
   }
+
+  // my-access must be before /:id to avoid param conflict
+  @Get('my-access/:siteId')
+  @UseGuards(DualAuthGuard)
+  async getMyAccess(@Param('siteId') siteId: string, @Req() req: any) {
+    const employeeId = req.employee?.id ?? req.admin?.id;
+    return this.siteService.getMyAccess(siteId, employeeId);
+  }
+
+  // ─── Core CRUD ────────────────────────────────────────
 
   @Post()
   @UseGuards(DualAuthGuard)
@@ -56,7 +68,9 @@ export class SiteController {
   @Get()
   @UseGuards(DualAuthGuard)
   async findAll(@Req() req: any, @Query() filters: any) {
-    return this.siteService.findAll(filters);
+    const callerId = req.admin?.id ?? req.employee?.id;
+    const callerType: 'ADMIN' | 'EMPLOYEE' = req.admin ? 'ADMIN' : 'EMPLOYEE';
+    return this.siteService.findAll(filters, callerId, callerType);
   }
 
   @Get(':id')
@@ -86,6 +100,8 @@ export class SiteController {
     return this.siteService.remove(id, callerId, callerType, callerName);
   }
 
+  // ─── Worker Records ───────────────────────────────────
+
   @Post(':id/workers')
   @UseGuards(DualAuthGuard)
   async addWorkerRecord(@Param('id') id: string, @Body() body: any, @Req() req: any) {
@@ -110,6 +126,8 @@ export class SiteController {
     return this.siteService.removeWorkerRecord(recordId, callerId, callerType, callerName);
   }
 
+  // ─── Expenses ─────────────────────────────────────────
+
   @Post(':id/expenses')
   @UseGuards(DualAuthGuard)
   async addExpense(@Param('id') id: string, @Body() body: any, @Req() req: any) {
@@ -132,5 +150,86 @@ export class SiteController {
     const callerType: 'ADMIN' | 'EMPLOYEE' = req.admin ? 'ADMIN' : 'EMPLOYEE';
     const callerName = req.admin?.names ?? req.admin?.email ?? req.employee?.firstName ?? req.employee?.email;
     return this.siteService.removeExpense(expenseId, callerId, callerType, callerName);
+  }
+
+  // ─── Stock Out ────────────────────────────────────────
+
+  @Post(':siteId/stock-out')
+  @UseGuards(DualAuthGuard)
+  async recordStockOut(@Param('siteId') siteId: string, @Body() body: any, @Req() req: any) {
+    const callerId = req.admin?.id ?? req.employee?.id;
+    const callerType: 'ADMIN' | 'EMPLOYEE' = req.admin ? 'ADMIN' : 'EMPLOYEE';
+    const callerName = req.admin?.names ?? req.admin?.email ?? req.employee?.firstName ?? req.employee?.email;
+    return this.siteService.recordStockOut(siteId, body, callerId, callerType, callerName);
+  }
+
+  @Get(':siteId/stock-out')
+  @UseGuards(DualAuthGuard)
+  async getStockOuts(
+    @Param('siteId') siteId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    return this.siteService.getStockOuts(siteId, { page, limit, search, dateFrom, dateTo });
+  }
+
+  @Get(':siteId/stock-out/summary')
+  @UseGuards(DualAuthGuard)
+  async getStockOutSummary(@Param('siteId') siteId: string) {
+    return this.siteService.getStockOutSummary(siteId);
+  }
+
+  @Put(':siteId/stock-out/:id')
+  @UseGuards(DualAuthGuard)
+  async updateStockOut(@Param('siteId') siteId: string, @Param('id') id: string, @Body() body: any, @Req() req: any) {
+    const callerId = req.admin?.id ?? req.employee?.id;
+    const callerType: 'ADMIN' | 'EMPLOYEE' = req.admin ? 'ADMIN' : 'EMPLOYEE';
+    const callerName = req.admin?.names ?? req.admin?.email ?? req.employee?.firstName ?? req.employee?.email;
+    return this.siteService.updateStockOut(id, body, callerId, callerType, callerName);
+  }
+
+  @Delete(':siteId/stock-out/:id')
+  @UseGuards(DualAuthGuard)
+  async deleteStockOut(@Param('siteId') siteId: string, @Param('id') id: string, @Req() req: any) {
+    const callerId = req.admin?.id ?? req.employee?.id;
+    const callerType: 'ADMIN' | 'EMPLOYEE' = req.admin ? 'ADMIN' : 'EMPLOYEE';
+    const callerName = req.admin?.names ?? req.admin?.email ?? req.employee?.firstName ?? req.employee?.email;
+    return this.siteService.deleteStockOut(id, callerId, callerType, callerName);
+  }
+
+  // ─── Site Employee Access ─────────────────────────────
+
+  @Post(':siteId/access')
+  @UseGuards(DualAuthGuard)
+  async assignEmployeeToSite(@Param('siteId') siteId: string, @Body() body: any) {
+    return this.siteService.assignEmployeeToSite(siteId, body);
+  }
+
+  @Get(':siteId/access')
+  @UseGuards(DualAuthGuard)
+  async getSiteAccess(@Param('siteId') siteId: string) {
+    return this.siteService.getSiteAccess(siteId);
+  }
+
+  @Put(':siteId/access/:employeeId')
+  @UseGuards(DualAuthGuard)
+  async updateSiteAccess(
+    @Param('siteId') siteId: string,
+    @Param('employeeId') employeeId: string,
+    @Body() body: any,
+  ) {
+    return this.siteService.updateSiteAccess(siteId, employeeId, body);
+  }
+
+  @Delete(':siteId/access/:employeeId')
+  @UseGuards(DualAuthGuard)
+  async removeSiteAccess(
+    @Param('siteId') siteId: string,
+    @Param('employeeId') employeeId: string,
+  ) {
+    return this.siteService.removeSiteAccess(siteId, employeeId);
   }
 }

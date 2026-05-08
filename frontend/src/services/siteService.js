@@ -1,4 +1,4 @@
-﻿import api from '../lib/axios';
+import api from '../lib/axios';
 
 class SiteService {
   async create(formData) {
@@ -64,6 +64,58 @@ class SiteService {
 
   async removeExpense(siteId, expenseId) {
     const { data } = await api.delete(`/sites/${siteId}/expenses/${expenseId}`);
+    return data;
+  }
+
+  // Stock Out
+  async recordStockOut(siteId, payload) {
+    const { data } = await api.post(`/sites/${siteId}/stock-out`, payload);
+    return data;
+  }
+
+  async getStockOuts(siteId, params = {}) {
+    const { data } = await api.get(`/sites/${siteId}/stock-out`, { params });
+    return data;
+  }
+
+  async getStockOutSummary(siteId) {
+    const { data } = await api.get(`/sites/${siteId}/stock-out/summary`);
+    return data;
+  }
+
+  async updateStockOut(siteId, id, payload) {
+    const { data } = await api.put(`/sites/${siteId}/stock-out/${id}`, payload);
+    return data;
+  }
+
+  async deleteStockOut(siteId, id) {
+    const { data } = await api.delete(`/sites/${siteId}/stock-out/${id}`);
+    return data;
+  }
+
+  // Site Employee Access
+  async getSiteAccess(siteId) {
+    const { data } = await api.get(`/sites/${siteId}/access`);
+    return data;
+  }
+
+  async getMyAccess(siteId) {
+    const { data } = await api.get(`/sites/my-access/${siteId}`);
+    return data;
+  }
+
+  async assignEmployeeToSite(siteId, payload) {
+    const { data } = await api.post(`/sites/${siteId}/access`, payload);
+    return data;
+  }
+
+  async updateSiteAccess(siteId, employeeId, payload) {
+    const { data } = await api.put(`/sites/${siteId}/access/${employeeId}`, payload);
+    return data;
+  }
+
+  async removeSiteAccess(siteId, employeeId) {
+    const { data } = await api.delete(`/sites/${siteId}/access/${employeeId}`);
     return data;
   }
 }

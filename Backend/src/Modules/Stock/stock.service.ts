@@ -3,6 +3,7 @@ import { PrismaService } from '../../Prisma/prisma.service';
 import { ActivityLogService } from '../ActivityLog/activity-log.service';
 import { Decimal } from '@prisma/client/runtime/library';
 import { PaymentType } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 interface CreateStockDto {
   itemName: string;
@@ -67,7 +68,9 @@ export class StockService {
     const quantity = Number(data.quantity);
     const totalValue = unitCost.times(quantity);
 
-    const stock = await this.prisma.stock.create({
+    let stock: any;
+    try {
+      stock = await this.prisma.stock.create({
       data: {
         sku,
         adminId,
@@ -87,6 +90,13 @@ export class StockService {
         stockImg: data.stockImg,
       },
     });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        const site = data.siteId ? 'this site' : 'global inventory';
+        throw new BadRequestException(`"${data.itemName}" already exists in ${site}. Use a different name or update the existing item.`);
+      }
+      throw e;
+    }
 
     await this.prisma.stockHistory.create({
       data: {
@@ -101,14 +111,6 @@ export class StockService {
         siteId: data.siteId || null,
       },
     });
-
-    if (data.siteId) {
-      await this.prisma.stockSiteQuantity.upsert({
-        where: { stockId_siteId: { stockId: stock.id, siteId: data.siteId } },
-        create: { stockId: stock.id, siteId: data.siteId, quantity, reorderLevel: data.reorderLevel ?? 5 },
-        update: { quantity: { increment: quantity } },
-      });
-    }
 
     // Auto-create payment entry if supplier is linked
     if (data.supplierId) {
@@ -150,26 +152,35 @@ export class StockService {
         const quantity = Number(data.quantity);
         const totalValue = unitCost.times(quantity);
 
-        const stock = await tx.stock.create({
-          data: {
-            sku,
-            adminId,
-            itemName: data.itemName,
-            categoryId: data.categoryId || null,
-            supplierId: data.supplierId || null,
-            siteId: data.siteId || null,
-            unit: data.unit || '',
-            quantity,
-            unitCost,
-            totalValue,
-            warehouseLocation: data.warehouseLocation || null,
-            receivedDate: new Date(data.receivedDate),
-            reorderLevel: data.reorderLevel !== undefined ? Number(data.reorderLevel) : 5,
-            expiryDate: data.expiryDate ? new Date(data.expiryDate) : null,
-            description: data.description,
-            stockImg: data.stockImg,
-          },
-        });
+        let stock: any;
+        try {
+          stock = await tx.stock.create({
+            data: {
+              sku,
+              adminId,
+              itemName: data.itemName,
+              categoryId: data.categoryId || null,
+              supplierId: data.supplierId || null,
+              siteId: data.siteId || null,
+              unit: data.unit || '',
+              quantity,
+              unitCost,
+              totalValue,
+              warehouseLocation: data.warehouseLocation || null,
+              receivedDate: new Date(data.receivedDate),
+              reorderLevel: data.reorderLevel !== undefined ? Number(data.reorderLevel) : 5,
+              expiryDate: data.expiryDate ? new Date(data.expiryDate) : null,
+              description: data.description,
+              stockImg: data.stockImg,
+            },
+          });
+        } catch (e) {
+          if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+            const site = data.siteId ? 'this site' : 'global inventory';
+            throw new BadRequestException(`"${data.itemName}" already exists in ${site}. Use a different name or update the existing item.`);
+          }
+          throw e;
+        }
 
         await tx.stockHistory.create({
           data: {
@@ -184,14 +195,6 @@ export class StockService {
             siteId: data.siteId || null,
           },
         });
-
-        if (data.siteId) {
-          await tx.stockSiteQuantity.upsert({
-            where: { stockId_siteId: { stockId: stock.id, siteId: data.siteId } },
-            create: { stockId: stock.id, siteId: data.siteId, quantity, reorderLevel: data.reorderLevel ?? 5 },
-            update: { quantity: { increment: quantity } },
-          });
-        }
 
         if (data.supplierId) {
           const pType = data.paymentType === 'DEBIT' ? PaymentType.DEBIT : PaymentType.CREDIT;
@@ -251,25 +254,34 @@ export class StockService {
         const quantity = Number(data.quantity);
         const totalValue = unitCost.times(quantity);
 
-        const stock = await tx.stock.create({
-          data: {
-            sku,
-            adminId,
-            itemName: data.itemName,
-            categoryId: data.categoryId || null,
-            supplierId: data.supplierId || null,
-            siteId: data.siteId || null,
-            unit: data.unit || '',
-            quantity,
-            unitCost,
-            totalValue,
-            warehouseLocation: data.warehouseLocation || null,
-            receivedDate: data.receivedDate ? new Date(data.receivedDate) : new Date(),
-            reorderLevel: data.reorderLevel !== undefined ? Number(data.reorderLevel) : 5,
-            expiryDate: data.expiryDate ? new Date(data.expiryDate) : null,
-            description: data.description,
-          },
-        });
+        let stock: any;
+        try {
+          stock = await tx.stock.create({
+            data: {
+              sku,
+              adminId,
+              itemName: data.itemName,
+              categoryId: data.categoryId || null,
+              supplierId: data.supplierId || null,
+              siteId: data.siteId || null,
+              unit: data.unit || '',
+              quantity,
+              unitCost,
+              totalValue,
+              warehouseLocation: data.warehouseLocation || null,
+              receivedDate: data.receivedDate ? new Date(data.receivedDate) : new Date(),
+              reorderLevel: data.reorderLevel !== undefined ? Number(data.reorderLevel) : 5,
+              expiryDate: data.expiryDate ? new Date(data.expiryDate) : null,
+              description: data.description,
+            },
+          });
+        } catch (e) {
+          if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+            const site = data.siteId ? 'this site' : 'global inventory';
+            throw new BadRequestException(`"${data.itemName}" already exists in ${site}. Use a different name or update the existing item.`);
+          }
+          throw e;
+        }
 
         await tx.stockHistory.create({
           data: {
@@ -285,14 +297,6 @@ export class StockService {
             siteId: data.siteId || null,
           },
         });
-
-        if (data.siteId) {
-          await tx.stockSiteQuantity.upsert({
-            where: { stockId_siteId: { stockId: stock.id, siteId: data.siteId } },
-            create: { stockId: stock.id, siteId: data.siteId, quantity, reorderLevel: data.reorderLevel ?? 5 },
-            update: { quantity: { increment: quantity } },
-          });
-        }
 
         if (data.supplierId) {
           const pType = data.paymentType === 'DEBIT' ? PaymentType.DEBIT : PaymentType.CREDIT;
@@ -377,32 +381,13 @@ export class StockService {
           category: { select: { id: true, name: true } },
           supplier: { select: { id: true, name: true, code: true } },
           site: { select: { id: true, name: true } },
-          ...(siteId ? {
-            siteQuantities: {
-              where: { siteId },
-              select: { quantity: true, reorderLevel: true },
-            },
-          } : {}),
         },
       }),
       this.prisma.stock.count({ where }),
     ]);
 
-    const mapped = stocks.map((s: any) => {
-      if (siteId && s.siteQuantities) {
-        const sq = s.siteQuantities[0];
-        return {
-          ...s,
-          quantity: sq?.quantity ?? 0,
-          reorderLevel: sq?.reorderLevel ?? s.reorderLevel,
-          siteQty: sq?.quantity ?? 0,
-        };
-      }
-      return s;
-    });
-
     return {
-      stocks: mapped,
+      stocks,
       total,
       page,
       limit,
@@ -656,68 +641,6 @@ export class StockService {
         adminId,
       },
     });
-  }
-
-  async transferBetweenSites(
-    stockId: string,
-    fromSiteId: string,
-    toSiteId: string,
-    qty: number,
-    adminId: string,
-  ) {
-    const stock = await this.prisma.stock.findUnique({ where: { id: stockId } });
-    if (!stock) throw new NotFoundException('Stock not found');
-    if (fromSiteId === toSiteId) throw new BadRequestException('Source and destination must be different');
-
-    const from = await this.prisma.stockSiteQuantity.findUnique({
-      where: { stockId_siteId: { stockId, siteId: fromSiteId } },
-    });
-    if (!from || from.quantity < qty) {
-      throw new BadRequestException('Insufficient stock at source site');
-    }
-
-    const dest = await this.prisma.stockSiteQuantity.findUnique({
-      where: { stockId_siteId: { stockId, siteId: toSiteId } },
-    });
-    const qtyBeforeDest = dest?.quantity ?? 0;
-
-    await this.prisma.$transaction([
-      this.prisma.stockSiteQuantity.update({
-        where: { stockId_siteId: { stockId, siteId: fromSiteId } },
-        data: { quantity: { decrement: qty } },
-      }),
-      this.prisma.stockSiteQuantity.upsert({
-        where: { stockId_siteId: { stockId, siteId: toSiteId } },
-        create: { stockId, siteId: toSiteId, quantity: qty },
-        update: { quantity: { increment: qty } },
-      }),
-      this.prisma.stockHistory.create({
-        data: {
-          stockId,
-          movementType: 'OUT',
-          qtyBefore: from.quantity,
-          qtyChange: qty,
-          qtyAfter: from.quantity - qty,
-          notes: `Transfer out to site ${toSiteId}`,
-          createdByAdminId: adminId,
-          siteId: fromSiteId,
-        },
-      }),
-      this.prisma.stockHistory.create({
-        data: {
-          stockId,
-          movementType: 'IN',
-          qtyBefore: qtyBeforeDest,
-          qtyChange: qty,
-          qtyAfter: qtyBeforeDest + qty,
-          notes: `Transfer in from site ${fromSiteId}`,
-          createdByAdminId: adminId,
-          siteId: toSiteId,
-        },
-      }),
-    ]);
-
-    return { message: 'Transfer complete', stockId, fromSiteId, toSiteId, qty };
   }
 
   async getStockPayments(stockId: string) {

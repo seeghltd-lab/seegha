@@ -11,7 +11,7 @@ import { SITE_NAME } from '../config/site';
 const hasPerm = (employee, ...names) =>
   names.some(name => employee?.permissions?.some(p => p.permission.name === name));
 
-const Sidebar = ({ isOpen, onToggle, role }) => {
+const Sidebar = ({ isOpen, isCollapsed, onToggle, role }) => {
   const location = useLocation();
   const { admin } = useAdminAuth();
   const { employee } = useEmployeeAuth();
@@ -74,7 +74,7 @@ const Sidebar = ({ isOpen, onToggle, role }) => {
       label: 'Sites',
       icon: Landmark,
       path: '/sites',
-      visible: hasPerm(employee, 'site_management'),
+      visible: hasPerm(employee, 'site_management', 'site_view'),
     },
     {
       id: 'categories',
@@ -116,7 +116,10 @@ const Sidebar = ({ isOpen, onToggle, role }) => {
   };
 
   return (
-    <aside className={`stoq-sidebar${isOpen ? ' is-open' : ''}`}>
+    <aside
+      className={`stoq-sidebar${isOpen ? ' is-open' : ''}`}
+      style={isCollapsed ? { display: 'none' } : {}}
+    >
       {/* Brand */}
       <div className="stoq-sidebar__brand">
         <div className="brand-mark">

@@ -65,10 +65,6 @@ class StockService {
     return data;
   }
 
-  async transfer(stockId, transferData) {
-    const { data } = await api.post(`/stock/${stockId}/transfer`, transferData);
-    return data;
-  }
 }
 
 export default new StockService();

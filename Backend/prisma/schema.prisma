@@ -105,7 +105,8 @@ model Site {
   workerRecords   SiteWorkerRecord[]
   expenses        SiteExpense[]
   requisitions    Requisition[]
-  stockQuantities StockSiteQuantity[]
+  stockOuts       StockOut[]
+  siteAccess      SiteEmployeeAccess[]
 
   @@index([adminId])
   @@map("Site")
@@ -173,6 +174,7 @@ model Employee {
 
   requisitions   Requisition[]
   permissions    EmployeePermission[]
+  siteAccess     SiteEmployeeAccess[]
 
   @@map("Employee")
 }
@@ -250,8 +252,9 @@ model Stock {
   history          StockHistory[]
   requisitionItems RequisitionItem[]
   payments         SupplierPayment[]
-  siteQuantities   StockSiteQuantity[]
+  stockOuts        StockOut[]
 
+  @@unique([itemName, siteId])
   @@index([adminId])
   @@index([categoryId])
   @@index([supplierId])
@@ -466,22 +469,50 @@ model PushSubscription {
   @@map("PushSubscription")
 }
 
-// ─── STOCK SITE QUANTITY ─────────────────────────────
+// ─── STOCK OUT ───────────────────────────────────────
 
-model StockSiteQuantity {
-  id           String   @id @default(cuid())
-  stockId      String
-  siteId       String
-  quantity     Int      @default(0)
-  reorderLevel Int      @default(5)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+model StockOut {
+  id             String   @id @default(cuid())
+  siteId         String
+  stockId        String
+  quantity       Float
+  unit           String
+  notes          String?  @db.Text
+  date           DateTime @default(now())
+  recordedById   String
+  recordedByType String   @default("ADMIN")
+  recordedByName String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  stock Stock @relation(fields: [stockId], references: [id], onDelete: Cascade)
   site  Site  @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  stock Stock @relation(fields: [stockId], references: [id])
 
-  @@unique([stockId, siteId])
-  @@index([stockId])
   @@index([siteId])
-  @@map("StockSiteQuantity")
+  @@index([stockId])
+  @@map("StockOut")
 }
+
+// ─── SITE EMPLOYEE ACCESS ────────────────────────────
+
+model SiteEmployeeAccess {
+  id                String   @id @default(cuid())
+  siteId            String
+  employeeId        String
+  canManageInfo     Boolean  @default(false)
+  canManageWorkers  Boolean  @default(false)
+  canManageExpenses Boolean  @default(false)
+  canManageStock    Boolean  @default(false)
+  canManageStockOut Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  site     Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([siteId, employeeId])
+  @@index([siteId])
+  @@index([employeeId])
+  @@map("SiteEmployeeAccess")
+}
+

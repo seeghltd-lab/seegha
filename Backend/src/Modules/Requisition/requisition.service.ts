@@ -538,14 +538,6 @@ export class RequisitionService {
           },
         });
 
-        if (siteidForAlloc) {
-          await this.prisma.stockSiteQuantity.upsert({
-            where: { stockId_siteId: { stockId: newStock.id, siteId: siteidForAlloc } },
-            create: { stockId: newStock.id, siteId: siteidForAlloc, quantity: receiveData.receivedQty },
-            update: { quantity: { increment: receiveData.receivedQty } },
-          });
-        }
-
         // Link the RequisitionItem to the new stock
         await this.prisma.requisitionItem.update({
           where: { id: item.id },
@@ -638,14 +630,6 @@ export class RequisitionService {
             siteId: reqSiteId || null,
           },
         });
-
-        if (reqSiteId) {
-          await this.prisma.stockSiteQuantity.upsert({
-            where: { stockId_siteId: { stockId: effectiveStockId, siteId: reqSiteId } },
-            create: { stockId: effectiveStockId, siteId: reqSiteId, quantity: receiveData.receivedQty },
-            update: { quantity: { increment: receiveData.receivedQty } },
-          });
-        }
 
         // Auto-create payment if paymentType is set and supplier is linked
         const paymentType = item.paymentType ?? 'NONE';

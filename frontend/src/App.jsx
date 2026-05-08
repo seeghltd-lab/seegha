@@ -39,6 +39,8 @@ const AdminProfile        = lazy(() => import("./pages/admin/AdminProfile"));
 const SiteManagement      = lazy(() => import("./pages/admin/SiteManagement"));
 const AddEditSite         = lazy(() => import("./pages/admin/site/AddEditSite"));
 const SiteDetail          = lazy(() => import("./pages/admin/site/SiteDetail"));
+const SiteAddStock        = lazy(() => import("./pages/admin/site/SiteAddStock"));
+const SiteStockOut        = lazy(() => import("./pages/admin/site/SiteStockOut"));
 const EmployeeProfile     = lazy(() => import("./pages/employee/EmployeeProfile"));
 const RequisitionManagement = lazy(() => import("./pages/admin/RequisitionManagement"));
 const ApproveRequisition  = lazy(() => import("./pages/admin/requisition/ApproveRequisition"));
@@ -110,10 +112,12 @@ function App() {
                     <Route path="/suppliers/:id"             element={<SupplierDetail />} />
 
                     {/* Sites — matches Sidebar path="/sites" */}
-                    <Route path="/sites"                     element={<SiteManagement />} />
-                    <Route path="/sites/add"                 element={<AddEditSite />} />
-                    <Route path="/sites/edit/:id"            element={<AddEditSite />} />
-                    <Route path="/sites/:id"                 element={<SiteDetail />} />
+                    <Route path="/sites"                          element={<SiteManagement />} />
+                    <Route path="/sites/add"                      element={<AddEditSite />} />
+                    <Route path="/sites/edit/:id"                 element={<AddEditSite />} />
+                    <Route path="/sites/:siteId/stock/add"        element={<SiteAddStock />} />
+                    <Route path="/sites/:siteId/stock-out/add"    element={<SiteStockOut />} />
+                    <Route path="/sites/:id"                      element={<SiteDetail />} />
 
                     <Route path="*" element={<NotFound />} />
                   </Route>
@@ -157,10 +161,12 @@ function App() {
                     <Route path="/admin/permissions"         element={<PermissionManagement />} />
                     <Route path="/admin/notifications"       element={<NotificationsPage />} />
                     <Route path="/admin/profile"             element={<AdminProfile />} />
-                    <Route path="/admin/site-management"     element={<SiteManagement />} />
-                    <Route path="/admin/sites/add"           element={<AddEditSite />} />
-                    <Route path="/admin/sites/edit/:id"      element={<AddEditSite />} />
-                    <Route path="/admin/sites/:id"           element={<SiteDetail />} />
+                    <Route path="/admin/site-management"              element={<SiteManagement />} />
+                    <Route path="/admin/sites/add"                    element={<AddEditSite />} />
+                    <Route path="/admin/sites/edit/:id"               element={<AddEditSite />} />
+                    <Route path="/admin/sites/:siteId/stock/add"      element={<SiteAddStock />} />
+                    <Route path="/admin/sites/:siteId/stock-out/add"  element={<SiteStockOut />} />
+                    <Route path="/admin/sites/:id"                    element={<SiteDetail />} />
 
                     <Route path="*" element={<NotFound />} />
                   </Route>

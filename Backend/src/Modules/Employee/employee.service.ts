@@ -129,6 +129,11 @@ export class EmployeeService {
           orderBy: { createdAt: 'desc' },
           take: 10,
         },
+        siteAccess: {
+          include: {
+            site: { select: { id: true, name: true, status: true, location: true } },
+          },
+        },
       },
     });
 
