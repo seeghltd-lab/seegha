@@ -7,7 +7,7 @@ import categoryService from "../../../services/categoryService";
 import { useRole } from "../../../hooks/useRole";
 import { useViewMode } from "../../../hooks/useViewMode";
 import { useSocketEvent } from "../../../context/SocketContext";
-import ReceiptModal from "../../../components/ReceiptModal";
+import { SupplierReceiptModal } from "../../../components/ReceiptModal";
 import Sparkline, { genSpark } from "../../../components/Sparkline";
 
 const ALL_TABS = [
@@ -314,7 +314,7 @@ function ExpensesTab({ siteId, siteName, datePreset, customFrom, customTo }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      {receiptData && <ReceiptModal data={receiptData} onClose={() => setReceiptData(null)} />}
+      {receiptData && <SupplierReceiptModal data={receiptData} onClose={() => setReceiptData(null)} />}
       <Toast toast={toast} />
       <div className="kpi-grid kpi-grid--3">
         <div className="kpi">
@@ -1059,7 +1059,7 @@ export default function SiteDetail() {
 
   return (
     <div style={{ padding: "20px 24px 40px" }}>
-      {siteReceipt && <ReceiptModal data={siteReceipt} onClose={() => setSiteReceipt(null)} />}
+      {siteReceipt && <SupplierReceiptModal data={siteReceipt} onClose={() => setSiteReceipt(null)} />}
       <div className="page-head">
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <button className="icon-btn" onClick={() => navigate(siteListPath)}><ArrowLeft size={14} /></button>

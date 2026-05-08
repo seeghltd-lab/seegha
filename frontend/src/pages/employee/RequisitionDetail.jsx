@@ -8,7 +8,7 @@ import {
 import requisitionService from '../../services/requisitionService';
 import { useEmployeeAuth } from '../../context/EmployeeAuthContext';
 import Sparkline, { genSpark } from '../../components/Sparkline';
-import ReceiptModal, { buildRequisitionReceipt } from '../../components/ReceiptModal';
+import { SupplierReceiptModal, buildRequisitionReceipt } from '../../components/ReceiptModal';
 
 const hasPerm = (employee, ...names) =>
   names.some(name => employee?.permissions?.some(p => p.permission.name === name));
@@ -105,7 +105,7 @@ export default function EmployeeRequisitionDetail() {
 
   return (
     <div>
-      {receipt && <ReceiptModal data={receipt} onClose={() => setReceipt(null)} />}
+      {receipt && <SupplierReceiptModal data={receipt} onClose={() => setReceipt(null)} />}
       {toast && (
         <div className={`stoq-toast ${toast.type === 'error' ? 'stoq-toast--error' : 'stoq-toast--success'}`}>
           {toast.type === 'error' ? <AlertCircle size={13} /> : <CheckCircle size={13} />}

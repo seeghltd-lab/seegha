@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import supplierService from '../../../services/supplierService';
 import { useRole } from '../../../hooks/useRole';
-import ReceiptModal, { buildPaymentReceipt, buildGroupReceipt, buildRequisitionReceipt, SupplierReceiptModal } from '../../../components/ReceiptModal';
+import { buildPaymentReceipt, buildGroupReceipt, buildRequisitionReceipt, SupplierReceiptModal } from '../../../components/ReceiptModal';
 
 // --- Helpers -----------------------------------------------------------------
 
@@ -784,7 +784,7 @@ function TabFinance({ supplier, onRecordPayment, onBulkPay }) {
 
   return (
     <>
-      {receipt && <ReceiptModal data={receipt} onClose={() => setReceipt(null)} />}
+      {receipt && <SupplierReceiptModal data={receipt} supplier={supplier} onClose={() => setReceipt(null)} />}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* KPI summary */}

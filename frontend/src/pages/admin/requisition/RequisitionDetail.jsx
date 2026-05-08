@@ -8,7 +8,7 @@ import {
 import requisitionService from '../../../services/requisitionService';
 import { useRole } from '../../../hooks/useRole';
 import Sparkline, { genSpark } from '../../../components/Sparkline';
-import ReceiptModal, { buildRequisitionReceipt } from '../../../components/ReceiptModal';
+import { SupplierReceiptModal, buildRequisitionReceipt } from '../../../components/ReceiptModal';
 
 const fmt    = n => new Intl.NumberFormat('en-RW', { style: 'currency', currency: 'RWF', minimumFractionDigits: 0 }).format(n ?? 0);
 const fmtDate = d => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '-';
@@ -121,7 +121,7 @@ export default function RequisitionDetail() {
 
   return (
     <div>
-      {receipt && <ReceiptModal data={receipt} onClose={() => setReceipt(null)} />}
+      {receipt && <SupplierReceiptModal data={receipt} onClose={() => setReceipt(null)} />}
       {toast && (
         <div className={`stoq-toast ${toast.type === 'error' ? 'stoq-toast--error' : 'stoq-toast--success'}`}>
           {toast.type === 'error' ? <AlertCircle size={13} /> : <CheckCircle size={13} />}
