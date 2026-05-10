@@ -36,6 +36,11 @@ function applyTweaks(tweaks) {
   const fp = FONT_PAIRS[tweaks.fontPair] || FONT_PAIRS['Inter / Inter Tight'];
   root.style.setProperty('--font-display', `${fp.display}, ui-sans-serif, system-ui, sans-serif`);
   root.style.setProperty('--font-body', `${fp.body}, ui-sans-serif, system-ui, sans-serif`);
+
+  // Keep browser chrome / PWA titlebar in sync with the current theme
+  const themeColor = tweaks.theme === 'dark' ? '#1c1c2e' : '#f7f7fb';
+  const tc = document.querySelector('meta[name="theme-color"]');
+  if (tc) tc.setAttribute('content', themeColor);
 }
 
 /* ─── Load saved tweaks from localStorage ─── */

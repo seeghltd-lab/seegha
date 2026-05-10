@@ -59,7 +59,7 @@ export default defineConfig({
         name: 'SEEGH LTD',
         short_name: 'SEEGH',
         description: 'The next generation of asset management and real-time ledger accuracy.',
-        theme_color: '#5b4dd6',
+        theme_color: '#f7f7fb',
         background_color: '#f7f7fb',
         display: 'standalone',
         orientation: 'portrait-primary',

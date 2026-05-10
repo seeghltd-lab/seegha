@@ -6,8 +6,8 @@
 
     <!-- PWA Core -->
     <meta name="application-name" content="SEEGH LTD" />
-    <meta name="theme-color" content="#5b4dd6" />
-    <meta name="msapplication-TileColor" content="#5b4dd6" />
+    <meta name="theme-color" content="#f7f7fb" />
+    <meta name="msapplication-TileColor" content="#f7f7fb" />
     <meta name="mobile-web-app-capable" content="yes" />
 
     <!-- iOS PWA -->
@@ -61,6 +61,9 @@
         if(ah) document.documentElement.style.setProperty('--accent-h',ah);
         if(ac) document.documentElement.style.setProperty('--accent-c',ac);
         if(al) document.documentElement.style.setProperty('--accent-l',al);
+        // Sync meta theme-color with saved theme immediately (no flash)
+        var tc=document.querySelector('meta[name="theme-color"]');
+        if(tc) tc.setAttribute('content', t==='dark' ? '#1c1c2e' : '#f7f7fb');
       })();
     </script>
     <div id="root"></div>
