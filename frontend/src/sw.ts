@@ -2,6 +2,11 @@
 
 declare let self: ServiceWorkerGlobalScope;
 
+// vite-plugin-pwa injectManifest requires this token to exist in the compiled output.
+// globPatterns: [] in vite.config.js means the injected list is [] — no offline caching.
+// @ts-ignore
+self.__WB_MANIFEST;
+
 // ==========================================
 // TYPES
 // ==========================================
