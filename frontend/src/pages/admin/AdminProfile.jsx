@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
-import { Camera, Save, Lock, User, Mail, Phone, RefreshCw, AlertCircle, CheckCircle, ShieldCheck } from 'lucide-react';
+import { Camera, Save, Lock, User, Mail, Phone, RefreshCw, AlertCircle, CheckCircle, ShieldCheck, Smartphone } from 'lucide-react';
 import adminAuthService from '../../services/adminAuthService';
+import PWAPanel from '../../components/PWAPanel';
 
 function Field({ label, error, children }) {
   return (
@@ -118,6 +119,7 @@ export default function AdminProfile() {
             {[
               { key: 'general', icon: User, label: 'General Info' },
               { key: 'security', icon: ShieldCheck, label: 'Security' },
+              { key: 'pwa', icon: Smartphone, label: 'App & PWA' },
             ].map(({ key, icon: Icon, label }) => (
               <button key={key} onClick={() => setActiveTab(key)}
                 style={{
@@ -232,6 +234,8 @@ export default function AdminProfile() {
               </div>
             </form>
           )}
+
+          {activeTab === 'pwa' && <PWAPanel />}
         </div>
       </div>
     </div>

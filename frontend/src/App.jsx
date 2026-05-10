@@ -4,8 +4,10 @@ import { SocketProvider } from "./context/SocketContext";
 import { AdminAuthProvider, useAdminAuth } from "./context/AdminAuthContext";
 import { EmployeeAuthProvider, useEmployeeAuth } from "./context/EmployeeAuthContext";
 import { NotificationProvider, useNotification } from "./context/NotificationContext";
+import { PWAProvider } from "./context/PWAContext";
 import { AdminRoute, EmployeeRoute } from "./components/ProtectedRoute";
 import LoadingScreen from "./components/LoadingScreen";
+import OfflineBanner from "./components/OfflineBanner";
 
 // Eager load: auth and core layout
 import AdminLogin from "./pages/admin/Login";
@@ -67,7 +69,9 @@ function NotificationBridge() {
 
 function App() {
   return (
+    <PWAProvider>
     <SocketProvider>
+      <OfflineBanner />
       <AdminAuthProvider>
         <EmployeeAuthProvider>
           <NotificationProvider>
@@ -182,6 +186,7 @@ function App() {
         </EmployeeAuthProvider>
       </AdminAuthProvider>
     </SocketProvider>
+    </PWAProvider>
   );
 }
 

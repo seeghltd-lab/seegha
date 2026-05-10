@@ -1,8 +1,9 @@
-﻿import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Menu, LogOut, User, Search } from 'lucide-react';
+import { Menu, LogOut, User, Search, Download } from 'lucide-react';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import { useEmployeeAuth } from '../context/EmployeeAuthContext';
+import { usePWA } from '../context/PWAContext';
 import NotificationBell from './NotificationBell';
 
 const ChevR = () => (
@@ -15,10 +16,13 @@ const Header = ({ onToggleSidebar, role }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [installing, setInstalling] = useState(false);
   const dropdownRef = useRef(null);
 
   const { admin, logout: adminLogout } = useAdminAuth();
   const { employee, logout: employeeLogout } = useEmployeeAuth();
+  const { isInstallable, updateAvailable, install } = usePWA();
+
   const user = role === 'admin' ? admin : employee;
   const logout = role === 'admin' ? adminLogout : employeeLogout;
 
@@ -27,14 +31,18 @@ const Header = ({ onToggleSidebar, role }) => {
     navigate(role === 'admin' ? '/admin/login' : '/login');
   };
 
+  const handleInstall = async () => {
+    setInstalling(true);
+    await install();
+    setInstalling(false);
+  };
+
   const getPageName = () => {
     const path = location.pathname;
     const segments = path.split('/').filter(Boolean);
-    // Skip 'admin' prefix segment
     const relevant = segments.filter(s => s !== 'admin');
     const last = relevant[relevant.length - 1];
     if (!last || last === 'dashboard') return 'Dashboard';
-    // Map known slugs to readable names
     const nameMap = {
       'employees': 'Employees', 'stock': 'Stock', 'suppliers': 'Suppliers',
       'categories': 'Categories', 'requisitions': 'Requisitions',
@@ -65,7 +73,7 @@ const Header = ({ onToggleSidebar, role }) => {
 
   return (
     <header className="stoq-topbar">
-      {/* Sidebar toggle — always visible */}
+      {/* Sidebar toggle */}
       <button
         onClick={onToggleSidebar}
         className="icon-btn"
@@ -92,6 +100,53 @@ const Header = ({ onToggleSidebar, role }) => {
 
       {/* Right actions */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+
+        {/* PWA Install button — only when browser has captured the install prompt */}
+        {isInstallable && (
+          <button
+            onClick={handleInstall}
+            disabled={installing}
+            title="Install SEEGH LTD as an app"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '5px 11px', borderRadius: 'var(--r-sm)',
+              background: 'var(--accent)', color: 'var(--accent-fg)',
+              border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+              boxShadow: '0 0 0 3px var(--accent-ring)',
+              opacity: installing ? 0.7 : 1,
+              animation: 'pwa-install-glow 2s ease-in-out infinite',
+              transition: 'opacity 0.15s',
+            }}
+          >
+            <Download size={13} />
+            <span className="pwa-install-label">
+              {installing ? 'Installing…' : 'Install App'}
+            </span>
+          </button>
+        )}
+
+        {/* Update available dot — subtle indicator on the notification area */}
+        {updateAvailable && (
+          <button
+            onClick={() => navigate(role === 'admin' ? '/admin/profile' : '/profile')}
+            title="App update ready — click to update"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              padding: '5px 10px', borderRadius: 'var(--r-sm)',
+              background: 'var(--warning-soft)', color: 'var(--warning)',
+              border: '1px solid var(--warning)', fontSize: 11, fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            <span style={{
+              width: 6, height: 6, borderRadius: '50%',
+              background: 'var(--warning)',
+              animation: 'pwa-blink 1.2s ease-in-out infinite',
+            }} />
+            Update ready
+          </button>
+        )}
+
         {/* Notification bell */}
         <NotificationBell />
 
@@ -169,9 +224,18 @@ const Header = ({ onToggleSidebar, role }) => {
 
       <style>{`
         @keyframes stoqSlide { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pwa-install-glow {
+          0%, 100% { box-shadow: 0 0 0 3px var(--accent-ring); }
+          50%       { box-shadow: 0 0 0 5px var(--accent-ring); }
+        }
+        @keyframes pwa-blink {
+          0%, 100% { opacity: 1; }
+          50%       { opacity: 0.3; }
+        }
         @media (max-width: 768px) {
           .stoq-crumbs { display: none; }
           .stoq-profile-name { display: block !important; }
+          .pwa-install-label { display: none; }
         }
         @media (min-width: 769px) {
           .stoq-profile-name { display: block !important; }
