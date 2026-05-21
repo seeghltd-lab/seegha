@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Put,
   Query,
@@ -49,6 +50,16 @@ export class SupplierController {
   addPayment(@Param('id') id: string, @Body() body: any, @Req() req: any) {
     const callerId = req.admin?.id ?? req.employee?.id;
     return this.supplierService.addPayment(id, body, callerId);
+  }
+
+  @Patch(':id/payments/:paymentId')
+  @UseGuards(DualAuthGuard)
+  updatePayment(
+    @Param('id') id: string,
+    @Param('paymentId') paymentId: string,
+    @Body() body: any,
+  ) {
+    return this.supplierService.updatePayment(id, paymentId, body);
   }
 
   @Get('select')

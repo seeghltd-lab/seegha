@@ -40,6 +40,11 @@ class SupplierService {
     const { data } = await api.post(`/suppliers/${id}/payments`, paymentData);
     return data;
   }
+
+  async updatePayment(supplierId, paymentId, data) {
+    const { data: res } = await api.patch(`/suppliers/${supplierId}/payments/${paymentId}`, data);
+    return res;
+  }
 }
 
 export default new SupplierService();

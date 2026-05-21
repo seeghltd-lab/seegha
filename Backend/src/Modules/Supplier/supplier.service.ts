@@ -324,6 +324,23 @@ export class SupplierService {
     });
   }
 
+  async updatePayment(supplierId: string, paymentId: string, data: Partial<AddPaymentDto>) {
+    const payment = await this.prisma.supplierPayment.findUnique({ where: { id: paymentId } });
+    if (!payment) throw new NotFoundException('Payment not found');
+    if (payment.supplierId !== supplierId) throw new BadRequestException('Payment does not belong to this supplier');
+    return this.prisma.supplierPayment.update({
+      where: { id: paymentId },
+      data: {
+        ...(data.type      !== undefined && { type: data.type }),
+        ...(data.amount    !== undefined && { amount: new Decimal(data.amount) }),
+        ...(data.reference !== undefined && { reference: data.reference ?? null }),
+        ...(data.notes     !== undefined && { notes: data.notes ?? null }),
+        ...(data.date      !== undefined && { date: new Date(data.date) }),
+        ...(data.stockId   !== undefined && { stockId: data.stockId || null }),
+      },
+    });
+  }
+
   async getPayments(supplierId: string) {
     const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId } });
     if (!supplier) throw new NotFoundException('Supplier not found');

@@ -528,14 +528,14 @@ export function SupplierReceiptModal({ data, supplier, onClose }) {
         ${hasSite ? `<td style="font-size:9pt;color:#666">${item.site || '—'}</td>` : ''}
       </tr>`).join('');
 
-    const win = window.open('', '_blank', 'width=1200,height=900');
+    const win = window.open('', '_blank', 'width=900,height=1200');
     win.document.write(`<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <title>${data.reference || 'Receipt'}</title>
   <style>
-    @page { size: A4 landscape; margin: 16mm 20mm; }
+    @page { size: A4 portrait; margin: 16mm 18mm; }
     * { margin:0; padding:0; box-sizing:border-box; }
     body { font-family:'Segoe UI',Arial,sans-serif; font-size:10pt; color:#111; background:#fff; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
     .doc-hdr { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:18px; }
@@ -626,7 +626,7 @@ export function SupplierReceiptModal({ data, supplier, onClose }) {
     <>
       <style>{`
         .sdoc-overlay { position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.72);backdrop-filter:blur(4px);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:24px 16px 60px; }
-        .sdoc-wrap { width:960px;max-width:95vw;display:flex;flex-direction:column; }
+        .sdoc-wrap { width:700px;max-width:95vw;display:flex;flex-direction:column; }
         .sdoc-toolbar { background:#111;border-radius:10px 10px 0 0;padding:10px 18px;display:flex;justify-content:space-between;align-items:center; }
         .sdoc-paper { background:#fff;padding:44px 52px 52px;border-radius:0 0 10px 10px;box-shadow:0 8px 40px rgba(0,0,0,.25); }
       `}</style>

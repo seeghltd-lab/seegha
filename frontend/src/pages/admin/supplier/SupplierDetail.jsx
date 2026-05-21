@@ -4,7 +4,7 @@ import {
   ArrowLeft, Star, Mail, Phone, MapPin, Building2, FileText,
   Package, CreditCard, ArrowUpCircle, ArrowDownCircle, ChevronDown,
   X, RefreshCw, Plus, AlertCircle, CheckCircle,
-  TrendingDown, Edit2, List, LayoutGrid, ChevronLeft, ChevronRight, Calendar, Printer,
+  TrendingDown, Edit2, List, LayoutGrid, ChevronLeft, ChevronRight, Calendar, Printer, BadgeCheck,
 } from 'lucide-react';
 import supplierService from '../../../services/supplierService';
 import { useRole } from '../../../hooks/useRole';
@@ -130,13 +130,19 @@ function StarRating({ rating }) {
 
 // --- Payment Modal ------------------------------------------------------------
 
-function PaymentModal({ supplierId, stocks, onClose, onSuccess, prefill }) {
-  const [type, setType] = useState(prefill?.type || 'DEBIT');
-  const [amount, setAmount] = useState(prefill?.amount != null ? String(prefill.amount) : '');
-  const [stockId, setStockId] = useState('');
-  const [reference, setReference] = useState(prefill?.reference || '');
-  const [notes, setNotes] = useState(prefill?.notes || '');
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+function PaymentModal({ supplierId, stocks, onClose, onSuccess, prefill, editMode, payment }) {
+  const [type, setType] = useState(editMode ? payment?.type : (prefill?.type || 'DEBIT'));
+  const [amount, setAmount] = useState(
+    editMode ? String(parseFloat(payment?.amount ?? 0)) : (prefill?.amount != null ? String(prefill.amount) : '')
+  );
+  const [stockId, setStockId] = useState(editMode ? (payment?.stockId || '') : '');
+  const [reference, setReference] = useState(editMode ? (payment?.reference || '') : (prefill?.reference || ''));
+  const [notes, setNotes] = useState(editMode ? (payment?.notes || '') : '');
+  const [date, setDate] = useState(
+    editMode && payment?.date
+      ? new Date(payment.date).toISOString().slice(0, 10)
+      : new Date().toISOString().slice(0, 10)
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -146,11 +152,16 @@ function PaymentModal({ supplierId, stocks, onClose, onSuccess, prefill }) {
     setError('');
     setSubmitting(true);
     try {
-      await supplierService.addPayment(supplierId, { type, amount: parseFloat(amount), stockId: stockId || undefined, reference, notes, date });
-      onSuccess(type === 'CREDIT' ? 'Invoice recorded' : 'Payment recorded');
+      if (editMode) {
+        await supplierService.updatePayment(supplierId, payment.id, { type, amount: parseFloat(amount), stockId: stockId || undefined, reference, notes, date });
+        onSuccess(type === 'CREDIT' ? 'Invoice updated' : 'Payment updated');
+      } else {
+        await supplierService.addPayment(supplierId, { type, amount: parseFloat(amount), stockId: stockId || undefined, reference, notes, date });
+        onSuccess(type === 'CREDIT' ? 'Invoice recorded' : 'Payment recorded');
+      }
       onClose();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to record payment');
+      setError(err.response?.data?.message || (editMode ? 'Failed to update payment' : 'Failed to record payment'));
     } finally {
       setSubmitting(false);
     }
@@ -161,8 +172,8 @@ function PaymentModal({ supplierId, stocks, onClose, onSuccess, prefill }) {
       <div className="stoq-modal">
         <div className="stoq-modal__head">
           <div>
-            <div className="stoq-modal__title">Record Transaction</div>
-            <div className="stoq-modal__sub">Track financial activity with this supplier</div>
+            <div className="stoq-modal__title">{editMode ? 'Edit Transaction' : 'Record Transaction'}</div>
+            <div className="stoq-modal__sub">{editMode ? 'Update this payment record' : 'Track financial activity with this supplier'}</div>
           </div>
           <button className="icon-btn" onClick={onClose}><X size={14} /></button>
         </div>
@@ -243,7 +254,152 @@ function PaymentModal({ supplierId, stocks, onClose, onSuccess, prefill }) {
             className="stoq-btn stoq-btn--primary"
             style={{ opacity: submitting ? 0.6 : 1 }}>
             {submitting && <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} />}
-            {type === 'CREDIT' ? 'Record Invoice' : 'Record Payment'}
+            {editMode
+              ? (type === 'CREDIT' ? 'Update Invoice' : 'Update Payment')
+              : (type === 'CREDIT' ? 'Record Invoice' : 'Record Payment')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- Bulk Credit Pay Modal ----------------------------------------------------
+
+function BulkCreditPayModal({ supplierId, credits, onClose, onSuccess }) {
+  const [checkedIds, setCheckedIds] = useState(() => new Set(credits.map(p => p.id)));
+  const [reference, setReference] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const toggle = (id) => setCheckedIds(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+
+  const checkedItems = credits.filter(p => checkedIds.has(p.id));
+  const total = checkedItems.reduce((s, p) => s + parseFloat(p.amount ?? 0), 0);
+
+  const handleConfirm = async () => {
+    if (checkedItems.length === 0) { setError('Select at least one invoice to pay'); return; }
+    setError('');
+    setSubmitting(true);
+    let succeeded = 0;
+    try {
+      await Promise.all(
+        checkedItems.map(p =>
+          supplierService.updatePayment(supplierId, p.id, {
+            type: 'DEBIT',
+            ...(reference ? { reference } : {}),
+          }).then(() => { succeeded++; })
+        )
+      );
+      onSuccess(`${succeeded} invoice${succeeded !== 1 ? 's' : ''} marked as paid`);
+      onClose();
+    } catch {
+      setError(`${succeeded} of ${checkedItems.length} updated. Some failed — please retry.`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="stoq-modal-backdrop">
+      <div className="stoq-modal" style={{ maxWidth: 640, width: '100%' }}>
+        <div className="stoq-modal__head">
+          <div>
+            <div className="stoq-modal__title">Pay Invoices</div>
+            <div className="stoq-modal__sub">Select the invoices you are settling — they will be marked as paid (Debit)</div>
+          </div>
+          <button className="icon-btn" onClick={onClose}><X size={14} /></button>
+        </div>
+
+        <div className="stoq-modal__body" style={{ padding: 0 }}>
+          <div className="table-wrap">
+            <table className="stoq-tbl">
+              <thead>
+                <tr>
+                  <th className="no-sort" style={{ width: 36 }}>
+                    <input
+                      type="checkbox"
+                      checked={checkedIds.size === credits.length}
+                      ref={el => { if (el) el.indeterminate = checkedIds.size > 0 && checkedIds.size < credits.length; }}
+                      onChange={() => {
+                        if (checkedIds.size === credits.length) setCheckedIds(new Set());
+                        else setCheckedIds(new Set(credits.map(p => p.id)));
+                      }}
+                      style={{ cursor: 'pointer' }}
+                    />
+                  </th>
+                  <th className="no-sort">Reference / Notes</th>
+                  <th className="no-sort" style={{ width: 120 }}>Linked Item</th>
+                  <th className="no-sort num-cell" style={{ width: 140 }}>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {credits.map(p => (
+                  <tr key={p.id} onClick={() => toggle(p.id)} style={{ cursor: 'pointer', background: checkedIds.has(p.id) ? 'color-mix(in oklch, var(--warning) 6%, transparent)' : undefined }}>
+                    <td onClick={e => e.stopPropagation()}>
+                      <input type="checkbox" checked={checkedIds.has(p.id)} onChange={() => toggle(p.id)} style={{ cursor: 'pointer' }} />
+                    </td>
+                    <td>
+                      {p.reference && <span className="cell-stack__main">{p.reference}</span>}
+                      {p.notes && <span className="cell-stack__sub">{p.notes}</span>}
+                      {!p.reference && !p.notes && <span style={{ color: 'var(--fg-subtle)', fontStyle: 'italic' }}>No reference</span>}
+                    </td>
+                    <td style={{ fontSize: 11, color: 'var(--fg-muted)' }}>
+                      {p.stock?.sku || p.requisitionItem?.itemName || '—'}
+                    </td>
+                    <td className="num-cell" style={{ fontWeight: 700, color: 'var(--warning)' }}>
+                      + {fmt(p.amount)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div className="stoq-field" style={{ margin: 0 }}>
+              <label className="stoq-field__label">Payment Reference (optional)</label>
+              <input
+                value={reference}
+                onChange={e => setReference(e.target.value)}
+                className="stoq-input"
+                placeholder="e.g. BANK-TXN-20240521"
+              />
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>
+                {checkedIds.size} of {credits.length} invoice{credits.length !== 1 ? 's' : ''} selected
+              </span>
+              <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--success)' }}>
+                {fmt(total)}
+              </span>
+            </div>
+
+            {error && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--danger-soft)', borderRadius: 'var(--r-sm)', fontSize: 12, color: 'var(--danger)' }}>
+                <AlertCircle size={13} /> {error}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="stoq-modal__foot">
+          <button className="stoq-btn" onClick={onClose}>Cancel</button>
+          <button
+            className="stoq-btn stoq-btn--primary"
+            disabled={submitting || checkedIds.size === 0}
+            style={{ opacity: (submitting || checkedIds.size === 0) ? 0.6 : 1 }}
+            onClick={handleConfirm}
+          >
+            {submitting
+              ? <><RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Processing…</>
+              : <><BadgeCheck size={13} /> Mark {checkedIds.size} as Paid</>
+            }
           </button>
         </div>
       </div>
@@ -486,6 +642,7 @@ function TabItems({ supplier, datePreset, customFrom, customTo }) {
   const stockTotalPages = Math.max(1, Math.ceil(stockTotal / PAGE));
   const pagedStocks = allStocks.slice((stockPage - 1) * PAGE, stockPage * PAGE);
 
+  // For display: group the current page's items by date
   const grouped = pagedStocks.reduce((acc, s) => {
     const key = s.receivedDate ? new Date(s.receivedDate).toISOString().slice(0, 10) : 'unknown';
     if (!acc[key]) acc[key] = [];
@@ -493,6 +650,14 @@ function TabItems({ supplier, datePreset, customFrom, customTo }) {
     return acc;
   }, {});
   const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+
+  // For receipts: group ALL filtered items by date (ignores pagination)
+  const allGrouped = allStocks.reduce((acc, s) => {
+    const key = s.receivedDate ? new Date(s.receivedDate).toISOString().slice(0, 10) : 'unknown';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(s);
+    return acc;
+  }, {});
   const toggleDate = (k) => setExpandedDates(p => ({ ...p, [k]: !p[k] }));
 
   useEffect(() => {
@@ -565,7 +730,7 @@ function TabItems({ supplier, datePreset, customFrom, customTo }) {
                             type="button"
                             className="stoq-btn stoq-btn--sm stoq-btn--ghost"
                             title="Print receipt for this date"
-                            onClick={e => { e.stopPropagation(); setGroupModal({ dateKey, items }); }}
+                            onClick={e => { e.stopPropagation(); setGroupModal({ dateKey, items: allGrouped[dateKey] ?? items }); }}
                             style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                             <Printer size={12} /> Receipt
                           </button>
@@ -700,7 +865,7 @@ function groupByDate(payments) {
 }
 
 // ── Payment row with checkbox ─────────────────────────────────────────────────
-function PaymentRow({ p, supplier, onReceipt, selected, onToggle }) {
+function PaymentRow({ p, supplier, onReceipt, onEdit, selected, onToggle }) {
   const isCredit = p.type === 'CREDIT';
   return (
     <tr
@@ -729,17 +894,23 @@ function PaymentRow({ p, supplier, onReceipt, selected, onToggle }) {
       <td className="num-cell" style={{ width: 130, fontWeight: 700, color: isCredit ? 'var(--warning)' : 'var(--success)' }}>
         {isCredit ? '+' : '−'} {fmt(p.amount)}
       </td>
-      <td style={{ width: 36 }} onClick={e => e.stopPropagation()}>
-        <button className="stoq-btn stoq-btn--sm stoq-btn--icon" title="View Receipt"
-          onClick={() => onReceipt(buildPaymentReceipt(p, supplier.name))}>
-          <FileText size={12} />
-        </button>
+      <td style={{ width: 72 }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button className="stoq-btn stoq-btn--sm stoq-btn--icon" title="Edit"
+            onClick={() => onEdit(p)}>
+            <Edit2 size={12} />
+          </button>
+          <button className="stoq-btn stoq-btn--sm stoq-btn--icon" title="View Receipt"
+            onClick={() => onReceipt(buildPaymentReceipt(p, supplier.name))}>
+            <FileText size={12} />
+          </button>
+        </div>
       </td>
     </tr>
   );
 }
 
-function TabFinance({ supplier, onRecordPayment, onBulkPay }) {
+function TabFinance({ supplier, onRecordPayment, onBulkPay, onEditPayment }) {
   const summary = supplier.paymentSummary || { totalCredit: 0, totalDebit: 0, balance: 0 };
   const balance = summary.balance;
   const [receipt, setReceipt] = useState(null);
@@ -777,8 +948,11 @@ function TabFinance({ supplier, onRecordPayment, onBulkPay }) {
   const selectedTotal = selectedPayments.reduce((s, p) => s + parseFloat(p.amount ?? 0), 0);
   const selectedRefs = selectedPayments.map(p => p.reference).filter(Boolean).join(', ');
 
+  const creditItems = selectedPayments.filter(p => p.type === 'CREDIT');
+
   const handleBulkPay = () => {
-    onBulkPay({ amount: selectedTotal, reference: selectedRefs || undefined, count: selectedIds.size });
+    if (creditItems.length === 0) return;
+    onBulkPay(creditItems);
     setSelectedIds(new Set());
   };
 
@@ -881,6 +1055,7 @@ function TabFinance({ supplier, onRecordPayment, onBulkPay }) {
                               p={p}
                               supplier={supplier}
                               onReceipt={setReceipt}
+                              onEdit={onEditPayment}
                               selected={selectedIds.has(p.id)}
                               onToggle={() => togglePayment(p.id)}
                             />
@@ -1015,6 +1190,11 @@ function TabFinance({ supplier, onRecordPayment, onBulkPay }) {
         }}>
           <span style={{ fontSize: 12, fontWeight: 600 }}>
             {selectedIds.size} item{selectedIds.size !== 1 ? 's' : ''} selected
+            {creditItems.length > 0 && (
+              <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.7 }}>
+                ({creditItems.length} invoice{creditItems.length !== 1 ? 's' : ''})
+              </span>
+            )}
           </span>
           <span style={{ fontSize: 13, fontWeight: 800, fontFamily: 'var(--font-mono)', flex: 1 }}>
             {fmt(selectedTotal)}
@@ -1025,12 +1205,14 @@ function TabFinance({ supplier, onRecordPayment, onBulkPay }) {
             onClick={() => setSelectedIds(new Set())}>
             Clear
           </button>
-          <button
-            className="stoq-btn stoq-btn--sm"
-            style={{ background: 'var(--accent)', color: '#fff', border: 'none', fontWeight: 700 }}
-            onClick={handleBulkPay}>
-            <CreditCard size={13} /> Pay Selected
-          </button>
+          {creditItems.length > 0 && (
+            <button
+              className="stoq-btn stoq-btn--sm"
+              style={{ background: 'var(--accent)', color: '#fff', border: 'none', fontWeight: 700 }}
+              onClick={handleBulkPay}>
+              <BadgeCheck size={13} /> Pay Invoices ({creditItems.length})
+            </button>
+          )}
         </div>
       )}
 
@@ -1058,6 +1240,8 @@ export default function SupplierDetail() {
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'info');
   const [showPayment, setShowPayment] = useState(false);
   const [paymentPrefill, setPaymentPrefill] = useState(null);
+  const [editPayment, setEditPayment] = useState(null);
+  const [bulkCreditItems, setBulkCreditItems] = useState(null);
   const [toast, setToast] = useState(null);
 
   // Date filter - persisted in URL
@@ -1222,7 +1406,8 @@ export default function SupplierDetail() {
         <TabFinance
           supplier={supplier}
           onRecordPayment={() => { setPaymentPrefill(null); setShowPayment(true); }}
-          onBulkPay={(prefill) => { setPaymentPrefill(prefill); setShowPayment(true); }}
+          onBulkPay={(credits) => setBulkCreditItems(credits)}
+          onEditPayment={(p) => setEditPayment(p)}
         />
       )}
 
@@ -1232,6 +1417,26 @@ export default function SupplierDetail() {
           stocks={supplier.stocks}
           prefill={paymentPrefill}
           onClose={() => { setShowPayment(false); setPaymentPrefill(null); }}
+          onSuccess={(msg) => { showToast(msg); load(); }}
+        />
+      )}
+
+      {editPayment && (
+        <PaymentModal
+          supplierId={supplier.id}
+          stocks={supplier.stocks}
+          editMode
+          payment={editPayment}
+          onClose={() => setEditPayment(null)}
+          onSuccess={(msg) => { showToast(msg); load(); }}
+        />
+      )}
+
+      {bulkCreditItems && (
+        <BulkCreditPayModal
+          supplierId={supplier.id}
+          credits={bulkCreditItems}
+          onClose={() => setBulkCreditItems(null)}
           onSuccess={(msg) => { showToast(msg); load(); }}
         />
       )}
