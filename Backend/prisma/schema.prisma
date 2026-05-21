@@ -415,7 +415,7 @@ model SupplierPayment {
   type                PaymentType
   amount              Decimal     @db.Decimal(14, 2)
   quantity            Decimal?    @db.Decimal(14, 4)
-  reference           String?
+  reference           String?     @db.Text
   notes               String?     @db.Text
   date                DateTime    @default(now())
   adminId             String
