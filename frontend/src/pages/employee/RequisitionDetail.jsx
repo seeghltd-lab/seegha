@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, User, Package, Clock, CheckCircle, XCircle, CheckCheck,
   Truck, AlertCircle, History, Calendar, FileText, RefreshCw, X,
-  Hash, Activity, List, LayoutGrid,
+  Hash, Activity, List, LayoutGrid, MapPin,
 } from 'lucide-react';
 import requisitionService from '../../services/requisitionService';
 import { useEmployeeAuth } from '../../context/EmployeeAuthContext';
@@ -129,6 +129,7 @@ export default function EmployeeRequisitionDetail() {
               <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Calendar size={11} />{fmtDate(requisition.createdAt)}</span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Package size={11} />{items.length} items</span>
               {requisition.supplier && <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Truck size={11} />{requisition.supplier.name}</span>}
+              {requisition.site && <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><MapPin size={11} />{requisition.site.name}</span>}
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -289,6 +290,7 @@ export default function EmployeeRequisitionDetail() {
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 {[
                   requisition.employee && { label: 'Employee', icon: User, value: `${requisition.employee.firstName ?? ''} ${requisition.employee.lastName ?? ''}`.trim() || '—', sub: requisition.employee.position },
+                  requisition.site && { label: 'Site', icon: MapPin, value: requisition.site.name ?? '—', sub: requisition.site.location },
                   { label: 'Submitted', icon: Calendar, value: fmtDate(requisition.createdAt) },
                   requisition.approvedAt && { label: 'Approved',  icon: CheckCircle, value: fmtDate(requisition.approvedAt) },
                   requisition.completedAt && { label: 'Completed', icon: CheckCheck,  value: fmtDate(requisition.completedAt) },

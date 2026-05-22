@@ -4,7 +4,7 @@ import {
   ArrowLeft, Star, Mail, Phone, MapPin, Building2, FileText,
   Package, CreditCard, ArrowUpCircle, ArrowDownCircle, ChevronDown,
   X, RefreshCw, Plus, AlertCircle, CheckCircle,
-  TrendingDown, Edit2, List, LayoutGrid, ChevronLeft, ChevronRight, Calendar, Printer, BadgeCheck,
+  TrendingDown, Edit2, List, LayoutGrid, ChevronLeft, ChevronRight, Calendar, Printer, BadgeCheck, Search,
 } from 'lucide-react';
 import supplierService from '../../../services/supplierService';
 import { useRole } from '../../../hooks/useRole';
@@ -37,6 +37,7 @@ const DATE_PRESETS = [
   { label: 'Today',    value: 'today' },
   { label: 'Week',     value: 'week' },
   { label: 'Month',    value: 'month' },
+  { label: 'Year',     value: 'year' },
   { label: 'Custom',   value: 'custom' },
 ];
 
@@ -52,6 +53,10 @@ function getDateRange(preset, customFrom, customTo) {
   }
   if (preset === 'month') {
     const s = new Date(now); s.setDate(1); s.setHours(0, 0, 0, 0);
+    return { from: s, to: now };
+  }
+  if (preset === 'year') {
+    const s = new Date(now.getFullYear(), 0, 1);
     return { from: s, to: now };
   }
   if (preset === 'custom' && customFrom) {
@@ -87,28 +92,67 @@ function Pagination({ page, totalPages, total, onPage, label = 'items' }) {
   );
 }
 
-// --- Date Filter Bar ----------------------------------------------------------
+// --- Filter Bar (date + site + search) ----------------------------------------
 
-function DateFilterBar({ preset, customFrom, customTo, onPreset, onCustomFrom, onCustomTo }) {
+function FilterBar({ preset, customFrom, customTo, onPreset, onCustomFrom, onCustomTo, sites, siteFilter, onSiteFilter, search, onSearch, onClear }) {
+  const isFiltered = preset !== '' || siteFilter || search;
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '8px 0', marginBottom: 12 }}>
-      <Calendar size={13} style={{ color: 'var(--fg-subtle)', flexShrink: 0 }} />
-      <div className="stoq-segment">
-        {DATE_PRESETS.map(p => (
-          <button key={p.value} data-active={preset === p.value ? 'true' : undefined} onClick={() => onPreset(p.value)}>
-            {p.label}
-          </button>
-        ))}
-      </div>
-      {preset === 'custom' && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <input type="date" className="stoq-input" value={customFrom} onChange={e => onCustomFrom(e.target.value)}
-            style={{ width: 140, height: 28, fontSize: 11 }} />
-          <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>→</span>
-          <input type="date" className="stoq-input" value={customTo} onChange={e => onCustomTo(e.target.value)}
-            style={{ width: 140, height: 28, fontSize: 11 }} />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '8px 0', marginBottom: 12 }}>
+      {/* Row 1: date presets + clear */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <Calendar size={13} style={{ color: 'var(--fg-subtle)', flexShrink: 0 }} />
+        <div className="stoq-segment">
+          {DATE_PRESETS.map(p => (
+            <button key={p.value} data-active={preset === p.value ? 'true' : undefined} onClick={() => onPreset(p.value)}>
+              {p.label}
+            </button>
+          ))}
         </div>
-      )}
+        {preset === 'custom' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <input type="date" className="stoq-input" value={customFrom} onChange={e => onCustomFrom(e.target.value)}
+              style={{ width: 140, height: 28, fontSize: 11 }} />
+            <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>→</span>
+            <input type="date" className="stoq-input" value={customTo} onChange={e => onCustomTo(e.target.value)}
+              style={{ width: 140, height: 28, fontSize: 11 }} />
+          </div>
+        )}
+        {isFiltered && onClear && (
+          <button type="button" onClick={onClear}
+            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 'var(--r-sm)', border: '1px solid var(--border)', background: 'var(--bg-sunk)', color: 'var(--fg-subtle)', fontSize: 11, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            <X size={11} /> Clear filters
+          </button>
+        )}
+      </div>
+      {/* Row 2: site dropdown + search */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        {sites && sites.length > 0 && (
+          <select
+            className="stoq-input"
+            value={siteFilter}
+            onChange={e => onSiteFilter(e.target.value)}
+            style={{ height: 30, fontSize: 12, minWidth: 150, flexShrink: 0 }}>
+            <option value="">All sites</option>
+            {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        )}
+        <div style={{ position: 'relative', flex: 1, minWidth: 180 }}>
+          <Search size={12} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-subtle)', pointerEvents: 'none' }} />
+          <input
+            className="stoq-input"
+            value={search}
+            onChange={e => onSearch(e.target.value)}
+            placeholder="Search name, SKU, reference…"
+            style={{ height: 30, fontSize: 12, paddingLeft: 28, paddingRight: search ? 30 : undefined, width: '100%' }}
+          />
+          {search && (
+            <button type="button" onClick={() => onSearch('')}
+              style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-subtle)', display: 'flex', padding: 0 }}>
+              <X size={12} />
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -130,38 +174,109 @@ function StarRating({ rating }) {
 
 // --- Payment Modal ------------------------------------------------------------
 
-function PaymentModal({ supplierId, stocks, onClose, onSuccess, prefill, editMode, payment }) {
-  const [type, setType] = useState(editMode ? payment?.type : (prefill?.type || 'DEBIT'));
-  const [amount, setAmount] = useState(
-    editMode ? String(parseFloat(payment?.amount ?? 0)) : (prefill?.amount != null ? String(prefill.amount) : '')
-  );
-  const [stockId, setStockId] = useState(editMode ? (payment?.stockId || '') : '');
-  const [reference, setReference] = useState(editMode ? (payment?.reference || '') : (prefill?.reference || ''));
-  const [notes, setNotes] = useState(editMode ? (payment?.notes || '') : '');
+function PaymentModal({ supplierId, availableStocks, onClose, onSuccess, editMode, payment }) {
+  const [type, setType] = useState(editMode ? payment?.type : 'CREDIT');
+  const [items, setItems] = useState(() => {
+    if (editMode && payment) {
+      return [{ stockId: payment.stockId || '', quantity: payment.quantity != null ? String(parseFloat(payment.quantity)) : '', amount: String(parseFloat(payment.amount ?? 0)) }];
+    }
+    return [{ stockId: '', quantity: '', amount: '' }];
+  });
+  const [reference, setReference] = useState(editMode ? (payment?.reference || '') : '');
+  const [notes, setNotes] = useState(editMode ? (payment?.notes?.startsWith('PAID_CREDITS:') ? '' : (payment?.notes || '')) : '');
   const [date, setDate] = useState(
-    editMode && payment?.date
-      ? new Date(payment.date).toISOString().slice(0, 10)
-      : new Date().toISOString().slice(0, 10)
+    editMode && payment?.date ? new Date(payment.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10)
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  const isCredit = type === 'CREDIT';
+  const accentColor = isCredit ? 'var(--warning)' : 'var(--success)';
+  const totalAmount = items.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
+
+  const updateItem = (idx, field, val) => setItems(prev => prev.map((it, i) => i === idx ? { ...it, [field]: val } : it));
+  const addItem = () => {
+    setItems(prev => [...prev, { stockId: '', quantity: '', amount: '' }]);
+    setAutoFillFlags(prev => [...prev, false]);
+  };
+  const removeItem = (idx) => {
+    setItems(prev => prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev);
+    setAutoFillFlags(prev => prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev);
+  };
+
+  const [autoFillFlags, setAutoFillFlags] = useState(() => items.map(() => false));
+
+  const handleStockChange = (idx, stockId) => {
+    if (editMode) { updateItem(idx, 'stockId', stockId); return; }
+    const stock = (availableStocks || []).find(s => s.id === stockId);
+    const unitCost = stock ? parseFloat(stock.unitCost ?? 0) : 0;
+    const qty = parseFloat(items[idx].quantity) || 1;
+    setItems(prev => prev.map((it, i) =>
+      i === idx ? { ...it, stockId, amount: unitCost > 0 ? String((unitCost * qty).toFixed(2)) : it.amount } : it
+    ));
+    setAutoFillFlags(prev => prev.map((f, i) => i === idx ? unitCost > 0 : f));
+  };
+
+  const handleQtyChange = (idx, qty) => {
+    if (autoFillFlags[idx]) {
+      const stock = (availableStocks || []).find(s => s.id === items[idx].stockId);
+      const unitCost = stock ? parseFloat(stock.unitCost ?? 0) : 0;
+      setItems(prev => prev.map((it, i) =>
+        i === idx ? { ...it, quantity: qty, amount: unitCost > 0 ? String((unitCost * (parseFloat(qty) || 0)).toFixed(2)) : it.amount } : it
+      ));
+    } else {
+      updateItem(idx, 'quantity', qty);
+    }
+  };
+
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!amount || parseFloat(amount) <= 0) { setError('Please enter a valid amount'); return; }
+    if (e?.preventDefault) e.preventDefault();
+    const validItems = items.filter(i => parseFloat(i.amount) > 0);
+    if (validItems.length === 0) { setError('Enter at least one amount'); return; }
     setError('');
     setSubmitting(true);
+
+    const resolvedRef = editMode
+      ? (reference || null)
+      : (reference.trim() || (() => {
+          const firstStocked = validItems.find(i => i.stockId);
+          const stock = firstStocked ? (availableStocks || []).find(s => s.id === firstStocked.stockId) : null;
+          const sku = (stock?.sku || stock?.itemName || 'ITEM').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 8);
+          const d = date.replace(/-/g, '');
+          return `${isCredit ? 'INV' : 'PAY'}-${sku}-${d}`;
+        })());
+
     try {
       if (editMode) {
-        await supplierService.updatePayment(supplierId, payment.id, { type, amount: parseFloat(amount), stockId: stockId || undefined, reference, notes, date });
-        onSuccess(type === 'CREDIT' ? 'Invoice updated' : 'Payment updated');
+        const item = items[0];
+        await supplierService.updatePayment(supplierId, payment.id, {
+          type,
+          amount: parseFloat(item.amount),
+          quantity: item.quantity ? parseFloat(item.quantity) : null,
+          stockId: item.stockId || null,
+          reference: resolvedRef,
+          notes: notes || null,
+          date,
+        });
+        onSuccess(isCredit ? 'Credit updated' : 'Debit updated');
       } else {
-        await supplierService.addPayment(supplierId, { type, amount: parseFloat(amount), stockId: stockId || undefined, reference, notes, date });
-        onSuccess(type === 'CREDIT' ? 'Invoice recorded' : 'Payment recorded');
+        await Promise.all(validItems.map(item =>
+          supplierService.addPayment(supplierId, {
+            type,
+            amount: parseFloat(item.amount),
+            quantity: item.quantity ? parseFloat(item.quantity) : undefined,
+            stockId: item.stockId || undefined,
+            reference: resolvedRef,
+            notes: notes || null,
+            date,
+          })
+        ));
+        const count = validItems.length;
+        onSuccess(count > 1 ? `${count} ${isCredit ? 'credits' : 'debits'} recorded` : (isCredit ? 'Credit recorded' : 'Debit recorded'));
       }
       onClose();
     } catch (err) {
-      setError(err.response?.data?.message || (editMode ? 'Failed to update payment' : 'Failed to record payment'));
+      setError(err.response?.data?.message || (editMode ? 'Failed to update' : 'Failed to record'));
     } finally {
       setSubmitting(false);
     }
@@ -169,74 +284,140 @@ function PaymentModal({ supplierId, stocks, onClose, onSuccess, prefill, editMod
 
   return (
     <div className="stoq-modal-backdrop">
-      <div className="stoq-modal">
+      <div className="stoq-modal" style={{ maxWidth: 560, width: '100%' }}>
         <div className="stoq-modal__head">
           <div>
             <div className="stoq-modal__title">{editMode ? 'Edit Transaction' : 'Record Transaction'}</div>
-            <div className="stoq-modal__sub">{editMode ? 'Update this payment record' : 'Track financial activity with this supplier'}</div>
+            <div className="stoq-modal__sub">Track financial activity with this supplier</div>
           </div>
           <button className="icon-btn" onClick={onClose}><X size={14} /></button>
         </div>
 
-        <form onSubmit={handleSubmit} className="stoq-modal__body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <form onSubmit={handleSubmit} className="stoq-modal__body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
           {/* Type selector */}
-          <div className="stoq-field">
-            <label className="stoq-field__label">Transaction Type</label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              {[
-                { val: 'CREDIT', Icon: ArrowUpCircle, label: 'Credit', sub: 'Invoice - We owe', color: 'var(--warning)' },
-                { val: 'DEBIT', Icon: ArrowDownCircle, label: 'Debit', sub: 'Payment - We paid', color: 'var(--success)' },
-              ].map(({ val, Icon, label, sub, color }) => (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {[
+              { val: 'CREDIT', Icon: ArrowUpCircle, label: 'Credit', sub: 'Amount owed to supplier', color: 'var(--warning)' },
+              { val: 'DEBIT',  Icon: ArrowDownCircle, label: 'Debit', sub: 'Payment made to supplier', color: 'var(--success)' },
+            ].map(({ val, Icon, label, sub, color }) => {
+              const active = type === val;
+              return (
                 <button key={val} type="button" onClick={() => setType(val)}
                   style={{
-                    padding: '10px 12px', borderRadius: 'var(--r-md)', textAlign: 'left',
-                    border: `1.5px solid ${type === val ? color : 'var(--border)'}`,
-                    background: type === val ? `color-mix(in oklch, ${color} 8%, var(--panel))` : 'var(--panel)',
+                    padding: '14px 16px', borderRadius: 'var(--r-md)', textAlign: 'left',
+                    border: `2px solid ${active ? color : 'var(--border)'}`,
+                    background: active ? `color-mix(in oklch, ${color} 10%, var(--panel))` : 'var(--bg-sunk)',
                     cursor: 'pointer', transition: 'all 0.15s',
+                    display: 'flex', alignItems: 'center', gap: 12,
                   }}>
-                  <Icon size={16} style={{ color: type === val ? color : 'var(--fg-subtle)', marginBottom: 4 }} />
-                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg)' }}>{label}</div>
-                  <div style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>{sub}</div>
+                  <Icon size={22} style={{ color: active ? color : 'var(--fg-subtle)', flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: active ? color : 'var(--fg)' }}>{label}</div>
+                    <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginTop: 1 }}>{sub}</div>
+                  </div>
+                  {active && <div style={{ marginLeft: 'auto', width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />}
                 </button>
+              );
+            })}
+          </div>
+
+          {/* Stock items */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <label className="stoq-field__label" style={{ margin: 0, fontSize: 11 }}>
+                Stock Items &amp; Amounts <span style={{ color: 'var(--fg-subtle)', fontWeight: 400 }}>(one row = one transaction)</span>
+              </label>
+              {!editMode && (
+                <button type="button" onClick={addItem}
+                  style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: '2px 0' }}>
+                  <Plus size={11} /> Add Row
+                </button>
+              )}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 72px 100px 24px', gap: 5 }}>
+                <span style={{ fontSize: 10, color: 'var(--fg-subtle)', paddingLeft: 2 }}>Stock</span>
+                <span style={{ fontSize: 10, color: 'var(--fg-subtle)' }}>Qty</span>
+                <span style={{ fontSize: 10, color: 'var(--fg-subtle)' }}>Amount (RWF) *</span>
+                <span />
+              </div>
+              {items.map((item, idx) => (
+                <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 72px 100px 24px', gap: 5, alignItems: 'center' }}>
+                  <select
+                    className="stoq-input"
+                    value={item.stockId}
+                    onChange={e => handleStockChange(idx, e.target.value)}
+                    style={{ fontSize: 12, height: 32 }}
+                  >
+                    <option value="">— optional —</option>
+                    {(availableStocks || []).map(s => (
+                      <option key={s.id} value={s.id}>{s.itemName || s.sku}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="number" min="0" step="any"
+                    className="stoq-input"
+                    value={item.quantity}
+                    onChange={e => handleQtyChange(idx, e.target.value)}
+                    placeholder="—"
+                    style={{ fontSize: 12, height: 32 }}
+                  />
+                  <div style={{ position: 'relative' }}>
+                  <input
+                    type="number" min="0.01" step="0.01"
+                    className="stoq-input"
+                    value={item.amount}
+                    onChange={e => { updateItem(idx, 'amount', e.target.value); setAutoFillFlags(p => p.map((f, i) => i === idx ? false : f)); }}
+                    placeholder="0.00"
+                    style={{ fontSize: 12, height: 32, width: '100%', borderColor: autoFillFlags[idx] ? 'var(--accent)' : undefined }}
+                    autoFocus={idx === 0}
+                  />
+                  {autoFillFlags[idx] && (
+                    <div style={{ fontSize: 9, color: 'var(--accent)', marginTop: 2, lineHeight: 1 }}>auto-filled</div>
+                  )}
+                  </div>
+                  {!editMode && items.length > 1 ? (
+                    <button type="button" onClick={() => removeItem(idx)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--fg-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+                      <X size={12} />
+                    </button>
+                  ) : <div />}
+                </div>
               ))}
             </div>
           </div>
 
-          {/* Amount */}
-          <div className="stoq-field">
-            <label className="stoq-field__label">Amount (RWF) <span style={{ color: 'var(--danger)' }}>*</span></label>
-            <input type="number" min="0.01" step="0.01" value={amount} onChange={e => setAmount(e.target.value)}
-              className="stoq-input" placeholder="0.00" />
+          {/* Reference */}
+          <div className="stoq-field" style={{ margin: 0 }}>
+            <label className="stoq-field__label">Reference / Invoice #</label>
+            <div style={{ position: 'relative' }}>
+              <input
+                value={reference}
+                onChange={e => setReference(e.target.value)}
+                className="stoq-input"
+                placeholder="e.g. INV-2024-001"
+                style={{ paddingRight: reference ? 32 : undefined }}
+              />
+              {reference && (
+                <button type="button" onClick={() => setReference('')}
+                  style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'var(--border)', border: 'none', borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, color: 'var(--fg-subtle)' }}>
+                  <X size={10} />
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* Linked stock */}
-          {stocks?.length > 0 && (
-            <div className="stoq-field">
-              <label className="stoq-field__label">Linked Stock Item (optional)</label>
-              <select value={stockId} onChange={e => setStockId(e.target.value)} className="stoq-select" style={{ width: '100%' }}>
-                <option value="">- No specific item -</option>
-                {stocks.map(s => <option key={s.id} value={s.id}>{s.itemName} ({s.sku})</option>)}
-              </select>
-            </div>
-          )}
-
+          {/* Date + Notes */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div className="stoq-field">
-              <label className="stoq-field__label">Reference / Invoice #</label>
-              <input value={reference} onChange={e => setReference(e.target.value)}
-                className="stoq-input" placeholder="INV-001" />
-            </div>
-            <div className="stoq-field">
+            <div className="stoq-field" style={{ margin: 0 }}>
               <label className="stoq-field__label">Date</label>
               <input type="date" value={date} onChange={e => setDate(e.target.value)} className="stoq-input" />
             </div>
-          </div>
-
-          <div className="stoq-field">
-            <label className="stoq-field__label">Notes</label>
-            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
-              className="stoq-input" style={{ height: 'auto', padding: '8px 10px', resize: 'none' }}
-              placeholder="Optional notes..." />
+            <div className="stoq-field" style={{ margin: 0 }}>
+              <label className="stoq-field__label">Notes</label>
+              <input value={notes} onChange={e => setNotes(e.target.value)} className="stoq-input" placeholder="Optional…" />
+            </div>
           </div>
 
           {error && (
@@ -247,17 +428,33 @@ function PaymentModal({ supplierId, stocks, onClose, onSuccess, prefill, editMod
         </form>
 
         <div className="stoq-modal__foot">
-          <button type="button" className="stoq-btn" onClick={onClose}>Cancel</button>
-          <button
-            onClick={handleSubmit}
-            disabled={submitting}
-            className="stoq-btn stoq-btn--primary"
-            style={{ opacity: submitting ? 0.6 : 1 }}>
-            {submitting && <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} />}
-            {editMode
-              ? (type === 'CREDIT' ? 'Update Invoice' : 'Update Payment')
-              : (type === 'CREDIT' ? 'Record Invoice' : 'Record Payment')}
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {items.length > 1 && <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>{items.length} items</span>}
+            {totalAmount > 0 && (
+              <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: accentColor }}>{fmt(totalAmount)}</span>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" className="stoq-btn" onClick={onClose}>Cancel</button>
+            <button
+              onClick={handleSubmit}
+              disabled={submitting}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '7px 16px', borderRadius: 'var(--r-md)', border: 'none',
+                background: accentColor, color: '#fff',
+                fontSize: 13, fontWeight: 600, cursor: submitting ? 'not-allowed' : 'pointer',
+                opacity: submitting ? 0.65 : 1, transition: 'opacity 0.15s',
+              }}>
+              {submitting
+                ? <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} />
+                : (isCredit ? <ArrowUpCircle size={13} /> : <ArrowDownCircle size={13} />)
+              }
+              {editMode
+                ? (isCredit ? 'Update Credit' : 'Update Debit')
+                : (isCredit ? 'Record Credit' : 'Record Debit')}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -267,7 +464,22 @@ function PaymentModal({ supplierId, stocks, onClose, onSuccess, prefill, editMod
 // --- Bulk Credit Pay Modal ----------------------------------------------------
 
 function BulkCreditPayModal({ supplierId, credits, onClose, onSuccess }) {
+  const getRemaining    = (p) => parseFloat(p.amount ?? 0) - parseFloat(p.paidAmount ?? 0);
+  const getRemainingQty = (p) => {
+    const creditQty = p.quantity != null ? parseFloat(p.quantity) : null;
+    if (creditQty == null) return null;
+    const amount = parseFloat(p.amount ?? 0);
+    if (amount === 0) return creditQty;
+    return creditQty * getRemaining(p) / amount;
+  };
+
   const [checkedIds, setCheckedIds] = useState(() => new Set(credits.map(p => p.id)));
+  const [payQtys, setPayQtys] = useState(() =>
+    Object.fromEntries(credits.map(p => {
+      const remQty = getRemainingQty(p);
+      return [p.id, remQty != null ? String(parseFloat(remQty.toFixed(2))) : ''];
+    }))
+  );
   const [reference, setReference] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -279,26 +491,73 @@ function BulkCreditPayModal({ supplierId, credits, onClose, onSuccess }) {
   });
 
   const checkedItems = credits.filter(p => checkedIds.has(p.id));
-  const total = checkedItems.reduce((s, p) => s + parseFloat(p.amount ?? 0), 0);
+
+  const getProportionalAmt = (p) => {
+    const remQty = getRemainingQty(p);
+    if (remQty == null) return getRemaining(p);
+    const payQty = parseFloat(payQtys[p.id] || 0);
+    if (payQty >= remQty - 0.001) return getRemaining(p);
+    const unitCost = parseFloat(p.amount ?? 0) / parseFloat(p.quantity);
+    return payQty * unitCost;
+  };
+
+  const total    = checkedItems.reduce((s, p) => s + getProportionalAmt(p), 0);
+  const totalQty = checkedItems.reduce((s, p) => s + parseFloat(payQtys[p.id] || 0), 0);
+
+  const getQtyError = (credit) => {
+    const pq = parseFloat(payQtys[credit.id] || 0);
+    const remQty = getRemainingQty(credit);
+    if (remQty != null && pq > remQty + 0.001) return `Max ${parseFloat(remQty.toFixed(2))}`;
+    return null;
+  };
+
+  const hasErrors = checkedItems.some(p => getQtyError(p) !== null);
 
   const handleConfirm = async () => {
-    if (checkedItems.length === 0) { setError('Select at least one invoice to pay'); return; }
+    if (checkedItems.length === 0) { setError('Select at least one credit to pay'); return; }
+    if (hasErrors) { setError('Fix errors above before proceeding.'); return; }
     setError('');
     setSubmitting(true);
-    let succeeded = 0;
     try {
-      await Promise.all(
-        checkedItems.map(p =>
-          supplierService.updatePayment(supplierId, p.id, {
-            type: 'DEBIT',
-            ...(reference ? { reference } : {}),
-          }).then(() => { succeeded++; })
-        )
-      );
-      onSuccess(`${succeeded} invoice${succeeded !== 1 ? 's' : ''} marked as paid`);
+      // Group credits by site — create one DEBIT payment per site
+      const siteGroups = {};
+      for (const p of checkedItems) {
+        const key = p.stock?.site?.id || '__none__';
+        if (!siteGroups[key]) siteGroups[key] = [];
+        siteGroups[key].push(p);
+      }
+      for (const groupItems of Object.values(siteGroups)) {
+        const groupAmt = groupItems.reduce((s, p) => s + getProportionalAmt(p), 0);
+        const groupQty = groupItems.reduce((s, p) => s + parseFloat(payQtys[p.id] || 0), 0);
+        await supplierService.addPayment(supplierId, {
+          type: 'DEBIT',
+          amount: groupAmt,
+          quantity: groupQty > 0 ? groupQty : undefined,
+          reference: reference || `Payment for ${groupItems.length} credit(s)`,
+          notes: `PAID_CREDITS:${groupItems.map(p => `${p.id}=${getProportionalAmt(p)}`).join(',')}`,
+        });
+      }
+
+      // Update paidAmount + status on each credit
+      const updates = checkedItems.map(p => {
+        const payAmt = getProportionalAmt(p);
+        const newPaidAmount = parseFloat(p.paidAmount ?? 0) + payAmt;
+        const newStatus = newPaidAmount >= parseFloat(p.amount ?? 0) - 0.001 ? 'PAID' : 'PARTIAL';
+        return { p, newPaidAmount, newStatus };
+      });
+      await Promise.all(updates.map(u =>
+        supplierService.updatePayment(supplierId, u.p.id, { paidAmount: u.newPaidAmount, status: u.newStatus })
+      ));
+
+      const paidCount    = updates.filter(u => u.newStatus === 'PAID').length;
+      const partialCount = updates.filter(u => u.newStatus === 'PARTIAL').length;
+      const msg = partialCount > 0
+        ? `${paidCount} paid, ${partialCount} partial`
+        : `${checkedItems.length} credit${checkedItems.length !== 1 ? 's' : ''} marked as paid`;
+      onSuccess(msg);
       onClose();
-    } catch {
-      setError(`${succeeded} of ${checkedItems.length} updated. Some failed — please retry.`);
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to process payment. Please retry.');
     } finally {
       setSubmitting(false);
     }
@@ -306,11 +565,11 @@ function BulkCreditPayModal({ supplierId, credits, onClose, onSuccess }) {
 
   return (
     <div className="stoq-modal-backdrop">
-      <div className="stoq-modal" style={{ maxWidth: 640, width: '100%' }}>
+      <div className="stoq-modal" style={{ maxWidth: 960, width: '100%' }}>
         <div className="stoq-modal__head">
           <div>
-            <div className="stoq-modal__title">Pay Invoices</div>
-            <div className="stoq-modal__sub">Select the invoices you are settling — they will be marked as paid (Debit)</div>
+            <div className="stoq-modal__title">Pay Credits</div>
+            <div className="stoq-modal__sub">Enter qty to pay per credit — partial qty marks the credit as PARTIAL</div>
           </div>
           <button className="icon-btn" onClick={onClose}><X size={14} /></button>
         </div>
@@ -333,29 +592,75 @@ function BulkCreditPayModal({ supplierId, credits, onClose, onSuccess }) {
                     />
                   </th>
                   <th className="no-sort">Reference / Notes</th>
-                  <th className="no-sort" style={{ width: 120 }}>Linked Item</th>
-                  <th className="no-sort num-cell" style={{ width: 140 }}>Amount</th>
+                  <th className="no-sort" style={{ width: 160 }}>Stock Item</th>
+                  <th className="no-sort num-cell" style={{ width: 100 }}>Unit Cost</th>
+                  <th className="no-sort num-cell" style={{ width: 110 }}>Original</th>
+                  <th className="no-sort num-cell" style={{ width: 110 }}>Remaining</th>
+                  <th className="no-sort" style={{ width: 110 }}>Qty to Pay</th>
                 </tr>
               </thead>
               <tbody>
-                {credits.map(p => (
-                  <tr key={p.id} onClick={() => toggle(p.id)} style={{ cursor: 'pointer', background: checkedIds.has(p.id) ? 'color-mix(in oklch, var(--warning) 6%, transparent)' : undefined }}>
-                    <td onClick={e => e.stopPropagation()}>
-                      <input type="checkbox" checked={checkedIds.has(p.id)} onChange={() => toggle(p.id)} style={{ cursor: 'pointer' }} />
-                    </td>
-                    <td>
-                      {p.reference && <span className="cell-stack__main">{p.reference}</span>}
-                      {p.notes && <span className="cell-stack__sub">{p.notes}</span>}
-                      {!p.reference && !p.notes && <span style={{ color: 'var(--fg-subtle)', fontStyle: 'italic' }}>No reference</span>}
-                    </td>
-                    <td style={{ fontSize: 11, color: 'var(--fg-muted)' }}>
-                      {p.stock?.sku || p.requisitionItem?.itemName || '—'}
-                    </td>
-                    <td className="num-cell" style={{ fontWeight: 700, color: 'var(--warning)' }}>
-                      + {fmt(p.amount)}
-                    </td>
-                  </tr>
-                ))}
+                {credits.map(p => {
+                  const remaining = getRemaining(p);
+                  const qtyErr = getQtyError(p);
+                  const creditQty = p.quantity != null ? parseFloat(p.quantity) : null;
+                  const isChecked = checkedIds.has(p.id);
+                  return (
+                    <tr key={p.id} style={{ cursor: 'pointer', background: isChecked ? 'color-mix(in oklch, var(--warning) 6%, transparent)' : undefined }}
+                      onClick={() => toggle(p.id)}>
+                      <td onClick={e => e.stopPropagation()}>
+                        <input type="checkbox" checked={isChecked} onChange={() => toggle(p.id)} style={{ cursor: 'pointer' }} />
+                      </td>
+                      <td>
+                        {p.reference && <span className="cell-stack__main">{p.reference}</span>}
+                        {p.notes && !p.notes.startsWith('PAID_CREDITS:') && <span className="cell-stack__sub">{p.notes}</span>}
+                      </td>
+                      <td style={{ fontSize: 11 }}>
+                        <span className="cell-stack__main" style={{ fontSize: 11 }}>
+                          {p.stock?.itemName || p.requisitionItem?.itemName || '—'}
+                        </span>
+                        {p.stock?.site?.name && (
+                          <span className="cell-stack__sub">{p.stock.site.name}</span>
+                        )}
+                      </td>
+                      <td className="num-cell" style={{ fontSize: 11, color: 'var(--fg-muted)' }}>
+                        {p.stock?.unitCost != null ? fmt(p.stock.unitCost) : '—'}
+                      </td>
+                      <td className="num-cell" style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>
+                        {fmt(p.amount)}
+                        {creditQty != null && (
+                          <div style={{ fontSize: 9, color: 'var(--fg-subtle)', marginTop: 1 }}>{creditQty} {p.stock?.unit || ''}</div>
+                        )}
+                      </td>
+                      <td className="num-cell" style={{ fontWeight: 700, color: remaining < parseFloat(p.amount ?? 0) ? 'var(--accent)' : 'var(--warning)' }}>
+                        {fmt(remaining)}
+                        {creditQty != null && (() => {
+                          const remQty = getRemainingQty(p);
+                          return remQty != null ? (
+                            <div style={{ fontSize: 9, color: 'var(--fg-subtle)', marginTop: 1 }}>{parseFloat(remQty.toFixed(2))} {p.stock?.unit || ''}</div>
+                          ) : null;
+                        })()}
+                      </td>
+                      <td onClick={e => e.stopPropagation()}>
+                        <div>
+                          <input
+                            type="number" min="0" step="any"
+                            value={payQtys[p.id] || ''}
+                            onChange={e => setPayQtys(prev => ({ ...prev, [p.id]: e.target.value }))}
+                            className="stoq-input"
+                            style={{ width: 88, height: 28, fontSize: 11, padding: '0 8px', borderColor: qtyErr ? 'var(--danger)' : undefined }}
+                            placeholder="—"
+                          />
+                          {creditQty != null && (
+                            <div style={{ fontSize: 9, color: qtyErr ? 'var(--danger)' : 'var(--fg-subtle)', marginTop: 2 }}>
+                              {qtyErr || `of ${creditQty} total`}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -373,7 +678,10 @@ function BulkCreditPayModal({ supplierId, credits, onClose, onSuccess }) {
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>
-                {checkedIds.size} of {credits.length} invoice{credits.length !== 1 ? 's' : ''} selected
+                {checkedIds.size} of {credits.length} credit{credits.length !== 1 ? 's' : ''} selected
+                {totalQty > 0 && (
+                  <span style={{ marginLeft: 8, fontWeight: 600, color: 'var(--fg)' }}>· {totalQty} units</span>
+                )}
               </span>
               <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--success)' }}>
                 {fmt(total)}
@@ -392,13 +700,13 @@ function BulkCreditPayModal({ supplierId, credits, onClose, onSuccess }) {
           <button className="stoq-btn" onClick={onClose}>Cancel</button>
           <button
             className="stoq-btn stoq-btn--primary"
-            disabled={submitting || checkedIds.size === 0}
-            style={{ opacity: (submitting || checkedIds.size === 0) ? 0.6 : 1 }}
+            disabled={submitting || checkedIds.size === 0 || hasErrors}
+            style={{ opacity: (submitting || checkedIds.size === 0 || hasErrors) ? 0.6 : 1 }}
             onClick={handleConfirm}
           >
             {submitting
               ? <><RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Processing…</>
-              : <><BadgeCheck size={13} /> Mark {checkedIds.size} as Paid</>
+              : <><BadgeCheck size={13} /> Pay {checkedIds.size} Credit{checkedIds.size !== 1 ? 's' : ''}</>
             }
           </button>
         </div>
@@ -529,7 +837,7 @@ function GroupReceiptModal({ supplierName, dateKey, items, onClose, onPrint }) {
   };
 
   const selectedItems = items.filter(i => selectedIds.has(i.id));
-  const selectedTotal = selectedItems.reduce((s, i) => s + parseFloat(i.totalValue || 0), 0);
+  const selectedTotal = selectedItems.reduce((s, i) => s + parseFloat(i.amount ?? i.totalValue ?? 0), 0);
 
   const handlePrint = () => {
     if (selectedItems.length === 0) return;
@@ -542,7 +850,7 @@ function GroupReceiptModal({ supplierName, dateKey, items, onClose, onPrint }) {
       <div className="stoq-modal" style={{ maxWidth: 680, width: '100%' }}>
         <div className="stoq-modal__head">
           <div>
-            <div className="stoq-modal__title">Receipt — {fmtDateGroup(dateKey)}</div>
+            <div className="stoq-modal__title">Receipt — {isNaN(Date.parse(dateKey)) ? dateKey : fmtDateGroup(dateKey)}</div>
             <div className="stoq-modal__sub">Select items to include on the printed receipt</div>
           </div>
           <button className="icon-btn" onClick={onClose}><X size={14} /></button>
@@ -574,6 +882,13 @@ function GroupReceiptModal({ supplierName, dateKey, items, onClose, onPrint }) {
               <tbody>
                 {items.map(item => {
                   const checked = selectedIds.has(item.id);
+                  const itemName  = item.stock?.itemName || item.itemName || item.reference || '—';
+                  const itemSku   = item.stock?.sku || item.sku || '';
+                  const itemQty   = item.quantity ?? '';
+                  const itemUnit  = item.stock?.unit || item.unit || '';
+                  const itemCost  = item.stock?.unitCost ?? item.unitCost ?? null;
+                  const itemTotal = item.amount ?? item.totalValue ?? 0;
+                  const itemSite  = item.stock?.site?.name || item.site?.name || '-';
                   return (
                     <tr key={item.id}
                       onClick={() => toggle(item.id)}
@@ -581,13 +896,13 @@ function GroupReceiptModal({ supplierName, dateKey, items, onClose, onPrint }) {
                       <td onClick={e => e.stopPropagation()}>
                         <input type="checkbox" checked={checked} onChange={() => toggle(item.id)} style={{ cursor: 'pointer' }} />
                       </td>
-                      <td><span className="cell-stack__sub" style={{ display: 'inline' }}>{item.sku}</span></td>
-                      <td><span className="cell-stack__main">{item.itemName}</span></td>
-                      <td>{item.quantity}</td>
-                      <td style={{ color: 'var(--fg-subtle)' }}>{item.unit}</td>
-                      <td className="num-cell">{fmt(item.unitCost)}</td>
-                      <td className="num-cell" style={{ fontWeight: 700 }}>{fmt(item.totalValue)}</td>
-                      <td style={{ color: 'var(--fg-subtle)' }}>{item.site?.name || '-'}</td>
+                      <td><span className="cell-stack__sub" style={{ display: 'inline' }}>{itemSku}</span></td>
+                      <td><span className="cell-stack__main">{itemName}</span></td>
+                      <td>{itemQty}</td>
+                      <td style={{ color: 'var(--fg-subtle)' }}>{itemUnit}</td>
+                      <td className="num-cell">{itemCost != null ? fmt(itemCost) : '—'}</td>
+                      <td className="num-cell" style={{ fontWeight: 700 }}>{fmt(itemTotal)}</td>
+                      <td style={{ color: 'var(--fg-subtle)' }}>{itemSite}</td>
                     </tr>
                   );
                 })}
@@ -623,52 +938,93 @@ function GroupReceiptModal({ supplierName, dateKey, items, onClose, onPrint }) {
 
 // --- Tab: Items & Requisitions ------------------------------------------------
 
-function TabItems({ supplier, datePreset, customFrom, customTo }) {
+function TabItems({ supplier }) {
   const [expandedDates, setExpandedDates] = useState({});
   const [stockView, setStockView] = useState('table');
   const [stockPage, setStockPage] = useState(1);
   const [reqPage, setReqPage] = useState(1);
-  const [groupModal, setGroupModal] = useState(null); // { dateKey, items }
+  const [groupModal, setGroupModal] = useState(null);
   const [receipt, setReceipt] = useState(null);
   const PAGE = 10;
 
+  // Filter state
+  const [datePreset, setDatePreset]   = useState('');
+  const [customFrom, setCustomFrom]   = useState('');
+  const [customTo,   setCustomTo]     = useState('');
+  const [siteFilter, setSiteFilter]   = useState('');
+  const [search,     setSearch]       = useState('');
+
   const dateRange = getDateRange(datePreset, customFrom, customTo);
 
-  const allStocks = (supplier.stocks || []).filter(s =>
-    inRange(s.receivedDate || s.createdAt, dateRange)
-  );
+  // Unique sites from all stocks
+  const allSites = React.useMemo(() => {
+    const map = {};
+    for (const s of supplier.stocks || []) {
+      if (s.site?.id && !map[s.site.id]) map[s.site.id] = s.site;
+    }
+    return Object.values(map);
+  }, [supplier.stocks]);
 
+  const handlePreset = (val) => {
+    setDatePreset(val);
+    if (val !== 'custom') { setCustomFrom(''); setCustomTo(''); }
+    setStockPage(1); setReqPage(1);
+  };
+
+  const allStocks = (supplier.stocks || []).filter(s => {
+    if (!inRange(s.receivedDate || s.createdAt, dateRange)) return false;
+    if (siteFilter && s.site?.id !== siteFilter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      if (!((s.itemName || '').toLowerCase().includes(q) ||
+            (s.sku || '').toLowerCase().includes(q) ||
+            (s.category?.name || '').toLowerCase().includes(q))) return false;
+    }
+    return true;
+  });
   const stockTotal = allStocks.length;
-  const stockTotalPages = Math.max(1, Math.ceil(stockTotal / PAGE));
-  const pagedStocks = allStocks.slice((stockPage - 1) * PAGE, stockPage * PAGE);
 
-  // For display: group the current page's items by date
-  const grouped = pagedStocks.reduce((acc, s) => {
-    const key = s.receivedDate ? new Date(s.receivedDate).toISOString().slice(0, 10) : 'unknown';
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(s);
-    return acc;
-  }, {});
-  const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
-
-  // For receipts: group ALL filtered items by date (ignores pagination)
+  // Group ALL items by date first, then paginate the groups so each date is always complete
   const allGrouped = allStocks.reduce((acc, s) => {
     const key = s.receivedDate ? new Date(s.receivedDate).toISOString().slice(0, 10) : 'unknown';
     if (!acc[key]) acc[key] = [];
     acc[key].push(s);
     return acc;
   }, {});
+  const allSortedDates = Object.keys(allGrouped).sort((a, b) => b.localeCompare(a));
+
+  // Table view: paginate by date groups
+  const groupTotalPages = Math.max(1, Math.ceil(allSortedDates.length / PAGE));
+  const pagedDates = allSortedDates.slice((stockPage - 1) * PAGE, stockPage * PAGE);
+
+  // Cards view: paginate individual items
+  const stockTotalPages = Math.max(1, Math.ceil(stockTotal / PAGE));
+  const pagedStocks = allStocks.slice((stockPage - 1) * PAGE, stockPage * PAGE);
+
   const toggleDate = (k) => setExpandedDates(p => ({ ...p, [k]: !p[k] }));
 
   useEffect(() => {
-    if (sortedDates.length > 0) setExpandedDates({ [sortedDates[0]]: true });
+    if (pagedDates.length > 0) setExpandedDates({ [pagedDates[0]]: true });
   }, [stockPage, datePreset]);
 
-  useEffect(() => { setStockPage(1); setReqPage(1); }, [datePreset, customFrom, customTo]);
+  useEffect(() => { setStockPage(1); setReqPage(1); }, [datePreset, customFrom, customTo, siteFilter, search]);
 
-  const allReqs = (supplier.requisitions || []).filter(r =>
-    inRange(r.createdAt, dateRange)
-  );
+  // Set of stock IDs at the selected site (for requisition site-filtering)
+  const siteStockIds = React.useMemo(() => {
+    if (!siteFilter) return null;
+    return new Set((supplier.stocks || []).filter(s => s.site?.id === siteFilter).map(s => s.id));
+  }, [siteFilter, supplier.stocks]);
+
+  const allReqs = (supplier.requisitions || []).filter(r => {
+    if (!inRange(r.createdAt, dateRange)) return false;
+    if (siteStockIds && !r.items?.some(i => siteStockIds.has(i.stockId))) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      const emp = r.employee ? `${r.employee.firstName} ${r.employee.lastName}`.toLowerCase() : '';
+      if (!(emp.includes(q) || r.id.toLowerCase().includes(q))) return false;
+    }
+    return true;
+  });
   const reqTotal = allReqs.length;
   const reqTotalPages = Math.max(1, Math.ceil(reqTotal / PAGE));
   const pagedReqs = allReqs.slice((reqPage - 1) * PAGE, reqPage * PAGE);
@@ -685,6 +1041,17 @@ function TabItems({ supplier, datePreset, customFrom, customTo }) {
           onPrint={setReceipt}
         />
       )}
+
+      <FilterBar
+        preset={datePreset} customFrom={customFrom} customTo={customTo}
+        onPreset={handlePreset}
+        onCustomFrom={v => { setCustomFrom(v); setStockPage(1); }}
+        onCustomTo={v => { setCustomTo(v); setStockPage(1); }}
+        sites={allSites} siteFilter={siteFilter}
+        onSiteFilter={v => { setSiteFilter(v); setStockPage(1); setReqPage(1); }}
+        search={search} onSearch={v => { setSearch(v); setStockPage(1); setReqPage(1); }}
+        onClear={() => { handlePreset(''); setCustomFrom(''); setCustomTo(''); setSiteFilter(''); setSearch(''); setStockPage(1); setReqPage(1); }}
+      />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
         {/* -- Stock Items -- */}
@@ -703,14 +1070,14 @@ function TabItems({ supplier, datePreset, customFrom, customTo }) {
           {allStocks.length === 0 ? (
             <div className="stoq-empty stoq-panel">
               <div className="stoq-empty__icon"><Package size={28} /></div>
-              <div className="stoq-empty__title">No stock items{datePreset ? ' in this period' : ' yet'}</div>
+              <div className="stoq-empty__title">No stock items{(datePreset || siteFilter || search) ? ' matching filters' : ' yet'}</div>
             </div>
 
           ) : stockView === 'table' ? (
             <div className="stoq-panel">
               <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                {sortedDates.map(dateKey => {
-                  const items = grouped[dateKey];
+                {pagedDates.map(dateKey => {
+                  const items = allGrouped[dateKey];
                   const isOpen = !!expandedDates[dateKey];
                   const groupTotal = items.reduce((s, i) => s + parseFloat(i.totalValue || 0), 0);
                   return (
@@ -767,7 +1134,7 @@ function TabItems({ supplier, datePreset, customFrom, customTo }) {
                   );
                 })}
               </div>
-              <Pagination page={stockPage} totalPages={stockTotalPages} total={stockTotal} onPage={setStockPage} label="items" />
+              <Pagination page={stockPage} totalPages={groupTotalPages} total={allSortedDates.length} onPage={setStockPage} label="date groups" />
             </div>
 
           ) : (
@@ -809,7 +1176,7 @@ function TabItems({ supplier, datePreset, customFrom, customTo }) {
           {allReqs.length === 0 ? (
             <div className="stoq-empty stoq-panel">
               <div className="stoq-empty__icon"><FileText size={28} /></div>
-              <div className="stoq-empty__title">No requisitions{datePreset ? ' in this period' : ' linked'}</div>
+              <div className="stoq-empty__title">No requisitions{(datePreset || search) ? ' matching filters' : ' linked'}</div>
             </div>
           ) : (
             <div className="stoq-panel">
@@ -857,56 +1224,171 @@ const PAGE_SIZE = 20;
 function groupByDate(payments) {
   const groups = {};
   for (const p of payments) {
-    const key = new Date(p.date).toISOString().slice(0, 10);
+    const key = new Date(p.date ?? p.createdAt).toISOString().slice(0, 10);
     if (!groups[key]) groups[key] = [];
     groups[key].push(p);
   }
   return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
 }
 
+const STATUS_ORDER = { UNPAID: 0, PARTIAL: 1, PAID: 2 };
+function sortByStatus(payments) {
+  return [...payments].sort((a, b) => {
+    const sa = STATUS_ORDER[a.status] ?? 0;
+    const sb = STATUS_ORDER[b.status] ?? 0;
+    if (sa !== sb) return sa - sb;
+    if (a.type !== b.type) return a.type === 'CREDIT' ? -1 : 1;
+    return 0;
+  });
+}
+
 // ── Payment row with checkbox ─────────────────────────────────────────────────
-function PaymentRow({ p, supplier, onReceipt, onEdit, selected, onToggle }) {
+function PaymentRow({ p, supplier, onReceipt, onEdit, selected, onToggle, allPayments }) {
   const isCredit = p.type === 'CREDIT';
+  const [expanded, setExpanded] = useState(false);
+
+  const linkedCredits = React.useMemo(() => {
+    if (!isCredit && p.notes?.startsWith('PAID_CREDITS:')) {
+      const ids = p.notes.replace('PAID_CREDITS:', '').split(',')
+        .filter(Boolean)
+        .map(part => part.split('=')[0].trim());
+      return (allPayments || []).filter(c => ids.includes(c.id));
+    }
+    return [];
+  }, [p.notes, isCredit, allPayments]);
+
+  const hasLinked = linkedCredits.length > 0;
+
+  const handleReceipt = (e) => {
+    e.stopPropagation();
+    onReceipt(buildPaymentReceipt(p, supplier.name, linkedCredits));
+  };
+
+  const siteText = () => {
+    if (p.stock?.site?.name) return p.stock.site.name;
+    if (p.stock?.sku) return p.stock.sku;
+    if (hasLinked) {
+      const sites = [...new Set(linkedCredits.map(c => c.stock?.site?.name).filter(Boolean))];
+      if (sites.length === 1) return `${sites[0]} (${linkedCredits.length})`;
+      if (sites.length > 1) return `${linkedCredits.length} invoice${linkedCredits.length !== 1 ? 's' : ''}`;
+      return `${linkedCredits.length} invoice${linkedCredits.length !== 1 ? 's' : ''}`;
+    }
+    if (p.requisitionItem) return p.requisitionItem.itemName;
+    return '—';
+  };
+
   return (
-    <tr
-      style={{ cursor: 'pointer', background: selected ? 'color-mix(in oklch, var(--accent) 5%, transparent)' : undefined }}
-      onClick={onToggle}>
-      <td style={{ width: 36 }} onClick={e => e.stopPropagation()}>
-        <input type="checkbox" checked={!!selected} onChange={onToggle} style={{ cursor: 'pointer' }} />
-      </td>
-      <td style={{ width: 70 }}>
-        <span className={isCredit ? 'stoq-badge stoq-badge--warning' : 'stoq-badge stoq-badge--success'}>
-          {isCredit ? 'Credit' : 'Debit'}
-        </span>
-      </td>
-      <td>
-        {p.reference && <span className="cell-stack__main">{p.reference}</span>}
-        {p.notes && <span className="cell-stack__sub">{p.notes}</span>}
-        {!p.reference && !p.notes && <span style={{ color: 'var(--fg-subtle)', fontStyle: 'italic' }}>No reference</span>}
-      </td>
-      <td style={{ width: 120 }}>
-        {p.stock
-          ? <span className="stoq-badge stoq-badge--plain" style={{ fontFamily: 'var(--font-mono)' }}>{p.stock.sku}</span>
-          : p.requisitionItem
-            ? <span style={{ fontSize: 11, color: 'var(--fg-muted)' }}>{p.requisitionItem.itemName}</span>
-            : <span style={{ color: 'var(--fg-subtle)' }}>—</span>}
-      </td>
-      <td className="num-cell" style={{ width: 130, fontWeight: 700, color: isCredit ? 'var(--warning)' : 'var(--success)' }}>
-        {isCredit ? '+' : '−'} {fmt(p.amount)}
-      </td>
-      <td style={{ width: 72 }} onClick={e => e.stopPropagation()}>
-        <div style={{ display: 'flex', gap: 4 }}>
-          <button className="stoq-btn stoq-btn--sm stoq-btn--icon" title="Edit"
-            onClick={() => onEdit(p)}>
-            <Edit2 size={12} />
-          </button>
-          <button className="stoq-btn stoq-btn--sm stoq-btn--icon" title="View Receipt"
-            onClick={() => onReceipt(buildPaymentReceipt(p, supplier.name))}>
-            <FileText size={12} />
-          </button>
-        </div>
-      </td>
-    </tr>
+    <>
+      <tr
+        style={{ cursor: 'pointer', background: selected ? 'color-mix(in oklch, var(--accent) 5%, transparent)' : undefined }}
+        onClick={onToggle}>
+        <td style={{ width: 36 }} onClick={e => e.stopPropagation()}>
+          <input type="checkbox" checked={!!selected} onChange={onToggle} style={{ cursor: 'pointer' }} />
+        </td>
+        <td style={{ width: 100 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <span className={isCredit ? 'stoq-badge stoq-badge--warning' : 'stoq-badge stoq-badge--success'}>
+              {isCredit ? 'Credit' : 'Debit'}
+            </span>
+            {isCredit && (
+              <span className={p.status === 'PAID' ? 'stoq-badge stoq-badge--success' : p.status === 'PARTIAL' ? 'stoq-badge stoq-badge--warning' : 'stoq-badge'} style={{ fontSize: 9 }}>
+                {p.status === 'PAID' ? 'Paid' : p.status === 'PARTIAL' ? 'Partial' : 'Unpaid'}
+              </span>
+            )}
+            {p.requisitionItemId && (
+              <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--accent)', background: 'color-mix(in oklch, var(--accent) 10%, transparent)', padding: '1px 4px', borderRadius: 3, display: 'inline-block' }}>REQ</span>
+            )}
+          </div>
+        </td>
+        <td>
+          {p.reference && <span className="cell-stack__main">{p.reference}</span>}
+          {p.notes && !p.notes.startsWith('PAID_CREDITS:') && <span className="cell-stack__sub">{p.notes}</span>}
+        </td>
+        <td style={{ width: 140, fontSize: 11, color: 'var(--fg-muted)' }}>
+          {siteText()}
+        </td>
+        <td className="num-cell" style={{ width: 130, fontWeight: 700, color: isCredit ? 'var(--warning)' : 'var(--success)' }}>
+          {isCredit && p.status === 'PARTIAL' ? (
+            <div>
+              <div>+ {fmt(parseFloat(p.amount) - parseFloat(p.paidAmount ?? 0))}</div>
+              <div style={{ fontSize: 10, color: 'var(--fg-subtle)', fontWeight: 400 }}>of {fmt(p.amount)}</div>
+            </div>
+          ) : (
+            `${isCredit ? '+' : '−'} ${fmt(p.amount)}`
+          )}
+        </td>
+        <td style={{ width: 90 }} onClick={e => e.stopPropagation()}>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            {hasLinked && (
+              <button className="stoq-btn stoq-btn--sm stoq-btn--icon" title={expanded ? 'Collapse' : 'View items'}
+                onClick={() => setExpanded(x => !x)}>
+                <ChevronDown size={12} style={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+              </button>
+            )}
+            <button className="stoq-btn stoq-btn--sm stoq-btn--icon" title="Edit" onClick={() => onEdit(p)}>
+              <Edit2 size={12} />
+            </button>
+            <button className="stoq-btn stoq-btn--sm stoq-btn--icon" title="View Receipt" onClick={handleReceipt}>
+              <FileText size={12} />
+            </button>
+          </div>
+        </td>
+      </tr>
+      {hasLinked && expanded && (
+        <tr style={{ background: 'var(--bg-sunk)' }}>
+          <td colSpan={6} style={{ padding: 0, borderBottom: '2px solid var(--border)' }}>
+            <div style={{ padding: '8px 12px 10px 52px' }}>
+              {(() => {
+                // Parse per-credit paid amounts from notes: PAID_CREDITS:id=amount,id2=amount2
+                const paidMap = {};
+                if (p.notes?.startsWith('PAID_CREDITS:')) {
+                  p.notes.replace('PAID_CREDITS:', '').split(',').forEach(part => {
+                    const [cId, amt] = part.split('=');
+                    if (cId && amt) paidMap[cId.trim()] = parseFloat(amt);
+                  });
+                }
+                return (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                    <thead>
+                      <tr>
+                        {['Reference', 'Item', 'Qty', 'Site', 'Invoice Total', 'Paid This Time'].map(h => (
+                          <th key={h} style={{
+                            textAlign: (h === 'Invoice Total' || h === 'Paid This Time' || h === 'Qty') ? 'right' : 'left',
+                            padding: '3px 8px', color: 'var(--fg-subtle)',
+                            fontWeight: 600, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em',
+                          }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {linkedCredits.map(credit => {
+                        const paidThisTime = paidMap[credit.id];
+                        return (
+                          <tr key={credit.id} style={{ borderTop: '1px solid var(--border)' }}>
+                            <td style={{ padding: '5px 8px', color: 'var(--fg-muted)' }}>{credit.reference || '—'}</td>
+                            <td style={{ padding: '5px 8px' }}>{credit.stock?.itemName || credit.requisitionItem?.itemName || '—'}</td>
+                            <td style={{ padding: '5px 8px', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--fg-muted)' }}>
+                              {credit.quantity != null ? `${parseFloat(credit.quantity)}${credit.stock?.unit ? ' ' + credit.stock.unit : ''}` : '—'}
+                            </td>
+                            <td style={{ padding: '5px 8px', color: 'var(--fg-muted)' }}>{credit.stock?.site?.name || '—'}</td>
+                            <td style={{ padding: '5px 8px', textAlign: 'right', color: 'var(--fg-subtle)', fontFamily: 'var(--font-mono)' }}>
+                              {fmt(credit.amount)}
+                            </td>
+                            <td style={{ padding: '5px 8px', textAlign: 'right', fontWeight: 600, color: 'var(--success)', fontFamily: 'var(--font-mono)' }}>
+                              {paidThisTime != null ? `− ${fmt(paidThisTime)}` : `− ${fmt(credit.amount)}`}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                );
+              })()}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
@@ -914,18 +1396,78 @@ function TabFinance({ supplier, onRecordPayment, onBulkPay, onEditPayment }) {
   const summary = supplier.paymentSummary || { totalCredit: 0, totalDebit: 0, balance: 0 };
   const balance = summary.balance;
   const [receipt, setReceipt] = useState(null);
-  const [financeTab, setFinanceTab] = useState('payments');
+  const [groupModal, setGroupModal] = useState(null);
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState(new Set());
 
+  // Filter state
+  const [datePreset, setDatePreset] = useState('');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo,   setCustomTo]   = useState('');
+  const [siteFilter, setSiteFilter] = useState('');
+  const [search,     setSearch]     = useState('');
+
+  const dateRange = getDateRange(datePreset, customFrom, customTo);
+
+  const handlePreset = (val) => {
+    setDatePreset(val);
+    if (val !== 'custom') { setCustomFrom(''); setCustomTo(''); }
+    setPage(1); setSelectedIds(new Set());
+  };
+
+  // Merge manual payments + requisition-received payments into one unified list
   const normalPayments = supplier.normalPayments || supplier.payments || [];
-  const requisitionGroups = supplier.requisitionGroups || [];
+  const reqPayments = (supplier.requisitionGroups || []).flatMap(g => g.items || []);
 
-  const switchTab = (t) => { setFinanceTab(t); setPage(1); setSelectedIds(new Set()); };
+  // Unique sites from all payments
+  const allSites = React.useMemo(() => {
+    const map = {};
+    for (const p of [...normalPayments, ...reqPayments]) {
+      if (p.stock?.site?.id && !map[p.stock.site.id]) map[p.stock.site.id] = p.stock.site;
+    }
+    return Object.values(map);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supplier]);
 
-  const totalPages = Math.max(1, Math.ceil(normalPayments.length / PAGE_SIZE));
-  const paged = normalPayments.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const groups = groupByDate(paged);
+  // Lookup map: paymentId → siteId, for resolving linked credits in bulk DEBIT payments
+  const paymentSiteMap = React.useMemo(() => {
+    const map = {};
+    for (const p of [...normalPayments, ...reqPayments]) {
+      if (p.id) map[p.id] = p.stock?.site?.id || null;
+    }
+    return map;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supplier]);
+
+  const allPaymentsFlat = [...normalPayments, ...reqPayments]
+    .filter(p => {
+      if (!inRange(p.date ?? p.createdAt, dateRange)) return false;
+      if (siteFilter) {
+        if (p.stockId) {
+          if (p.stock?.site?.id !== siteFilter) return false;
+        } else if (p.notes?.startsWith('PAID_CREDITS:')) {
+          // Show bulk DEBIT only if at least one linked credit is from this site
+          const ids = p.notes.replace('PAID_CREDITS:', '').split(',')
+            .filter(Boolean).map(part => part.split('=')[0].trim());
+          if (!ids.some(id => paymentSiteMap[id] === siteFilter)) return false;
+        } else {
+          return false;
+        }
+      }
+      if (search) {
+        const q = search.toLowerCase();
+        if (!((p.stock?.itemName || '').toLowerCase().includes(q) ||
+              (p.stock?.sku || '').toLowerCase().includes(q) ||
+              (p.reference || '').toLowerCase().includes(q) ||
+              (p.notes?.startsWith('PAID_CREDITS:') ? false : (p.notes || '').toLowerCase().includes(q)))) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => new Date(b.date ?? b.createdAt) - new Date(a.date ?? a.createdAt));
+
+  const allGroups = groupByDate(allPaymentsFlat).map(([key, items]) => [key, sortByStatus(items)]);
+  const totalPages = Math.max(1, Math.ceil(allGroups.length / PAGE_SIZE));
+  const groups = allGroups.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const togglePayment = (id) => setSelectedIds(prev => {
     const next = new Set(prev);
@@ -944,11 +1486,21 @@ function TabFinance({ supplier, onRecordPayment, onBulkPay, onEditPayment }) {
     });
   };
 
-  const selectedPayments = normalPayments.filter(p => selectedIds.has(p.id));
+  const selectGroupByType = (items, type) => {
+    const typeIds = items.filter(p => p.type === type).map(p => p.id);
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      typeIds.forEach(id => next.add(id));
+      return next;
+    });
+  };
+
+  const selectedPayments = allPaymentsFlat.filter(p => selectedIds.has(p.id));
   const selectedTotal = selectedPayments.reduce((s, p) => s + parseFloat(p.amount ?? 0), 0);
   const selectedRefs = selectedPayments.map(p => p.reference).filter(Boolean).join(', ');
 
-  const creditItems = selectedPayments.filter(p => p.type === 'CREDIT');
+  const creditItems = selectedPayments.filter(p => p.type === 'CREDIT' && p.status !== 'PAID');
+  const allSelectedAreDebits = selectedPayments.length > 0 && selectedPayments.every(p => p.type === 'DEBIT');
 
   const handleBulkPay = () => {
     if (creditItems.length === 0) return;
@@ -959,7 +1511,27 @@ function TabFinance({ supplier, onRecordPayment, onBulkPay, onEditPayment }) {
   return (
     <>
       {receipt && <SupplierReceiptModal data={receipt} supplier={supplier} onClose={() => setReceipt(null)} />}
+      {groupModal && (
+        <GroupReceiptModal
+          supplierName={supplier.name}
+          dateKey={groupModal.dateKey}
+          items={groupModal.items}
+          onClose={() => setGroupModal(null)}
+          onPrint={setReceipt}
+        />
+      )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+        <FilterBar
+          preset={datePreset} customFrom={customFrom} customTo={customTo}
+          onPreset={handlePreset}
+          onCustomFrom={v => { setCustomFrom(v); setPage(1); }}
+          onCustomTo={v => { setCustomTo(v); setPage(1); }}
+          sites={allSites} siteFilter={siteFilter}
+          onSiteFilter={v => { setSiteFilter(v); setPage(1); setSelectedIds(new Set()); }}
+          search={search} onSearch={v => { setSearch(v); setPage(1); setSelectedIds(new Set()); }}
+          onClear={() => { handlePreset(''); setCustomFrom(''); setCustomTo(''); setSiteFilter(''); setSearch(''); setPage(1); setSelectedIds(new Set()); }}
+        />
 
         {/* KPI summary */}
         <div className="kpi-grid kpi-grid--3">
@@ -969,7 +1541,10 @@ function TabFinance({ supplier, onRecordPayment, onBulkPay, onEditPayment }) {
               Total Invoiced
             </div>
             <div className="kpi__value" style={{ fontSize: 20 }}>{fmt(summary.totalCredit)}</div>
-            <div className="kpi__foot">Amount owed to supplier</div>
+            <div className="kpi__foot">
+              All credits recorded (incl. paid)
+              {summary.totalQtyCredit > 0 && <span style={{ marginLeft: 6, fontWeight: 600, color: 'var(--fg)' }}>{summary.totalQtyCredit} units</span>}
+            </div>
           </div>
           <div className="kpi">
             <div className="kpi__label">
@@ -977,7 +1552,10 @@ function TabFinance({ supplier, onRecordPayment, onBulkPay, onEditPayment }) {
               Total Paid
             </div>
             <div className="kpi__value" style={{ fontSize: 20 }}>{fmt(summary.totalDebit)}</div>
-            <div className="kpi__foot">Payments made to date</div>
+            <div className="kpi__foot">
+              Payments made to date
+              {summary.totalQtyDebit > 0 && <span style={{ marginLeft: 6, fontWeight: 600, color: 'var(--fg)' }}>{summary.totalQtyDebit} units</span>}
+            </div>
           </div>
           <div className="kpi">
             <div className="kpi__label">
@@ -989,30 +1567,24 @@ function TabFinance({ supplier, onRecordPayment, onBulkPay, onEditPayment }) {
             </div>
             <div className="kpi__foot">
               {balance > 0 ? 'Still owed to supplier' : balance < 0 ? 'Overpaid / Credit' : 'Fully settled'}
+              {summary.outstandingQty > 0 && <span style={{ marginLeft: 6, fontWeight: 600, color: 'var(--danger)' }}>{summary.outstandingQty} units unpaid</span>}
             </div>
           </div>
         </div>
 
-        {/* Sub-tab header */}
+        {/* Header row */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-          <div className="stoq-segment">
-            <button data-active={financeTab === 'payments' ? 'true' : undefined} onClick={() => switchTab('payments')}>
-              Stock Payments
-              <span style={{ marginLeft: 5, fontSize: 10, color: 'var(--fg-subtle)' }}>({normalPayments.length})</span>
-            </button>
-            <button data-active={financeTab === 'requisitions' ? 'true' : undefined} onClick={() => switchTab('requisitions')}>
-              Requisitions
-              <span style={{ marginLeft: 5, fontSize: 10, color: 'var(--fg-subtle)' }}>({requisitionGroups.length})</span>
-            </button>
-          </div>
+          <span style={{ fontSize: 11, color: 'var(--fg-subtle)', fontFamily: 'var(--font-mono)' }}>
+            {allPaymentsFlat.length} transaction{allPaymentsFlat.length !== 1 ? 's' : ''}
+          </span>
           <button className="stoq-btn stoq-btn--primary stoq-btn--sm" onClick={onRecordPayment}>
             <Plus size={12} /> Record Transaction
           </button>
         </div>
 
-        {/* ── STOCK PAYMENTS SUB-TAB ── */}
-        {financeTab === 'payments' && (
-          normalPayments.length === 0 ? (
+        {/* ── PAYMENTS LIST ── */}
+        {(
+          allPaymentsFlat.length === 0 ? (
             <div className="stoq-empty" style={{ border: '1px dashed var(--border)', borderRadius: 'var(--r-md)' }}>
               <CreditCard size={28} className="stoq-empty__icon" />
               <div className="stoq-empty__title">No stock payments yet</div>
@@ -1040,6 +1612,20 @@ function TabFinance({ supplier, onRecordPayment, onBulkPay, onEditPayment }) {
                         />
                         <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg)' }}>{fmtDateGroup(dateKey)}</span>
                         <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>{items.length} transaction{items.length !== 1 ? 's' : ''}</span>
+                        {items.some(p => p.type === 'CREDIT') && (
+                          <button type="button"
+                            onClick={() => selectGroupByType(items, 'CREDIT')}
+                            style={{ fontSize: 10, padding: '2px 8px', borderRadius: 'var(--r-sm)', border: '1px solid var(--warning)', background: 'var(--warning-soft, #fff8e7)', color: 'var(--warning)', cursor: 'pointer', fontWeight: 600 }}>
+                            Credits
+                          </button>
+                        )}
+                        {items.some(p => p.type === 'DEBIT') && (
+                          <button type="button"
+                            onClick={() => selectGroupByType(items, 'DEBIT')}
+                            style={{ fontSize: 10, padding: '2px 8px', borderRadius: 'var(--r-sm)', border: '1px solid var(--success)', background: 'var(--success-soft)', color: 'var(--success)', cursor: 'pointer', fontWeight: 600 }}>
+                            Debits
+                          </button>
+                        )}
                       </div>
                       <div style={{ display: 'flex', gap: 12, fontSize: 11 }}>
                         {dayCredit > 0 && <span style={{ color: 'var(--warning)', fontWeight: 600 }}>+{fmt(dayCredit)}</span>}
@@ -1058,6 +1644,7 @@ function TabFinance({ supplier, onRecordPayment, onBulkPay, onEditPayment }) {
                               onEdit={onEditPayment}
                               selected={selectedIds.has(p.id)}
                               onToggle={() => togglePayment(p.id)}
+                              allPayments={allPaymentsFlat}
                             />
                           ))}
                         </tbody>
@@ -1071,7 +1658,7 @@ function TabFinance({ supplier, onRecordPayment, onBulkPay, onEditPayment }) {
               {totalPages > 1 && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0' }}>
                   <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>
-                    Page {page} of {totalPages} · {normalPayments.length} transactions
+                    Page {page} of {totalPages} · {allGroups.length} date group{allGroups.length !== 1 ? 's' : ''} · {allPaymentsFlat.length} transactions
                   </span>
                   <div style={{ display: 'flex', gap: 4 }}>
                     <button className="stoq-btn stoq-btn--icon" disabled={page <= 1} style={{ opacity: page <= 1 ? 0.4 : 1 }} onClick={() => setPage(p => p - 1)}>
@@ -1091,88 +1678,6 @@ function TabFinance({ supplier, onRecordPayment, onBulkPay, onEditPayment }) {
                   {fmt(balance)}
                 </span>
               </div>
-            </div>
-          )
-        )}
-
-        {/* ── REQUISITIONS SUB-TAB ── */}
-        {financeTab === 'requisitions' && (
-          requisitionGroups.length === 0 ? (
-            <div className="stoq-empty" style={{ border: '1px dashed var(--border)', borderRadius: 'var(--r-md)' }}>
-              <FileText size={28} className="stoq-empty__icon" />
-              <div className="stoq-empty__title">No requisition payments yet</div>
-              <div>Payments are created automatically when requisition items are received</div>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {requisitionGroups.map(group => {
-                const groupTotal = group.items.reduce((s, p) => {
-                  return p.type === 'CREDIT' ? s + parseFloat(p.amount) : s - parseFloat(p.amount);
-                }, 0);
-                const reqLabel = `REQ-${(group.requisitionId || '').slice(-6).toUpperCase()}`;
-                const reqStatus = group.requisition?.status;
-                const REQ_BADGE_MAP = {
-                  PENDING: 'stoq-badge stoq-badge--warning',
-                  APPROVED: 'stoq-badge stoq-badge--accent',
-                  PARTIALLY_RECEIVED: 'stoq-badge stoq-badge--warning',
-                  FULLY_RECEIVED: 'stoq-badge stoq-badge--success',
-                  REJECTED: 'stoq-badge stoq-badge--danger',
-                };
-                return (
-                  <div key={group.requisitionId} className="stoq-panel">
-                    <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', background: 'var(--bg-sunk)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 13, color: 'var(--fg)' }}>{reqLabel}</span>
-                        {reqStatus && <span className={REQ_BADGE_MAP[reqStatus] || 'stoq-badge'}>{reqStatus.replace(/_/g, ' ')}</span>}
-                        <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>{group.items.length} payment{group.items.length !== 1 ? 's' : ''}</span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        {group.requisition?.createdAt && (
-                          <span style={{ fontSize: 11, color: 'var(--fg-subtle)', fontFamily: 'var(--font-mono)' }}>{fmtDate(group.requisition.createdAt)}</span>
-                        )}
-                        <span style={{ fontSize: 12, fontWeight: 700, color: groupTotal >= 0 ? 'var(--warning)' : 'var(--success)' }}>
-                          {groupTotal >= 0 ? '+' : '−'}{fmt(Math.abs(groupTotal))}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="table-wrap">
-                      <table className="stoq-tbl">
-                        <thead>
-                          <tr>
-                            <th className="no-sort" style={{ width: 70 }}>Type</th>
-                            <th className="no-sort">Item</th>
-                            <th className="no-sort" style={{ width: 80 }}>Qty</th>
-                            <th className="no-sort num-cell" style={{ width: 130 }}>Amount</th>
-                            <th className="no-sort" style={{ width: 36 }}></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {group.items.map(p => {
-                            const isCredit = p.type === 'CREDIT';
-                            return (
-                              <tr key={p.id}>
-                                <td><span className={isCredit ? 'stoq-badge stoq-badge--warning' : 'stoq-badge stoq-badge--success'}>{isCredit ? 'Credit' : 'Debit'}</span></td>
-                                <td>
-                                  <span className="cell-stack__main">{p.requisitionItem?.itemName || p.reference || '—'}</span>
-                                  {p.notes && <span className="cell-stack__sub">{p.notes}</span>}
-                                </td>
-                                <td style={{ color: 'var(--fg-muted)', fontSize: 11 }}>{p.quantity != null ? `${p.quantity} ${p.requisitionItem?.unit || ''}` : '—'}</td>
-                                <td className="num-cell" style={{ fontWeight: 700, color: isCredit ? 'var(--warning)' : 'var(--success)' }}>{isCredit ? '+' : '−'} {fmt(p.amount)}</td>
-                                <td>
-                                  <button className="stoq-btn stoq-btn--sm stoq-btn--icon" title="View Receipt"
-                                    onClick={() => setReceipt(buildPaymentReceipt(p, supplier.name))}>
-                                    <FileText size={12} />
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                );
-              })}
             </div>
           )
         )}
@@ -1205,12 +1710,38 @@ function TabFinance({ supplier, onRecordPayment, onBulkPay, onEditPayment }) {
             onClick={() => setSelectedIds(new Set())}>
             Clear
           </button>
+          {allSelectedAreDebits && (
+            <button
+              className="stoq-btn stoq-btn--sm"
+              style={{ background: 'rgba(255,255,255,0.15)', color: 'inherit', border: '1px solid rgba(255,255,255,0.2)' }}
+              onClick={() => {
+                const allFlat = [...normalPayments, ...reqPayments];
+                const paymentById = Object.fromEntries(allFlat.map(p => [p.id, p]));
+                const seen = new Set();
+                const expanded = [];
+                for (const p of selectedPayments) {
+                  if (p.notes?.startsWith('PAID_CREDITS:')) {
+                    const parts = p.notes.replace('PAID_CREDITS:', '').split(',').filter(Boolean);
+                    for (const part of parts) {
+                      const id = part.split('=')[0].trim();
+                      const credit = paymentById[id];
+                      if (credit && !seen.has(credit.id)) { seen.add(credit.id); expanded.push(credit); }
+                    }
+                  } else if (!seen.has(p.id)) {
+                    seen.add(p.id); expanded.push(p);
+                  }
+                }
+                setGroupModal({ dateKey: 'Selected Payments', items: expanded });
+              }}>
+              <Printer size={13} /> Print Receipt
+            </button>
+          )}
           {creditItems.length > 0 && (
             <button
               className="stoq-btn stoq-btn--sm"
               style={{ background: 'var(--accent)', color: '#fff', border: 'none', fontWeight: 700 }}
               onClick={handleBulkPay}>
-              <BadgeCheck size={13} /> Pay Invoices ({creditItems.length})
+              <BadgeCheck size={13} /> Pay Credits ({creditItems.length})
             </button>
           )}
         </div>
@@ -1366,17 +1897,6 @@ export default function SupplierDetail() {
         </button>
       </div>
 
-      {/* Date filter - shown on items tab */}
-      {activeTab === 'items' && (
-        <DateFilterBar
-          preset={datePreset}
-          customFrom={customFrom}
-          customTo={customTo}
-          onPreset={handlePreset}
-          onCustomFrom={v => setParam('from', v)}
-          onCustomTo={v => setParam('to', v)}
-        />
-      )}
 
       {/* Tabs */}
       <div className="stoq-tabs">
@@ -1394,14 +1914,7 @@ export default function SupplierDetail() {
       </div>
 
       {activeTab === 'info' && <TabInfo supplier={supplier} />}
-      {activeTab === 'items' && (
-        <TabItems
-          supplier={supplier}
-          datePreset={datePreset}
-          customFrom={customFrom}
-          customTo={customTo}
-        />
-      )}
+      {activeTab === 'items' && <TabItems supplier={supplier} />}
       {activeTab === 'finance' && (
         <TabFinance
           supplier={supplier}
@@ -1414,8 +1927,7 @@ export default function SupplierDetail() {
       {showPayment && (
         <PaymentModal
           supplierId={supplier.id}
-          stocks={supplier.stocks}
-          prefill={paymentPrefill}
+          availableStocks={supplier.stocks || []}
           onClose={() => { setShowPayment(false); setPaymentPrefill(null); }}
           onSuccess={(msg) => { showToast(msg); load(); }}
         />
@@ -1424,7 +1936,7 @@ export default function SupplierDetail() {
       {editPayment && (
         <PaymentModal
           supplierId={supplier.id}
-          stocks={supplier.stocks}
+          availableStocks={supplier.stocks || []}
           editMode
           payment={editPayment}
           onClose={() => setEditPayment(null)}

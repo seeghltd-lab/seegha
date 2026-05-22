@@ -35,9 +35,12 @@ interface AddPaymentDto {
   amount: number;
   quantity?: number;
   stockId?: string;
+  supplierId?: string;
   reference?: string;
   notes?: string;
   date?: string;
+  status?: 'UNPAID' | 'PAID' | 'PARTIAL';
+  paidAmount?: number;
 }
 
 @Injectable()
@@ -140,7 +143,7 @@ export class SupplierService {
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
-        include: { _count: { select: { stocks: true } } },
+        include: { _count: { select: { stockSuppliers: true } } },
       }),
       this.prisma.supplier.count({ where }),
     ]);
@@ -158,17 +161,20 @@ export class SupplierService {
     const supplier = await (this.prisma.supplier.findUnique as any)({
       where: { id },
       include: {
-        stocks: {
-          orderBy: { receivedDate: 'desc' },
+        stockSuppliers: {
           include: {
-            category: { select: { id: true, name: true } },
-            site: { select: { id: true, name: true } },
+            stock: {
+              include: {
+                category: { select: { id: true, name: true } },
+                site: { select: { id: true, name: true } },
+              },
+            },
           },
         },
         payments: {
           orderBy: { date: 'desc' },
           include: {
-            stock: { select: { id: true, sku: true, itemName: true } },
+            stock: { select: { id: true, sku: true, itemName: true, unit: true, unitCost: true, site: { select: { id: true, name: true } } } },
             requisitionItem: {
               select: {
                 id: true,
@@ -181,19 +187,32 @@ export class SupplierService {
             },
           },
         },
-        _count: { select: { stocks: true } },
+        _count: { select: { stockSuppliers: true } },
       },
     });
     if (!supplier) throw new NotFoundException('Supplier not found');
+
+    // Flatten junction to stocks array, sorted by receivedDate desc
+    const stocks: any[] = (supplier.stockSuppliers ?? [])
+      .map((ss: any) => ss.stock)
+      .filter(Boolean)
+      .sort((a: any, b: any) => new Date(b.receivedDate).getTime() - new Date(a.receivedDate).getTime());
 
     const allPayments: any[] = supplier.payments ?? [];
 
     // Compute payment summary
     let totalCredit = new Decimal(0);
     let totalDebit = new Decimal(0);
+    let totalQtyCredit = new Decimal(0);
+    let totalQtyDebit = new Decimal(0);
     for (const p of allPayments) {
-      if (p.type === 'CREDIT') totalCredit = totalCredit.plus(p.amount);
-      else totalDebit = totalDebit.plus(p.amount);
+      if (p.type === 'CREDIT') {
+        totalCredit = totalCredit.plus(p.amount);
+        totalQtyCredit = totalQtyCredit.plus(p.quantity ?? 0);
+      } else {
+        totalDebit = totalDebit.plus(p.amount);
+        totalQtyDebit = totalQtyDebit.plus(p.quantity ?? 0);
+      }
     }
     const balance = totalCredit.minus(totalDebit);
 
@@ -214,13 +233,13 @@ export class SupplierService {
     }
 
     // Aggregate total stock value
-    const totalStockValue = supplier.stocks.reduce(
-      (sum, s) => sum.plus(s.totalValue),
+    const totalStockValue = stocks.reduce(
+      (sum: Decimal, s: any) => sum.plus(s.totalValue),
       new Decimal(0),
     );
 
     // Fetch related requisitions (those containing items from this supplier's stocks)
-    const stockIds = supplier.stocks.map((s) => s.id);
+    const stockIds = stocks.map((s: any) => s.id);
     const requisitions = stockIds.length
       ? await this.prisma.requisition.findMany({
           where: { items: { some: { stockId: { in: stockIds } } } },
@@ -236,14 +255,19 @@ export class SupplierService {
         })
       : [];
 
+    const { stockSuppliers: _ss, ...supplierRest } = supplier as any;
     return {
-      ...supplier,
+      ...supplierRest,
+      stocks,
       normalPayments,
       requisitionGroups: Object.values(reqGroups),
       paymentSummary: {
         totalCredit: totalCredit.toNumber(),
         totalDebit: totalDebit.toNumber(),
         balance: balance.toNumber(),
+        totalQtyCredit: totalQtyCredit.toNumber(),
+        totalQtyDebit: totalQtyDebit.toNumber(),
+        outstandingQty: totalQtyCredit.minus(totalQtyDebit).toNumber(),
       },
       totalStockValue: totalStockValue.toNumber(),
       requisitions,
@@ -279,12 +303,12 @@ export class SupplierService {
   async remove(id: string, adminId?: string, adminName?: string) {
     const supplier = await this.prisma.supplier.findUnique({
       where: { id },
-      include: { _count: { select: { stocks: true, payments: true } } },
+      include: { _count: { select: { stockSuppliers: true, payments: true } } },
     });
     if (!supplier) throw new NotFoundException('Supplier not found');
-    if (supplier._count.stocks > 0) {
+    if (supplier._count.stockSuppliers > 0) {
       throw new BadRequestException(
-        `Cannot delete supplier with ${supplier._count.stocks} linked stock item(s). Reassign or remove them first.`,
+        `Cannot delete supplier with ${supplier._count.stockSuppliers} linked stock item(s). Reassign or remove them first.`,
       );
     }
     if (supplier._count.payments > 0) {
@@ -308,6 +332,11 @@ export class SupplierService {
   async addPayment(supplierId: string, data: AddPaymentDto, adminId: string) {
     const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId } });
     if (!supplier) throw new NotFoundException('Supplier not found');
+
+    if (!data.amount || new Decimal(data.amount).lte(0)) {
+      throw new BadRequestException('Amount must be greater than 0');
+    }
+
 
     return this.prisma.supplierPayment.create({
       data: {
@@ -337,6 +366,8 @@ export class SupplierService {
         ...(data.notes     !== undefined && { notes: data.notes ?? null }),
         ...(data.date      !== undefined && { date: new Date(data.date) }),
         ...(data.stockId   !== undefined && { stockId: data.stockId || null }),
+        ...(data.status     !== undefined && { status: data.status ?? null }),
+        ...(data.paidAmount !== undefined && { paidAmount: new Decimal(data.paidAmount) }),
       },
     });
   }
@@ -349,7 +380,7 @@ export class SupplierService {
       where: { supplierId },
       orderBy: { date: 'desc' },
       include: {
-        stock: { select: { id: true, sku: true, itemName: true } },
+        stock: { select: { id: true, sku: true, itemName: true, unit: true, site: { select: { id: true, name: true } } } },
         requisitionItem: {
           select: {
             id: true,
@@ -409,16 +440,28 @@ export class SupplierService {
   }
 
   async addStockPayment(stockId: string, data: AddPaymentDto, adminId: string) {
-    const stock = await this.prisma.stock.findUnique({
-      where: { id: stockId },
-      select: { id: true, supplierId: true },
-    });
+    const stock = await this.prisma.stock.findUnique({ where: { id: stockId }, select: { id: true } });
     if (!stock) throw new NotFoundException('Stock not found');
-    if (!stock.supplierId) throw new BadRequestException('This stock item has no linked supplier');
+
+    let resolvedSupplierId: string;
+    if (data.supplierId) {
+      const supplier = await this.prisma.supplier.findUnique({ where: { id: data.supplierId } });
+      if (!supplier) throw new NotFoundException('Supplier not found');
+      await this.prisma.stockSupplier.upsert({
+        where: { stockId_supplierId: { stockId, supplierId: data.supplierId } },
+        create: { stockId, supplierId: data.supplierId },
+        update: {},
+      });
+      resolvedSupplierId = data.supplierId;
+    } else {
+      const junction = await this.prisma.stockSupplier.findFirst({ where: { stockId } });
+      if (!junction) throw new BadRequestException('This stock item has no linked supplier');
+      resolvedSupplierId = junction.supplierId;
+    }
 
     return this.prisma.supplierPayment.create({
       data: {
-        supplierId: stock.supplierId,
+        supplierId: resolvedSupplierId,
         stockId,
         type: data.type,
         quantity: data.quantity != null ? new Decimal(data.quantity) : null,

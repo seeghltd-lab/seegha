@@ -8,7 +8,7 @@ import { Prisma } from '@prisma/client';
 interface CreateStockDto {
   itemName: string;
   categoryId?: string;
-  supplierId?: string;
+  supplierId?: string; // used to create StockSupplier link, not stored on Stock
   unit: string;
   quantity: number;
   unitCost: number;
@@ -63,33 +63,72 @@ export class StockService {
   }
 
   async create(data: CreateStockDto, adminId: string, adminName?: string) {
-    const sku = await this.uniqueSKU();
-    const unitCost = new Decimal(data.unitCost);
-    const quantity = Number(data.quantity);
-    const totalValue = unitCost.times(quantity);
+    const addQty = Number(data.quantity);
+    const newUnitCost = new Decimal(data.unitCost);
+
+    // Dedup: same name (case-insensitive) + same site → increment existing
+    const existing = await this.prisma.stock.findFirst({
+      where: { itemName: data.itemName, siteId: data.siteId || null, deletedAt: null },
+    });
 
     let stock: any;
+    if (existing) {
+      const newQty = existing.quantity + addQty;
+      const newTotalValue = newUnitCost.times(newQty);
+      stock = await this.prisma.stock.update({
+        where: { id: existing.id },
+        data: { quantity: newQty, unitCost: newUnitCost, totalValue: newTotalValue },
+      });
+      await this.prisma.stockHistory.create({
+        data: {
+          stockId: stock.id,
+          movementType: 'IN',
+          qtyBefore: existing.quantity,
+          qtyChange: addQty,
+          qtyAfter: newQty,
+          unitPrice: newUnitCost,
+          notes: `Stock receipt: ${data.itemName}`,
+          createdByAdminId: adminId,
+          siteId: data.siteId || null,
+        },
+      });
+      if (data.supplierId) {
+        await this.prisma.stockSupplier.upsert({
+          where: { stockId_supplierId: { stockId: stock.id, supplierId: data.supplierId } },
+          create: { stockId: stock.id, supplierId: data.supplierId },
+          update: {},
+        });
+        const pType = data.paymentType === 'DEBIT' ? PaymentType.DEBIT : PaymentType.CREDIT;
+        await this.prisma.supplierPayment.create({
+          data: { supplierId: data.supplierId, stockId: stock.id, type: pType, quantity: new Decimal(addQty), amount: newUnitCost.times(addQty), reference: `Auto: ${stock.sku}`, notes: `Stock received: ${data.itemName}`, adminId },
+        });
+      }
+      this.activityLog.log({ action: 'STOCK_UPDATED', entityType: 'Stock', entityId: stock.id, entityLabel: `${stock.itemName} (${stock.sku})`, performedById: adminId, performedByType: 'ADMIN', performedByName: adminName, metadata: { sku: stock.sku, addedQty: addQty, newQty, unitCost: data.unitCost, source: 'dedup-increment' } });
+      return stock;
+    }
+
+    const sku = await this.uniqueSKU();
+    const totalValue = newUnitCost.times(addQty);
     try {
       stock = await this.prisma.stock.create({
-      data: {
-        sku,
-        adminId,
-        itemName: data.itemName,
-        categoryId: data.categoryId || null,
-        supplierId: data.supplierId || null,
-        siteId: data.siteId || null,
-        unit: data.unit,
-        quantity,
-        unitCost,
-        totalValue,
-        warehouseLocation: data.warehouseLocation || null,
-        receivedDate: new Date(data.receivedDate),
-        reorderLevel: data.reorderLevel !== undefined ? Number(data.reorderLevel) : 5,
-        expiryDate: data.expiryDate ? new Date(data.expiryDate) : null,
-        description: data.description,
-        stockImg: data.stockImg,
-      },
-    });
+        data: {
+          sku,
+          adminId,
+          itemName: data.itemName,
+          categoryId: data.categoryId || null,
+          siteId: data.siteId || null,
+          unit: data.unit,
+          quantity: addQty,
+          unitCost: newUnitCost,
+          totalValue,
+          warehouseLocation: data.warehouseLocation || null,
+          receivedDate: new Date(data.receivedDate),
+          reorderLevel: data.reorderLevel !== undefined ? Number(data.reorderLevel) : 5,
+          expiryDate: data.expiryDate ? new Date(data.expiryDate) : null,
+          description: data.description,
+          stockImg: data.stockImg,
+        },
+      });
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
         const site = data.siteId ? 'this site' : 'global inventory';
@@ -103,24 +142,28 @@ export class StockService {
         stockId: stock.id,
         movementType: 'IN',
         qtyBefore: 0,
-        qtyChange: quantity,
-        qtyAfter: quantity,
-        unitPrice: unitCost,
+        qtyChange: addQty,
+        qtyAfter: addQty,
+        unitPrice: newUnitCost,
         notes: 'Initial stock receipt',
         createdByAdminId: adminId,
         siteId: data.siteId || null,
       },
     });
 
-    // Auto-create payment entry if supplier is linked
     if (data.supplierId) {
+      await this.prisma.stockSupplier.upsert({
+        where: { stockId_supplierId: { stockId: stock.id, supplierId: data.supplierId } },
+        create: { stockId: stock.id, supplierId: data.supplierId },
+        update: {},
+      });
       const pType = data.paymentType === 'DEBIT' ? PaymentType.DEBIT : PaymentType.CREDIT;
       await this.prisma.supplierPayment.create({
         data: {
           supplierId: data.supplierId,
           stockId: stock.id,
           type: pType,
-          quantity: new Decimal(quantity),
+          quantity: new Decimal(addQty),
           amount: totalValue,
           reference: `Auto: ${stock.sku}`,
           notes: `Stock received: ${data.itemName}`,
@@ -137,7 +180,7 @@ export class StockService {
       performedById: adminId,
       performedByType: 'ADMIN',
       performedByName: adminName,
-      metadata: { sku: stock.sku, quantity, unitCost: data.unitCost },
+      metadata: { sku: stock.sku, quantity: addQty, unitCost: data.unitCost },
     });
 
     return stock;
@@ -147,12 +190,37 @@ export class StockService {
     return this.prisma.$transaction(async (tx) => {
       const created: any[] = [];
       for (const data of items) {
-        const sku = await this.uniqueSKU();
+        const addQty = Number(data.quantity);
         const unitCost = new Decimal(data.unitCost ?? 0);
-        const quantity = Number(data.quantity);
-        const totalValue = unitCost.times(quantity);
+
+        // Dedup: same name (case-insensitive) + same site → increment existing
+        const existing = await tx.stock.findFirst({
+          where: { itemName: data.itemName, siteId: data.siteId || null, deletedAt: null },
+        });
 
         let stock: any;
+        if (existing) {
+          const newQty = existing.quantity + addQty;
+          const newTotalValue = unitCost.times(newQty);
+          stock = await tx.stock.update({
+            where: { id: existing.id },
+            data: { quantity: newQty, unitCost, totalValue: newTotalValue },
+          });
+          await tx.stockHistory.create({
+            data: { stockId: stock.id, movementType: 'IN', qtyBefore: existing.quantity, qtyChange: addQty, qtyAfter: newQty, unitPrice: unitCost, notes: `Stock receipt: ${data.itemName}`, createdByAdminId: adminId, siteId: data.siteId || null },
+          });
+          if (data.supplierId) {
+            await tx.stockSupplier.upsert({ where: { stockId_supplierId: { stockId: stock.id, supplierId: data.supplierId } }, create: { stockId: stock.id, supplierId: data.supplierId }, update: {} });
+            const pType = data.paymentType === 'DEBIT' ? PaymentType.DEBIT : PaymentType.CREDIT;
+            await tx.supplierPayment.create({ data: { supplierId: data.supplierId, stockId: stock.id, type: pType, quantity: new Decimal(addQty), amount: unitCost.times(addQty), reference: `Auto: ${stock.sku}`, notes: `Stock received: ${data.itemName}`, adminId } });
+          }
+          this.activityLog.log({ action: 'STOCK_UPDATED', entityType: 'Stock', entityId: stock.id, entityLabel: `${stock.itemName} (${stock.sku})`, performedById: adminId, performedByType: 'ADMIN', performedByName: adminName, metadata: { sku: stock.sku, addedQty: addQty, unitCost: Number(unitCost), source: 'batch-dedup-increment' } });
+          created.push(stock);
+          continue;
+        }
+
+        const sku = await this.uniqueSKU();
+        const totalValue = unitCost.times(addQty);
         try {
           stock = await tx.stock.create({
             data: {
@@ -160,10 +228,9 @@ export class StockService {
               adminId,
               itemName: data.itemName,
               categoryId: data.categoryId || null,
-              supplierId: data.supplierId || null,
               siteId: data.siteId || null,
               unit: data.unit || '',
-              quantity,
+              quantity: addQty,
               unitCost,
               totalValue,
               warehouseLocation: data.warehouseLocation || null,
@@ -187,8 +254,8 @@ export class StockService {
             stockId: stock.id,
             movementType: 'IN',
             qtyBefore: 0,
-            qtyChange: quantity,
-            qtyAfter: quantity,
+            qtyChange: addQty,
+            qtyAfter: addQty,
             unitPrice: unitCost,
             notes: 'Batch stock receipt',
             createdByAdminId: adminId,
@@ -197,13 +264,18 @@ export class StockService {
         });
 
         if (data.supplierId) {
+          await tx.stockSupplier.upsert({
+            where: { stockId_supplierId: { stockId: stock.id, supplierId: data.supplierId } },
+            create: { stockId: stock.id, supplierId: data.supplierId },
+            update: {},
+          });
           const pType = data.paymentType === 'DEBIT' ? PaymentType.DEBIT : PaymentType.CREDIT;
           await tx.supplierPayment.create({
             data: {
               supplierId: data.supplierId,
               stockId: stock.id,
               type: pType,
-              quantity: new Decimal(quantity),
+              quantity: new Decimal(addQty),
               amount: totalValue,
               reference: `Auto: ${stock.sku}`,
               notes: `Stock received: ${data.itemName}`,
@@ -220,7 +292,7 @@ export class StockService {
           performedById: adminId,
           performedByType: 'ADMIN',
           performedByName: adminName,
-          metadata: { sku: stock.sku, quantity, unitCost: Number(unitCost), source: 'batch' },
+          metadata: { sku: stock.sku, quantity: addQty, unitCost: Number(unitCost), source: 'batch' },
         });
 
         created.push(stock);
@@ -249,12 +321,37 @@ export class StockService {
     return this.prisma.$transaction(async (tx) => {
       const created: any[] = [];
       for (const data of items) {
-        const sku = await this.uniqueSKU();
+        const addQty = Number(data.quantity);
         const unitCost = new Decimal(data.unitCost ?? 0);
-        const quantity = Number(data.quantity);
-        const totalValue = unitCost.times(quantity);
+
+        // Dedup: same name (case-insensitive) + same site → increment existing
+        const existing = await tx.stock.findFirst({
+          where: { itemName: data.itemName, siteId: data.siteId || null, deletedAt: null },
+        });
 
         let stock: any;
+        if (existing) {
+          const newQty = existing.quantity + addQty;
+          const newTotalValue = unitCost.times(newQty);
+          stock = await tx.stock.update({
+            where: { id: existing.id },
+            data: { quantity: newQty, unitCost, totalValue: newTotalValue },
+          });
+          await tx.stockHistory.create({
+            data: { stockId: stock.id, movementType: 'IN', qtyBefore: existing.quantity, qtyChange: addQty, qtyAfter: newQty, unitPrice: unitCost, notes: `Direct Receipt by ${creatorName}`, createdByAdminId: creatorType === 'ADMIN' ? creatorId : null, createdByEmployeeId: creatorType === 'EMPLOYEE' ? creatorId : null, siteId: data.siteId || null },
+          });
+          if (data.supplierId) {
+            await tx.stockSupplier.upsert({ where: { stockId_supplierId: { stockId: stock.id, supplierId: data.supplierId } }, create: { stockId: stock.id, supplierId: data.supplierId }, update: {} });
+            const pType = data.paymentType === 'DEBIT' ? PaymentType.DEBIT : PaymentType.CREDIT;
+            await tx.supplierPayment.create({ data: { supplierId: data.supplierId, stockId: stock.id, type: pType, quantity: new Decimal(addQty), amount: unitCost.times(addQty), reference: `Direct: ${stock.sku}`, notes: `Direct receipt by ${creatorName}: ${data.itemName}`, adminId } });
+          }
+          this.activityLog.log({ action: 'STOCK_UPDATED', entityType: 'Stock', entityId: stock.id, entityLabel: `${stock.itemName} (${stock.sku})`, performedById: creatorId, performedByType: creatorType, performedByName: creatorName, metadata: { sku: stock.sku, addedQty: addQty, unitCost: Number(unitCost), source: 'direct-receipt-dedup-increment' } });
+          created.push(stock);
+          continue;
+        }
+
+        const sku = await this.uniqueSKU();
+        const totalValue = unitCost.times(addQty);
         try {
           stock = await tx.stock.create({
             data: {
@@ -262,10 +359,9 @@ export class StockService {
               adminId,
               itemName: data.itemName,
               categoryId: data.categoryId || null,
-              supplierId: data.supplierId || null,
               siteId: data.siteId || null,
               unit: data.unit || '',
-              quantity,
+              quantity: addQty,
               unitCost,
               totalValue,
               warehouseLocation: data.warehouseLocation || null,
@@ -288,8 +384,8 @@ export class StockService {
             stockId: stock.id,
             movementType: 'IN',
             qtyBefore: 0,
-            qtyChange: quantity,
-            qtyAfter: quantity,
+            qtyChange: addQty,
+            qtyAfter: addQty,
             unitPrice: unitCost,
             notes: `Direct Receipt by ${creatorName}`,
             createdByAdminId: creatorType === 'ADMIN' ? creatorId : null,
@@ -299,13 +395,18 @@ export class StockService {
         });
 
         if (data.supplierId) {
+          await tx.stockSupplier.upsert({
+            where: { stockId_supplierId: { stockId: stock.id, supplierId: data.supplierId } },
+            create: { stockId: stock.id, supplierId: data.supplierId },
+            update: {},
+          });
           const pType = data.paymentType === 'DEBIT' ? PaymentType.DEBIT : PaymentType.CREDIT;
           await tx.supplierPayment.create({
             data: {
               supplierId: data.supplierId,
               stockId: stock.id,
               type: pType,
-              quantity: new Decimal(quantity),
+              quantity: new Decimal(addQty),
               amount: totalValue,
               reference: `Direct: ${stock.sku}`,
               notes: `Direct receipt by ${creatorName}: ${data.itemName}`,
@@ -322,7 +423,7 @@ export class StockService {
           performedById: creatorId,
           performedByType: creatorType,
           performedByName: creatorName,
-          metadata: { sku: stock.sku, quantity, unitCost: Number(unitCost), source: 'direct-receipt' },
+          metadata: { sku: stock.sku, quantity: addQty, unitCost: Number(unitCost), source: 'direct-receipt' },
         });
 
         created.push(stock);
@@ -379,7 +480,7 @@ export class StockService {
         orderBy: { [orderField]: sortOrder },
         include: {
           category: { select: { id: true, name: true } },
-          supplier: { select: { id: true, name: true, code: true } },
+          stockSuppliers: { include: { supplier: { select: { id: true, name: true, code: true } } } },
           site: { select: { id: true, name: true } },
         },
       }),
@@ -400,7 +501,7 @@ export class StockService {
       where: { id },
       include: {
         category: true,
-        supplier: { select: { id: true, name: true, code: true, phone: true } },
+        stockSuppliers: { include: { supplier: { select: { id: true, name: true, code: true, phone: true } } } },
         site: { select: { id: true, name: true, location: true } },
         history: { orderBy: { createdAt: 'desc' }, take: 20 },
       },
@@ -425,7 +526,6 @@ export class StockService {
       data: {
         itemName: data.itemName,
         categoryId: data.categoryId !== undefined ? data.categoryId || null : undefined,
-        supplierId: data.supplierId !== undefined ? data.supplierId || null : undefined,
         siteId: data.siteId !== undefined ? data.siteId || null : undefined,
         unit: data.unit,
         quantity: newQty,
@@ -439,6 +539,15 @@ export class StockService {
         stockImg: data.stockImg,
       },
     });
+
+    // If a supplier is provided in the update, link it via junction
+    if (data.supplierId) {
+      await this.prisma.stockSupplier.upsert({
+        where: { stockId_supplierId: { stockId: id, supplierId: data.supplierId } },
+        create: { stockId: id, supplierId: data.supplierId },
+        update: {},
+      });
+    }
 
     const qtyChanged = oldQty !== newQty;
     const costChanged = oldUnitCost !== newUnitCost;
@@ -621,19 +730,26 @@ export class StockService {
 
   async recordPayment(
     stockId: string,
-    data: { type: PaymentType; amount: number; quantity?: number; reference?: string; notes?: string; date?: string },
+    data: { supplierId: string; type: PaymentType; amount: number; quantity?: number; reference?: string; notes?: string; date?: string },
     adminId: string,
   ) {
     const stock = await this.prisma.stock.findUnique({
       where: { id: stockId },
-      select: { id: true, supplierId: true, itemName: true, deletedAt: true },
+      select: { id: true, deletedAt: true },
     });
     if (!stock || stock.deletedAt !== null) throw new NotFoundException('Stock not found');
-    if (!stock.supplierId) throw new BadRequestException('This stock item has no linked supplier. Link a supplier first.');
+    if (!data.supplierId) throw new BadRequestException('supplierId is required to record a stock payment');
+
+    // Ensure the supplier is linked to this stock
+    await this.prisma.stockSupplier.upsert({
+      where: { stockId_supplierId: { stockId, supplierId: data.supplierId } },
+      create: { stockId, supplierId: data.supplierId },
+      update: {},
+    });
 
     return this.prisma.supplierPayment.create({
       data: {
-        supplierId: stock.supplierId,
+        supplierId: data.supplierId,
         stockId,
         type: data.type,
         quantity: data.quantity != null ? new Decimal(data.quantity) : null,

@@ -207,6 +207,22 @@ function StockItemRow({ item, index, onChange, onRemove, canRemove, categories, 
             <span style={{ width: 8, height: 8, borderRadius: '50%', background: item.paymentType === 'DEBIT' ? 'var(--success)' : 'var(--border)' }} />
             Debit — paid to supplier
           </button>
+          {item.supplierId && parseFloat(totalValue) > 0 ? (
+            <span style={{
+              fontSize: 11, fontWeight: 600, padding: '3px 10px',
+              borderRadius: 'var(--r-md)',
+              background: item.paymentType === 'CREDIT' ? 'var(--warning-soft, #fff8e7)' : 'var(--success-soft)',
+              color: item.paymentType === 'CREDIT' ? 'var(--warning)' : 'var(--success)',
+              border: `1px solid ${item.paymentType === 'CREDIT' ? 'var(--warning)' : 'var(--success)'}`,
+            }}>
+              → Auto-records: {item.paymentType === 'CREDIT' ? 'Credit' : 'Debit'} of RWF {parseFloat(totalValue).toLocaleString()}
+              {item.quantity ? ` · ${item.quantity} ${item.unit || 'units'}` : ''}
+            </span>
+          ) : !item.supplierId ? (
+            <span style={{ fontSize: 11, color: 'var(--fg-subtle)', fontStyle: 'italic' }}>
+              Link a supplier to auto-record this payment
+            </span>
+          ) : null}
         </div>
 
         {/* Row 3: Location + Reorder (no site selector) */}
@@ -491,6 +507,17 @@ export default function SiteAddStock() {
                               onClick={() => updateItem(idx, { ...item, paymentType: 'DEBIT' })}
                               style={{ flex: 1, fontSize: 10, color: item.paymentType === 'DEBIT' ? 'var(--success)' : undefined }}>Debit</button>
                           </div>
+                          {item.supplierId && item.quantity && item.unitCost && (
+                            <div style={{ fontSize: 9, fontWeight: 600, marginTop: 3, textAlign: 'center',
+                              color: item.paymentType === 'CREDIT' ? 'var(--warning)' : 'var(--success)' }}>
+                              → {item.paymentType === 'CREDIT' ? 'Credit' : 'Debit'}: RWF {(parseFloat(item.quantity || 0) * parseFloat(item.unitCost || 0)).toLocaleString()} · {item.quantity} {item.unit || 'units'}
+                            </div>
+                          )}
+                          {!item.supplierId && (
+                            <div style={{ fontSize: 9, color: 'var(--fg-subtle)', marginTop: 3, textAlign: 'center' }}>
+                              No supplier linked
+                            </div>
+                          )}
                         </td>
                         <td>
                           {items.length > 1 && (

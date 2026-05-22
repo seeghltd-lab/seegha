@@ -426,6 +426,7 @@ export function buildRequisitionReceipt(requisition) {
     unit: i.unit,
     unitCost: i.costPrice ?? null,
     total: i.costPrice != null ? i.quantity * i.costPrice : null,
+    site: i.stock?.site?.name ?? requisition.site?.name ?? '',
   }));
 
   const totalAmount = items.reduce((s, i) => s + (i.total ?? 0), 0);
@@ -462,16 +463,17 @@ export function buildRequisitionReceipt(requisition) {
  */
 export function buildGroupReceipt(supplierName, date, items) {
   const receiptItems = items.map(s => ({
-    name:     s.itemName,
-    sku:      s.sku ?? '',
-    quantity: s.quantity,
-    unit:     s.unit ?? '',
-    unitCost: parseFloat(s.unitCost ?? 0),
-    total:    parseFloat(s.totalValue ?? (s.quantity * (s.unitCost ?? 0))),
-    site:     s.site?.name ?? '',
+    name:     s.stock?.itemName || s.itemName || s.reference || 'Item',
+    sku:      s.stock?.sku || s.sku || '',
+    quantity: parseFloat(s.quantity ?? 1),
+    unit:     s.stock?.unit || s.unit || '',
+    unitCost: parseFloat(s.stock?.unitCost ?? s.unitCost ?? 0) || null,
+    total:    parseFloat(s.amount ?? s.totalValue ?? (parseFloat(s.quantity ?? 1) * parseFloat(s.stock?.unitCost ?? s.unitCost ?? 0))),
+    site:     s.stock?.site?.name || s.site?.name || '',
   }));
   const totalAmount = receiptItems.reduce((s, i) => s + (i.total ?? 0), 0);
   const refId = `GRP-${Date.now().toString(36).toUpperCase().slice(-8)}`;
+  const createdAt = date && !isNaN(Date.parse(date)) ? date : new Date().toISOString();
   return {
     id:          refId,
     type:        'PAYMENT',
@@ -480,7 +482,7 @@ export function buildGroupReceipt(supplierName, date, items) {
     issuedTo:    supplierName,
     issuedBy:    '—',
     supplierName,
-    createdAt:   date,
+    createdAt,
     completedAt: null,
     items:       receiptItems,
     totalAmount,
@@ -495,8 +497,10 @@ export function SupplierReceiptModal({ data, supplier, onClose }) {
 
   const items = data.items ?? [];
   const totalAmount = data.totalAmount ?? items.reduce((s, i) => s + (i.total ?? ((i.unitCost ?? 0) * i.quantity)), 0);
+  const hasSku  = items.some(i => i.sku && i.sku !== '—');
   const hasSite = items.some(i => i.site);
   const hasUnitCost = items.some(i => i.unitCost != null && i.unitCost > 0);
+  const hasTotal = items.some(i => (i.total ?? (i.unitCost != null ? i.quantity * i.unitCost : null)) != null);
 
   const supplierBlock = supplier ? `
     <div class="sup-block">
@@ -519,12 +523,12 @@ export function SupplierReceiptModal({ data, supplier, onClose }) {
     const rowsHtml = items.map((item, idx) => `
       <tr${idx % 2 !== 0 ? ' class="alt"' : ''}>
         <td style="color:#bbb;font-size:8.5pt;text-align:center">${idx + 1}</td>
-        <td class="mono" style="font-size:9pt;color:#555">${item.sku || '—'}</td>
+        ${hasSku ? `<td class="mono" style="font-size:9pt;color:#555">${item.sku || '—'}</td>` : ''}
         <td style="font-weight:500">${item.name || ''}</td>
         <td class="r">${item.quantity}</td>
         <td style="color:#666;font-size:9pt">${item.unit || '—'}</td>
         ${hasUnitCost ? `<td class="r">${item.unitCost != null ? fmtMoney(item.unitCost) : '—'}</td>` : ''}
-        ${hasUnitCost ? `<td class="r" style="font-weight:700">${fmtMoney(item.total ?? (item.unitCost != null ? item.quantity * item.unitCost : 0))}</td>` : ''}
+        ${hasTotal ? `<td class="r" style="font-weight:700">${item.total != null || item.unitCost != null ? fmtMoney(item.total ?? (item.unitCost * item.quantity)) : '—'}</td>` : ''}
         ${hasSite ? `<td style="font-size:9pt;color:#666">${item.site || '—'}</td>` : ''}
       </tr>`).join('');
 
@@ -589,19 +593,22 @@ export function SupplierReceiptModal({ data, supplier, onClose }) {
     <thead>
       <tr>
         <th style="width:36px">#</th>
-        <th style="width:110px">SKU</th>
+        ${hasSku ? `<th style="width:110px">SKU</th>` : ''}
         <th>Item Name</th>
         <th class="r" style="width:70px">Qty</th>
         <th style="width:60px">Unit</th>
         ${hasUnitCost ? `<th class="r" style="width:110px">Unit Cost</th>` : ''}
-        ${hasUnitCost ? `<th class="r" style="width:130px">Total</th>` : ''}
+        ${hasTotal ? `<th class="r" style="width:130px">Subtotal</th>` : ''}
         ${hasSite ? `<th style="width:90px">Site</th>` : ''}
       </tr>
     </thead>
     <tbody>${rowsHtml}</tbody>
   </table>
   <div class="gt">
-    <span class="gt-items">${items.length} item${items.length !== 1 ? 's' : ''}</span>
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <span class="gt-items">${items.length} item${items.length !== 1 ? 's' : ''}</span>
+      ${data.issuedTo ? `<span style="font-size:8.5pt;color:#555">Supplied by <strong>${data.issuedTo}</strong></span>` : ''}
+    </div>
     <div class="gt-right">
       <span class="gt-label">Grand Total</span>
       <span class="gt-value">${fmtMoney(totalAmount)}</span>
@@ -699,12 +706,12 @@ export function SupplierReceiptModal({ data, supplier, onClose }) {
               <thead>
                 <tr>
                   <th style={{ ...thStyle, width: 40, textAlign: 'center' }}>#</th>
-                  <th style={{ ...thStyle, width: 110 }}>SKU</th>
+                  {hasSku && <th style={{ ...thStyle, width: 110 }}>SKU</th>}
                   <th style={thStyle}>Item Name</th>
                   <th style={{ ...thStyle, textAlign: 'right', width: 72 }}>Qty</th>
                   <th style={{ ...thStyle, width: 64 }}>Unit</th>
                   {hasUnitCost && <th style={{ ...thStyle, textAlign: 'right', width: 130 }}>Unit Cost</th>}
-                  {hasUnitCost && <th style={{ ...thStyle, textAlign: 'right', width: 140 }}>Total</th>}
+                  {hasTotal && <th style={{ ...thStyle, textAlign: 'right', width: 140 }}>Subtotal</th>}
                   {hasSite && <th style={{ ...thStyle, width: 100 }}>Site</th>}
                 </tr>
               </thead>
@@ -712,7 +719,7 @@ export function SupplierReceiptModal({ data, supplier, onClose }) {
                 {items.map((item, idx) => (
                   <tr key={idx} style={{ background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
                     <td style={{ ...tdStyle, textAlign: 'center', color: '#ccc', fontSize: 11 }}>{idx + 1}</td>
-                    <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: 11, color: '#555' }}>{item.sku || '—'}</td>
+                    {hasSku && <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: 11, color: '#555' }}>{item.sku || '—'}</td>}
                     <td style={{ ...tdStyle, fontWeight: 500 }}>{item.name}</td>
                     <td style={{ ...tdStyle, textAlign: 'right', fontFamily: 'monospace' }}>{item.quantity}</td>
                     <td style={{ ...tdStyle, color: '#666', fontSize: 12 }}>{item.unit || '—'}</td>
@@ -721,9 +728,11 @@ export function SupplierReceiptModal({ data, supplier, onClose }) {
                         {item.unitCost != null ? fmtMoney(item.unitCost) : '—'}
                       </td>
                     )}
-                    {hasUnitCost && (
+                    {hasTotal && (
                       <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700, fontFamily: 'monospace' }}>
-                        {fmtMoney(item.total ?? (item.unitCost != null ? item.quantity * item.unitCost : 0))}
+                        {item.total != null || item.unitCost != null
+                          ? fmtMoney(item.total ?? (item.unitCost * item.quantity))
+                          : '—'}
                       </td>
                     )}
                     {hasSite && <td style={{ ...tdStyle, color: '#666', fontSize: 12 }}>{item.site || '—'}</td>}
@@ -734,7 +743,14 @@ export function SupplierReceiptModal({ data, supplier, onClose }) {
 
             {/* Grand total */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 12px 0', borderTop: '2px solid #0f1014', marginTop: 0 }}>
-              <span style={{ fontSize: 12, color: '#888' }}>{items.length} item{items.length !== 1 ? 's' : ''} total</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <span style={{ fontSize: 12, color: '#888' }}>{items.length} item{items.length !== 1 ? 's' : ''} total</span>
+                {supplier && (
+                  <span style={{ fontSize: 11, color: '#555' }}>
+                    Supplied by <strong style={{ color: '#0f1014' }}>{supplier.name}</strong>
+                  </span>
+                )}
+              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
                 <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#555' }}>Grand Total</span>
                 <span style={{ fontSize: 22, fontWeight: 800, fontFamily: 'monospace', color: '#0f1014' }}>{fmtMoney(totalAmount)}</span>
@@ -763,7 +779,24 @@ export function SupplierReceiptModal({ data, supplier, onClose }) {
 /**
  * Build receipt data from a supplier payment object + supplier name
  */
-export function buildPaymentReceipt(payment, supplierName = '') {
+export function buildPaymentReceipt(payment, supplierName = '', linkedItems = []) {
+  const items = linkedItems.length > 0
+    ? linkedItems.map(credit => ({
+        name:     credit.stock?.itemName || credit.requisitionItem?.itemName || credit.reference || 'Invoice item',
+        quantity: credit.quantity != null ? parseFloat(credit.quantity) : 1,
+        unit:     credit.stock?.unit || '',
+        unitCost: null,
+        total:    parseFloat(credit.amount ?? 0),
+        site:     credit.stock?.site?.name || '',
+      }))
+    : (payment.stock ? [{
+        name:     payment.stock.itemName ?? payment.stock.sku,
+        site:     payment.stock.site?.name ?? '',
+        quantity: payment.quantity != null ? parseFloat(payment.quantity) : 1,
+        unit:     payment.stock.unit || '',
+        unitCost: null,
+        total:    parseFloat(payment.amount ?? 0),
+      }] : []);
   return {
     id:          payment.id,
     type:        'PAYMENT',
@@ -775,14 +808,8 @@ export function buildPaymentReceipt(payment, supplierName = '') {
     supplierName,
     createdAt:   payment.date ?? payment.createdAt,
     completedAt: null,
-    items:       payment.stock ? [{
-      name:     payment.stock.itemName ?? payment.stock.sku,
-      sku:      payment.stock.sku,
-      quantity: 1,
-      unitCost: null,
-      total:    null,
-    }] : [],
+    items,
     totalAmount: parseFloat(payment.amount ?? 0),
-    notes:       payment.notes ?? payment.reference ?? null,
+    notes:       payment.notes?.startsWith('PAID_CREDITS:') ? null : (payment.notes ?? payment.reference ?? null),
   };
 }

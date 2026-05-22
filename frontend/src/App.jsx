@@ -54,6 +54,7 @@ const EmployeeRequisitionPage = lazy(() => import("./pages/employee/RequisitionP
 const EmployeeRequisitionDetail = lazy(() => import("./pages/employee/RequisitionDetail"));
 const RequisitionDetail   = lazy(() => import("./pages/admin/requisition/RequisitionDetail"));
 const CreateRequisition   = lazy(() => import("./pages/admin/requisition/CreateRequisition"));
+const EditRequisition     = lazy(() => import("./pages/admin/requisition/EditRequisition"));
 
 function NotificationBridge() {
   const { admin, isAuthenticated: adminAuth } = useAdminAuth();
@@ -161,6 +162,7 @@ function App() {
                     <Route path="/admin/requisition-management/create"       element={<CreateRequisition />} />
                     <Route path="/admin/requisition-management/approve/:id"  element={<ApproveRequisition />} />
                     <Route path="/admin/requisition-management/receive/:id"  element={<ReceiveRequisition />} />
+                    <Route path="/admin/requisition-management/edit/:id"     element={<EditRequisition />} />
                     <Route path="/admin/requisition-management/:id"          element={<RequisitionDetail />} />
 
                     <Route path="/admin/permissions"         element={<PermissionManagement />} />

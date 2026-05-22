@@ -372,45 +372,49 @@ function FinanceTab({ stockId }) {
 // ── Supplier Tab ───────────────────────────────────────────────────────────
 
 function SupplierTab({ stock }) {
-  const supplier = stock.supplier;
+  const suppliers = (stock.stockSuppliers ?? []).map(ss => ss.supplier).filter(Boolean);
 
-  if (!supplier) return <div style={{ padding: 20, textAlign: 'center', color: 'var(--fg-subtle)' }}>No supplier assigned</div>;
+  if (suppliers.length === 0) return <div style={{ padding: 20, textAlign: 'center', color: 'var(--fg-subtle)' }}>No supplier assigned</div>;
 
   return (
-    <div className="stoq-panel">
-      <div style={{ padding: 14, borderBottom: '1px solid var(--border)' }}>
-        <h3 style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--fg-subtle)' }}>Supplier Details</h3>
-      </div>
-      <div style={{ padding: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div>
-            <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginBottom: 4 }}>Name</div>
-            <div style={{ fontSize: 14, fontWeight: 600 }}>{supplier.name}</div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {suppliers.map(supplier => (
+        <div key={supplier.id} className="stoq-panel">
+          <div style={{ padding: 14, borderBottom: '1px solid var(--border)' }}>
+            <h3 style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--fg-subtle)' }}>Supplier Details</h3>
           </div>
-          <div>
-            <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginBottom: 4 }}>Contact Person</div>
-            <div style={{ fontSize: 14, fontWeight: 600 }}>{supplier.contactPerson || '—'}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginBottom: 4 }}>Email</div>
-            <div style={{ fontSize: 14, fontWeight: 600 }}>{supplier.email || '—'}</div>
+          <div style={{ padding: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginBottom: 4 }}>Name</div>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>{supplier.name}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginBottom: 4 }}>Contact Person</div>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>{supplier.contactPerson || '—'}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginBottom: 4 }}>Email</div>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>{supplier.email || '—'}</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginBottom: 4 }}>Phone</div>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>{supplier.phone || '—'}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginBottom: 4 }}>Address</div>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>{supplier.address || '—'}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginBottom: 4 }}>Status</div>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>{supplier.status || '—'}</div>
+              </div>
+            </div>
           </div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div>
-            <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginBottom: 4 }}>Phone</div>
-            <div style={{ fontSize: 14, fontWeight: 600 }}>{supplier.phone || '—'}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginBottom: 4 }}>Address</div>
-            <div style={{ fontSize: 14, fontWeight: 600 }}>{supplier.address || '—'}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginBottom: 4 }}>Status</div>
-            <div style={{ fontSize: 14, fontWeight: 600 }}>{supplier.isActive ? 'Active' : 'Inactive'}</div>
-          </div>
-        </div>
-      </div>
+      ))}
     </div>
   );
 }

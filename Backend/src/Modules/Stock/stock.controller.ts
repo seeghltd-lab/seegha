@@ -140,7 +140,7 @@ export class StockController {
   @Post(':id/payments')
   recordPayment(
     @Param('id') id: string,
-    @Body() body: { type: PaymentType; amount: number; reference?: string; notes?: string; date?: string },
+    @Body() body: { supplierId: string; type: PaymentType; amount: number; reference?: string; notes?: string; date?: string },
     @Req() req: any,
   ) {
     const callerId = req.admin?.id ?? req.employee?.id;

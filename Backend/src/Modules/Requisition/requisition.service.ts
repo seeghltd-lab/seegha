@@ -179,6 +179,7 @@ export class RequisitionService {
             },
           },
           supplier: { select: { id: true, name: true, code: true } },
+          site: { select: { id: true, name: true, location: true } },
           items: {
             select: {
               id: true,
@@ -209,6 +210,7 @@ export class RequisitionService {
       where: { id },
       include: {
         supplier: { select: { id: true, name: true, code: true, phone: true } },
+        site: { select: { id: true, name: true, location: true } },
         employee: {
           select: {
             id: true,
@@ -352,6 +354,162 @@ export class RequisitionService {
       performedById: approverId,
       performedByType: approverType,
       metadata: { notes: body.notes, supplierId: body.supplierId },
+    });
+
+    return updated;
+  }
+
+  async updateRequisition(
+    id: string,
+    adminId: string,
+    body: {
+      description?: string;
+      siteId?: string;
+      supplierId?: string;
+      employeeId?: string;
+      items?: {
+        id?: string;
+        remove?: boolean;
+        itemName?: string;
+        quantity?: number;
+        unit?: string;
+        note?: string;
+        stockId?: string;
+        costPrice?: number | null;
+        paymentType?: string;
+      }[];
+    },
+  ) {
+    const requisition = await this.prisma.requisition.findUnique({
+      where: { id },
+      include: { items: { include: { receivingLogs: { select: { id: true } } } } },
+    });
+    if (!requisition) throw new NotFoundException('Requisition not found');
+
+    const siteChanging =
+      body.siteId !== undefined && body.siteId !== requisition.siteId;
+
+    // Block site change if any item has been received
+    if (siteChanging) {
+      const anyReceived = requisition.items.some((i) => i.receivedQty > 0);
+      if (anyReceived) {
+        throw new BadRequestException(
+          'Cannot change site — some items have already been received into this site\'s stock. The quantities are committed.',
+        );
+      }
+      // Safe to change site: clear all stockId links since they belong to the old site
+      await this.prisma.requisitionItem.updateMany({
+        where: { requisitionId: id },
+        data: { stockId: null },
+      });
+    }
+
+    // Process item edits
+    if (body.items && body.items.length > 0) {
+      for (const i of body.items) {
+        // Delete
+        if (i.remove && i.id) {
+          const existing = requisition.items.find((x) => x.id === i.id);
+          if (existing && existing.receivedQty > 0) {
+            throw new BadRequestException(
+              `Cannot remove item "${existing.itemName}" — it has already been received. The stock quantity is committed.`,
+            );
+          }
+          await this.prisma.requisitionItem.delete({ where: { id: i.id } });
+          continue;
+        }
+
+        if (i.id) {
+          // Update existing
+          const existing = requisition.items.find((x) => x.id === i.id);
+          if (existing) {
+            // Block quantity reduction below receivedQty
+            if (i.quantity !== undefined && i.quantity < existing.receivedQty) {
+              throw new BadRequestException(
+                `Cannot set quantity to ${i.quantity} for "${existing.itemName}" — already received ${existing.receivedQty}.`,
+              );
+            }
+            // Block stockId change on received items
+            if (
+              i.stockId !== undefined &&
+              i.stockId !== existing.stockId &&
+              existing.receivedQty > 0
+            ) {
+              throw new BadRequestException(
+                `Cannot re-link stock for "${existing.itemName}" — item has already been received against its current stock.`,
+              );
+            }
+          }
+          await this.prisma.requisitionItem.update({
+            where: { id: i.id },
+            data: {
+              ...(i.itemName !== undefined ? { itemName: i.itemName } : {}),
+              ...(i.quantity !== undefined ? { quantity: i.quantity } : {}),
+              ...(i.unit !== undefined ? { unit: i.unit } : {}),
+              ...(i.note !== undefined ? { note: i.note || null } : {}),
+              ...(i.stockId !== undefined ? { stockId: i.stockId || null } : {}),
+              ...(i.costPrice !== undefined ? { costPrice: i.costPrice } : {}),
+              ...(i.paymentType !== undefined ? { paymentType: i.paymentType } : {}),
+            },
+          });
+        } else {
+          // Create new item
+          await this.prisma.requisitionItem.create({
+            data: {
+              requisitionId: id,
+              itemName: i.itemName!,
+              quantity: i.quantity!,
+              unit: i.unit ?? '',
+              note: i.note || null,
+              stockId: i.stockId || null,
+              costPrice: i.costPrice ?? null,
+              ...(i.paymentType !== undefined ? { paymentType: i.paymentType } : {}),
+            },
+          });
+        }
+      }
+    }
+
+    // Determine if status needs to auto-downgrade:
+    // If new items were added to a FULLY_RECEIVED requisition, it's no longer fully received
+    const hasNewItems = body.items?.some((i) => !i.id && !i.remove);
+    const shouldDowngrade =
+      hasNewItems && requisition.status === RequisitionStatus.FULLY_RECEIVED;
+
+    const updated = await this.prisma.requisition.update({
+      where: { id },
+      data: {
+        ...(body.description !== undefined ? { description: body.description || null } : {}),
+        ...(body.siteId !== undefined ? { siteId: body.siteId || null } : {}),
+        ...(body.supplierId !== undefined ? { supplierId: body.supplierId || null } : {}),
+        ...(body.employeeId !== undefined ? { employeeId: body.employeeId || null } : {}),
+        ...(shouldDowngrade ? { status: RequisitionStatus.PARTIALLY_RECEIVED, completedAt: null } : {}),
+      },
+      include: {
+        employee: { select: { id: true, firstName: true, lastName: true } },
+        supplier: { select: { id: true, name: true, code: true } },
+        site: { select: { id: true, name: true, location: true } },
+        items: true,
+        _count: { select: { items: true } },
+      },
+    });
+
+    this.socket.emitToAllAdmins('requisition-updated', updated);
+    if (updated.employee) {
+      this.socket.emitToEmployee(updated.employee.id, 'requisition-updated', updated);
+    }
+
+    this.activityLog.log({
+      action: 'REQUISITION_UPDATED',
+      entityType: 'Requisition',
+      entityId: id,
+      entityLabel: `REQ-${id.slice(-6).toUpperCase()}`,
+      performedById: adminId,
+      performedByType: 'ADMIN',
+      metadata: {
+        siteChanged: siteChanging,
+        statusDowngraded: shouldDowngrade,
+      },
     });
 
     return updated;
@@ -511,7 +669,6 @@ export class RequisitionService {
             unitCost,
             totalValue,
             categoryId: sd.categoryId || null,
-            supplierId: sd.supplierId || (requisition as any).supplierId || null,
             // Use siteId from newStockData, fall back to the requisition's own siteId
             siteId: sd.siteId || (requisition as any).siteId || null,
             warehouseLocation: sd.warehouseLocation || null,
@@ -521,6 +678,16 @@ export class RequisitionService {
             description: sd.description || `Created from requisition REQ-${requisitionId.slice(-6).toUpperCase()}`,
           },
         });
+
+        // Link supplier via junction if provided
+        const supplierId = sd.supplierId || (requisition as any).supplierId;
+        if (supplierId) {
+          await this.prisma.stockSupplier.upsert({
+            where: { stockId_supplierId: { stockId: newStock.id, supplierId } },
+            create: { stockId: newStock.id, supplierId },
+            update: {},
+          });
+        }
 
         const siteidForAlloc = sd.siteId || (requisition as any).siteId;
         await this.prisma.stockHistory.create({
@@ -549,7 +716,6 @@ export class RequisitionService {
 
         // Auto-create payment if paymentType is set
         const paymentType = item.paymentType ?? 'NONE';
-        const supplierId = sd.supplierId || (requisition as any).supplierId;
         if (paymentType !== 'NONE' && supplierId) {
           await this.prisma.supplierPayment.create({
             data: {

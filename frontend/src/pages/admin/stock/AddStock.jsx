@@ -242,6 +242,7 @@ function StockItemRow({
             placeholder="Select or create..."
             onCreate={onCreateCategory}
             createLabel="category"
+            error={errors?.categoryId}
           />
           <SearchableSelect
             label="Supplier"
@@ -315,11 +316,22 @@ function StockItemRow({
             <span style={{ width: 8, height: 8, borderRadius: '50%', background: item.paymentType === 'DEBIT' ? 'var(--success)' : 'var(--border)' }} />
             Debit — paid to supplier
           </button>
-          {!item.supplierId && (
-            <span style={{ fontSize: 11, color: 'var(--fg-subtle)', fontStyle: 'italic' }}>
-              Link a supplier to record this payment
+          {item.supplierId && parseFloat(totalValue) > 0 ? (
+            <span style={{
+              fontSize: 11, fontWeight: 600, padding: '3px 10px',
+              borderRadius: 'var(--r-md)',
+              background: item.paymentType === 'CREDIT' ? 'var(--warning-soft, #fff8e7)' : 'var(--success-soft)',
+              color: item.paymentType === 'CREDIT' ? 'var(--warning)' : 'var(--success)',
+              border: `1px solid ${item.paymentType === 'CREDIT' ? 'var(--warning)' : 'var(--success)'}`,
+            }}>
+              → Auto-records: {item.paymentType === 'CREDIT' ? 'Credit' : 'Debit'} of RWF {parseFloat(totalValue).toLocaleString()}
+              {item.quantity ? ` · ${item.quantity} ${item.unit || 'units'}` : ''}
             </span>
-          )}
+          ) : !item.supplierId ? (
+            <span style={{ fontSize: 11, color: 'var(--fg-subtle)', fontStyle: 'italic' }}>
+              Link a supplier to auto-record this payment
+            </span>
+          ) : null}
         </div>
 
         {/* Row 3: Site + Location + Reorder */}
@@ -331,6 +343,7 @@ function StockItemRow({
             onChange={v => set('siteId', v)}
             placeholder="Select site..."
             createLabel="site"
+            error={errors?.siteId}
           />
           <Field label="Location within site">
             <input value={item.warehouseLocation}
@@ -449,7 +462,7 @@ export default function AddStock() {
       setItems([{
         itemName: stock.itemName,
         categoryId: stock.categoryId || '',
-        supplierId: stock.supplierId || '',
+        supplierId: stock.stockSuppliers?.[0]?.supplierId || '',
         siteId: stock.siteId || '',
         unit: stock.unit,
         quantity: stock.quantity,
@@ -485,6 +498,8 @@ export default function AddStock() {
       if (item.quantity === '' || parseFloat(item.quantity) < 0) errs.quantity = 'Valid quantity required';
       if (item.unitCost === '' || parseFloat(item.unitCost) < 0) errs.unitCost = 'Valid unit cost required';
       if (!item.receivedDate) errs.receivedDate = 'Received date is required';
+      if (!isEdit && !item.siteId) errs.siteId = 'Site is required';
+      if (!isEdit && !item.categoryId) errs.categoryId = 'Category is required';
       return errs;
     });
     setErrors(allErrors);
@@ -663,6 +678,7 @@ export default function AddStock() {
                             placeholder="Select..."
                             onCreate={handleCreateCategory}
                             createLabel="category"
+                            error={errs.categoryId}
                           />
                         </td>
                         {/* Supplier */}
@@ -713,10 +729,11 @@ export default function AddStock() {
                         <td>
                           <select className="stoq-select" value={item.siteId}
                             onChange={e => updateItem(idx, { ...item, siteId: e.target.value })}
-                            style={{ width: '100%', height: 28, fontSize: 11 }}>
+                            style={{ width: '100%', height: 28, fontSize: 11, ...(errs.siteId ? { borderColor: 'var(--danger)' } : {}) }}>
                             <option value="">- None -</option>
                             {sites.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                           </select>
+                          {errs.siteId && <div style={{ fontSize: 10, color: 'var(--danger)', marginTop: 2 }}>{errs.siteId}</div>}
                         </td>
                         {/* Location */}
                         <td>
@@ -762,6 +779,19 @@ export default function AddStock() {
                               Debit
                             </button>
                           </div>
+                          {item.supplierId && item.quantity && item.unitCost && (
+                            <div style={{
+                              fontSize: 9, fontWeight: 600, marginTop: 3, textAlign: 'center',
+                              color: item.paymentType === 'CREDIT' ? 'var(--warning)' : 'var(--success)',
+                            }}>
+                              → {item.paymentType === 'CREDIT' ? 'Credit' : 'Debit'}: RWF {(parseFloat(item.quantity || 0) * parseFloat(item.unitCost || 0)).toLocaleString()} · {item.quantity} {item.unit || 'units'}
+                            </div>
+                          )}
+                          {!item.supplierId && (
+                            <div style={{ fontSize: 9, color: 'var(--fg-subtle)', marginTop: 3, textAlign: 'center' }}>
+                              No supplier linked
+                            </div>
+                          )}
                         </td>
                         {/* Remove */}
                         <td>

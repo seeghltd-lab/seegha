@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useCallback } from 'react';
 import {
   Search, Eye, CheckCircle, XCircle, Package, ChevronLeft, ChevronRight,
-  Clock, CheckCheck, FileText, Truck, Trash2, Plus, LayoutGrid, List,
+  Clock, CheckCheck, FileText, Truck, Trash2, Plus, LayoutGrid, List, MapPin,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import requisitionService from '../../services/requisitionService';
@@ -201,6 +201,7 @@ export default function RequisitionManagement() {
                 <tr>
                   <th className="no-sort">Employee</th>
                   <th className="no-sort">Description</th>
+                  <th className="no-sort">Site</th>
                   <th className="no-sort">Items</th>
                   <th className="no-sort">Status</th>
                   <th className="no-sort">Date</th>
@@ -209,10 +210,10 @@ export default function RequisitionManagement() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={6} className="stoq-empty">Loading...</td></tr>
+                  <tr><td colSpan={7} className="stoq-empty">Loading...</td></tr>
                 ) : requisitions.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="stoq-empty">
+                    <td colSpan={7} className="stoq-empty">
                       <div className="stoq-empty__icon"><FileText size={28} /></div>
                       <div className="stoq-empty__title">No requisitions found</div>
                     </td>
@@ -243,6 +244,16 @@ export default function RequisitionManagement() {
                       <span style={{ fontSize: 12, color: 'var(--fg-muted)', maxWidth: 200, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {req.description || <em style={{ color: 'var(--fg-subtle)' }}>No description</em>}
                       </span>
+                    </td>
+                    <td>
+                      {req.site ? (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                          <MapPin size={11} style={{ color: 'var(--fg-subtle)', flexShrink: 0 }} />
+                          <span style={{ fontWeight: 500 }}>{req.site.name}</span>
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--fg-subtle)', fontSize: 11 }}>—</span>
+                      )}
                     </td>
                     <td>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12 }}>
@@ -310,9 +321,10 @@ export default function RequisitionManagement() {
                 {req.description && (
                   <div style={{ fontSize: 12, color: 'var(--fg-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{req.description}</div>
                 )}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 11, color: 'var(--fg-subtle)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 11, color: 'var(--fg-subtle)', flexWrap: 'wrap' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Package size={10} /> {req._count?.items ?? 0} items</span>
                   <span>{new Date(req.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+                  {req.site && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><MapPin size={10} /> {req.site.name}</span>}
                 </div>
                 <div style={{ display: 'flex', gap: 4, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
                   <button className="stoq-btn stoq-btn--ghost stoq-btn--sm" style={{ flex: 1 }} onClick={() => navigate(path(`/requisition-management/${req.id}`))}><Eye size={12} /> View</button>

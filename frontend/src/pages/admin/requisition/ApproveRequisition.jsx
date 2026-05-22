@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
-import { Plus, Trash2, X, Search, ArrowLeft, CheckCircle, AlertCircle, Truck, RefreshCw, List, LayoutGrid, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, X, Search, ArrowLeft, CheckCircle, AlertCircle, Truck, RefreshCw, List, LayoutGrid, ChevronDown, MapPin } from 'lucide-react';
 import requisitionService from '../../../services/requisitionService';
 import stockService from '../../../services/stockService';
 import supplierService from '../../../services/supplierService';
@@ -123,14 +123,14 @@ export default function ApproveRequisition() {
     const load = async () => {
       setLoading(true);
       try {
-        const [req, stockData, supplierList] = await Promise.all([
-          requisitionService.getOne(id),
-          stockService.getAll({ limit: 500 }),
+        const req = await requisitionService.getOne(id);
+        const [stockData, supplierList] = await Promise.all([
+          stockService.getAll({ siteId: req.siteId || undefined, limit: 500 }),
           supplierService.getForSelect().then(data => data.map(s => ({ value: s.id, label: `${s.name} (${s.code})` }))).catch(() => []),
         ]);
         setRequisition(req);
         setSupplierId(req.supplierId || '');
-        setSuppliers(supplierList);
+        setSuppliers(supplierList ?? []);
         setItems(req.items.map(item => ({ ...item, costPrice: item.costPrice ?? (item.stock ? Number(item.stock.unitCost) : ''), paymentType: item.paymentType ?? 'NONE', isNew: false, remove: false })));
         const stocks = stockData.stocks ?? stockData;
         setAllStocks(stocks);
@@ -245,7 +245,14 @@ export default function ApproveRequisition() {
               <span className="stoq-crumbs__current">#{requisition.id.slice(-8).toUpperCase()}</span>
             </div>
             <h1>Review & Approve</h1>
-            <div className="page-head__sub">{requisition.employee?.firstName} {requisition.employee?.lastName} · {requisition.employee?.position}</div>
+            <div className="page-head__sub" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span>{requisition.employee?.firstName} {requisition.employee?.lastName}{requisition.employee?.position ? ` · ${requisition.employee.position}` : ''}</span>
+              {requisition.site && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  · <MapPin size={11} style={{ marginLeft: 2 }} /> {requisition.site.name}
+                </span>
+              )}
+            </div>
           </div>
         </div>
         <div className="page-head__actions">

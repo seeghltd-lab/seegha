@@ -3,7 +3,7 @@ import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
 import {
   ArrowLeft, User, Package, Clock, CheckCircle, XCircle, CheckCheck,
   Truck, AlertCircle, History, Calendar, FileText, RefreshCw, X,
-  MapPin, Hash, DollarSign, Activity, List, LayoutGrid,
+  MapPin, Hash, DollarSign, Activity, List, LayoutGrid, Pencil,
 } from 'lucide-react';
 import requisitionService from '../../../services/requisitionService';
 import { useRole } from '../../../hooks/useRole';
@@ -146,12 +146,18 @@ export default function RequisitionDetail() {
               <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Calendar size={11} />{fmtDate(requisition.createdAt)}</span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Package size={11} />{items.length} items</span>
               {requisition.supplier && <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Truck size={11} />{requisition.supplier.name}</span>}
+              {requisition.site && <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><MapPin size={11} />{requisition.site.name}</span>}
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button className="stoq-btn" onClick={() => setReceipt(buildRequisitionReceipt(requisition))}>
               <FileText size={13} /> Receipt
             </button>
+            {role !== 'employee' && (
+              <button className="stoq-btn" onClick={() => navigate(`/admin/requisition-management/edit/${id}`)}>
+                <Pencil size={13} /> Edit
+              </button>
+            )}
             {requisition.status === 'PENDING' && (
               <>
                 <button className="stoq-btn" style={{ color: 'var(--danger)', borderColor: 'var(--danger-soft)' }} onClick={() => setRejectModal(true)}>
@@ -313,6 +319,7 @@ export default function RequisitionDetail() {
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 {[
                   { label: 'Employee',  icon: User,         value: `${requisition.employee?.firstName ?? ''} ${requisition.employee?.lastName ?? ''}`.trim() || '-', sub: requisition.employee?.position },
+                  requisition.site && { label: 'Site', icon: MapPin, value: requisition.site.name ?? '-', sub: requisition.site.location },
                   { label: 'Submitted', icon: Calendar,     value: fmtDate(requisition.createdAt) },
                   requisition.approvedAt && { label: 'Approved',  icon: CheckCircle, value: fmtDate(requisition.approvedAt) },
                   requisition.completedAt && { label: 'Completed', icon: CheckCheck,  value: fmtDate(requisition.completedAt) },

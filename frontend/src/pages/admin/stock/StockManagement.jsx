@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import {
   Plus, Edit2, Trash2, Eye, LayoutGrid, List, Table2,
   ChevronLeft, ChevronRight, AlertTriangle, Package, DollarSign,
-  TrendingDown, X, RefreshCw, Download, CreditCard, ArrowUpCircle, ArrowDownCircle, History,
+  TrendingDown, X, RefreshCw, Download, CreditCard, ArrowUpCircle, ArrowDownCircle, History, FilterX,
 } from 'lucide-react';
 import stockService from '../../../services/stockService';
 import categoryService from '../../../services/categoryService';
+import supplierService from '../../../services/supplierService';
+import siteService from '../../../services/siteService';
 import { useSocketEvent } from '../../../context/SocketContext';
 import Sparkline, { genSpark } from '../../../components/Sparkline';
 import { useViewMode } from '../../../hooks/useViewMode';
@@ -19,91 +21,176 @@ const STATUS_FILTERS = [
   { label: 'Out',      value: 'out' },
 ];
 
+const DATE_PRESETS = [
+  { label: 'All time', value: '' },
+  { label: 'Today',    value: 'today' },
+  { label: 'Week',     value: 'week' },
+  { label: 'Month',    value: 'month' },
+  { label: 'Year',     value: 'year' },
+  { label: 'Custom',   value: 'custom' },
+];
+
+function getDateRange(preset, customFrom, customTo) {
+  const now = new Date();
+  if (preset === 'today') { const s = new Date(now.getFullYear(), now.getMonth(), now.getDate()); return { from: s, to: now }; }
+  if (preset === 'week') { const s = new Date(now); s.setDate(s.getDate() - 6); s.setHours(0, 0, 0, 0); return { from: s, to: now }; }
+  if (preset === 'month') { const s = new Date(now.getFullYear(), now.getMonth(), 1); return { from: s, to: now }; }
+  if (preset === 'year') { const s = new Date(now.getFullYear(), 0, 1); return { from: s, to: now }; }
+  if (preset === 'custom' && customFrom) { return { from: new Date(customFrom), to: customTo ? new Date(customTo + 'T23:59:59') : now }; }
+  return null;
+}
+
 function Toast({ toast }) {
   if (!toast) return null;
   return <div className={`stoq-toast ${toast.type === 'error' ? 'stoq-toast--error' : 'stoq-toast--success'}`}>{toast.message}</div>;
 }
 
 function PaymentModal({ stock, onClose, onSuccess }) {
-  const [type, setType] = useState('DEBIT');
+  const [allSuppliers, setAllSuppliers] = useState([]);
+  const [type, setType] = useState('CREDIT');
+  const [supplierId, setSupplierId] = useState('');
   const [amount, setAmount] = useState('');
+  const [quantity, setQuantity] = useState('');
   const [reference, setReference] = useState('');
   const [notes, setNotes] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    supplierService.getForSelect().then(data => {
+      const list = Array.isArray(data) ? data : (data.suppliers ?? []);
+      setAllSuppliers(list);
+      // Pre-select if this stock already has one linked supplier
+      const linked = (stock.stockSuppliers ?? []).map(ss => ss.supplier).filter(Boolean);
+      if (linked.length === 1) setSupplierId(linked[0].id);
+    }).catch(() => {});
+  }, []);
+
+  const isCredit = type === 'CREDIT';
+  const accentColor = isCredit ? 'var(--warning)' : 'var(--success)';
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!supplierId) { setError('Select a supplier'); return; }
     if (!amount || parseFloat(amount) <= 0) { setError('Enter a valid amount'); return; }
     setError('');
     setSubmitting(true);
     try {
-      await stockService.recordPayment(stock.id, { type, amount: parseFloat(amount), reference, notes, date });
-      onSuccess(`Payment recorded for ${stock.itemName}`);
+      await stockService.recordPayment(stock.id, {
+        supplierId, type,
+        amount: parseFloat(amount),
+        quantity: quantity ? parseFloat(quantity) : undefined,
+        reference: reference || undefined,
+        notes: notes || undefined,
+        date,
+      });
+      onSuccess(`${isCredit ? 'Credit' : 'Debit'} recorded for ${stock.itemName}`);
       onClose();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to record payment');
+      setError(err.response?.data?.message || 'Failed to record transaction');
     } finally { setSubmitting(false); }
   };
 
   return (
     <div className="stoq-modal-backdrop">
-      <div className="stoq-modal">
+      <div className="stoq-modal" style={{ maxWidth: 480, width: '100%' }}>
         <div className="stoq-modal__head">
           <div>
-            <div className="stoq-modal__title">Record Payment</div>
-            <div className="stoq-modal__sub">{stock.itemName} - {stock.sku}</div>
+            <div className="stoq-modal__title">Record Transaction</div>
+            <div className="stoq-modal__sub">{stock.itemName} — {stock.sku}</div>
           </div>
           <button className="stoq-btn stoq-btn--ghost stoq-btn--icon" onClick={onClose}><X size={14} /></button>
         </div>
         <form onSubmit={handleSubmit}>
           <div className="stoq-modal__body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div>
-              <div className="stoq-field__label" style={{ marginBottom: 8 }}>Payment Type</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                {[
-                  { val: 'CREDIT', label: 'Credit', desc: 'Amount owed to supplier', icon: ArrowUpCircle, tone: 'warning' },
-                  { val: 'DEBIT',  label: 'Debit',  desc: 'Payment made to supplier', icon: ArrowDownCircle, tone: 'success' },
-                ].map(({ val, label, desc, icon: Icon, tone }) => (
+
+            {/* Type selector */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {[
+                { val: 'CREDIT', Icon: ArrowUpCircle, label: 'Credit', sub: 'Amount owed to supplier', color: 'var(--warning)' },
+                { val: 'DEBIT',  Icon: ArrowDownCircle, label: 'Debit',  sub: 'Payment made to supplier', color: 'var(--success)' },
+              ].map(({ val, Icon, label, sub, color }) => {
+                const active = type === val;
+                return (
                   <button key={val} type="button" onClick={() => setType(val)}
                     style={{
-                      padding: '10px 12px', borderRadius: 'var(--r-sm)', textAlign: 'left', cursor: 'pointer',
-                      border: `2px solid ${type === val ? (tone === 'warning' ? 'var(--warning)' : 'var(--success)') : 'var(--border)'}`,
-                      background: type === val ? (tone === 'warning' ? 'var(--warning-soft)' : 'var(--success-soft)') : 'var(--panel)',
+                      padding: '12px 14px', borderRadius: 'var(--r-md)', textAlign: 'left',
+                      border: `2px solid ${active ? color : 'var(--border)'}`,
+                      background: active ? `color-mix(in oklch, ${color} 10%, var(--panel))` : 'var(--bg-sunk)',
+                      cursor: 'pointer', transition: 'all 0.15s',
+                      display: 'flex', alignItems: 'center', gap: 10,
                     }}>
-                    <Icon size={16} style={{ color: tone === 'warning' ? 'var(--warning)' : 'var(--success)', marginBottom: 4 }} />
-                    <div style={{ fontSize: 12, fontWeight: 700 }}>{label}</div>
-                    <div style={{ fontSize: 10, color: 'var(--fg-subtle)' }}>{desc}</div>
+                    <Icon size={20} style={{ color: active ? color : 'var(--fg-subtle)', flexShrink: 0 }} />
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: active ? color : 'var(--fg)' }}>{label}</div>
+                      <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginTop: 1 }}>{sub}</div>
+                    </div>
+                    {active && <div style={{ marginLeft: 'auto', width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} />}
                   </button>
-                ))}
-              </div>
+                );
+              })}
             </div>
-            <div className="stoq-field">
-              <label className="stoq-field__label">Amount (RWF) *</label>
-              <input type="number" min="0.01" step="0.01" className="stoq-input" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" />
+
+            {/* Supplier selector — all suppliers, not just pre-linked */}
+            <div className="stoq-field" style={{ margin: 0 }}>
+              <label className="stoq-field__label">Supplier *</label>
+              <select className="stoq-input" value={supplierId} onChange={e => setSupplierId(e.target.value)}>
+                <option value="">Select supplier…</option>
+                {allSuppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
             </div>
+
+            {/* Amount + Qty */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <div className="stoq-field">
-                <label className="stoq-field__label">Reference</label>
-                <input className="stoq-input" value={reference} onChange={e => setReference(e.target.value)} placeholder="Invoice #..." />
+              <div className="stoq-field" style={{ margin: 0 }}>
+                <label className="stoq-field__label">Amount (RWF) *</label>
+                <input type="number" min="0.01" step="0.01" className="stoq-input" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" autoFocus />
               </div>
-              <div className="stoq-field">
+              <div className="stoq-field" style={{ margin: 0 }}>
+                <label className="stoq-field__label">Quantity</label>
+                <input type="number" min="0" step="any" className="stoq-input" value={quantity} onChange={e => setQuantity(e.target.value)} placeholder="—" />
+              </div>
+            </div>
+
+            {/* Reference + Date */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div className="stoq-field" style={{ margin: 0 }}>
+                <label className="stoq-field__label">Reference</label>
+                <input className="stoq-input" value={reference} onChange={e => setReference(e.target.value)} placeholder="Invoice #…" />
+              </div>
+              <div className="stoq-field" style={{ margin: 0 }}>
                 <label className="stoq-field__label">Date</label>
                 <input type="date" className="stoq-input" value={date} onChange={e => setDate(e.target.value)} />
               </div>
             </div>
-            <div className="stoq-field">
+
+            <div className="stoq-field" style={{ margin: 0 }}>
               <label className="stoq-field__label">Notes</label>
-              <textarea className="stoq-input" value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="Optional notes..." style={{ height: 'auto', paddingTop: 8, paddingBottom: 8, resize: 'none' }} />
+              <input className="stoq-input" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional…" />
             </div>
-            {error && <p style={{ fontSize: 12, color: 'var(--danger)' }}>{error}</p>}
+
+            {error && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--danger-soft)', borderRadius: 'var(--r-sm)', fontSize: 12, color: 'var(--danger)' }}>
+                {error}
+              </div>
+            )}
           </div>
           <div className="stoq-modal__foot">
             <button type="button" className="stoq-btn" onClick={onClose}>Cancel</button>
-            <button type="submit" className="stoq-btn stoq-btn--primary" disabled={submitting}>
-              {submitting && <RefreshCw size={12} style={{ animation: 'spin 0.8s linear infinite' }} />}
-              Record {type === 'CREDIT' ? 'Credit' : 'Payment'}
+            <button type="submit" disabled={submitting}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '7px 16px', borderRadius: 'var(--r-md)', border: 'none',
+                background: accentColor, color: '#fff',
+                fontSize: 13, fontWeight: 600, cursor: submitting ? 'not-allowed' : 'pointer',
+                opacity: submitting ? 0.65 : 1,
+              }}>
+              {submitting
+                ? <RefreshCw size={12} style={{ animation: 'spin 0.8s linear infinite' }} />
+                : (isCredit ? <ArrowUpCircle size={13} /> : <ArrowDownCircle size={13} />)
+              }
+              Record {isCredit ? 'Credit' : 'Debit'}
             </button>
           </div>
         </form>
@@ -121,12 +208,17 @@ export default function StockManagement() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState('');
+  const [siteId, setSiteId] = useState('');
+  const [datePreset, setDatePreset] = useState('');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
   const [stockStatus, setStockStatus] = useState('');
   const [sortBy, setSortBy] = useState('createdAt');
   const [sortOrder, setSortOrder] = useState('desc');
   const [viewMode, setViewMode, isSmallScreen] = useViewMode('stock');
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState([]);
+  const [sites, setSites] = useState([]);
   const [showDelete, setShowDelete] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
@@ -140,7 +232,15 @@ export default function StockManagement() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await stockService.getAll({ search: search || undefined, categoryId: categoryId || undefined, page, limit: 12, sortBy, sortOrder });
+      const dateRange = getDateRange(datePreset, customFrom, customTo);
+      const data = await stockService.getAll({
+        search: search || undefined,
+        categoryId: categoryId || undefined,
+        siteId: siteId || undefined,
+        dateFrom: dateRange?.from ? dateRange.from.toISOString() : undefined,
+        dateTo: dateRange?.to ? dateRange.to.toISOString() : undefined,
+        page, limit: 12, sortBy, sortOrder,
+      });
       setStocks(data.stocks);
       setTotal(data.total);
       setTotalPages(data.totalPages);
@@ -149,10 +249,11 @@ export default function StockManagement() {
       setStats({ total: data.total, totalValue, lowStock });
     } catch { showToast('Failed to load stock', 'error'); }
     finally { setLoading(false); }
-  }, [search, categoryId, sortBy, sortOrder, page]);
+  }, [search, categoryId, siteId, datePreset, customFrom, customTo, sortBy, sortOrder, page]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { categoryService.getAll().then(setCategories).catch(() => {}); }, []);
+  useEffect(() => { siteService.getAll().then(d => setSites(d.sites || d || [])).catch(() => {}); }, []);
   useEffect(() => { const t = setTimeout(() => { if (page !== 1) setPage(1); }, 400); return () => clearTimeout(t); }, [search]);
 
   const visibleStocks = stockStatus === ''
@@ -184,7 +285,7 @@ export default function StockManagement() {
 
   const exportCSV = () => {
     const headers = ['SKU','Item Name','Category','Supplier','Quantity','Unit','Unit Cost','Total Value','Site','Location'];
-    const rows = stocks.map(s => [s.sku,s.itemName,s.category?.name||'',s.supplier?.name||'',s.quantity,s.unit,s.unitCost,s.totalValue,s.site?.name||'',s.warehouseLocation||'']);
+    const rows = stocks.map(s => [s.sku,s.itemName,s.category?.name||'',(s.stockSuppliers??[]).map(ss=>ss.supplier?.name).filter(Boolean).join('/')||'',s.quantity,s.unit,s.unitCost,s.totalValue,s.site?.name||'',s.warehouseLocation||'']);
     const csv = [headers,...rows].map(r=>r.join(',')).join('\n');
     const blob = new Blob([csv],{type:'text/csv'});
     const url = URL.createObjectURL(blob);
@@ -198,7 +299,7 @@ export default function StockManagement() {
 
   const ActionBtns = ({ s }) => (
     <div className="stoq-btn-group" style={{ justifyContent: 'flex-end' }}>
-      {s.supplierId && <button className="stoq-btn stoq-btn--ghost stoq-btn--icon stoq-btn--sm" title="Payment" onClick={e => { e.stopPropagation(); setSelected(s); setShowPayment(true); }}><CreditCard size={13} /></button>}
+      {s.stockSuppliers?.length > 0 && <button className="stoq-btn stoq-btn--ghost stoq-btn--icon stoq-btn--sm" title="Payment" onClick={e => { e.stopPropagation(); setSelected(s); setShowPayment(true); }}><CreditCard size={13} /></button>}
       <button className="stoq-btn stoq-btn--ghost stoq-btn--icon stoq-btn--sm" title="Details" onClick={e => { e.stopPropagation(); openDetail(s); }}><Eye size={13} /></button>
       <button className="stoq-btn stoq-btn--ghost stoq-btn--icon stoq-btn--sm" title="Edit" onClick={e => { e.stopPropagation(); navigate(path(`/stock/edit/${s.id}`)); }}><Edit2 size={13} /></button>
       <button className="stoq-btn stoq-btn--ghost stoq-btn--icon stoq-btn--sm" title="Delete" style={{ color: 'var(--danger)' }} onClick={e => { e.stopPropagation(); setSelected(s); setShowDelete(true); }}><Trash2 size={13} /></button>
@@ -251,14 +352,32 @@ export default function StockManagement() {
 
       {/* Panel */}
       <div className="stoq-panel">
-        <div className="stoq-toolbar">
+        <div className="stoq-toolbar" style={{ flexWrap: 'wrap', gap: 8 }}>
           <div className="stoq-toolbar__search">
             <input className="stoq-input stoq-input--search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by item, SKU, location..." />
           </div>
-          <select className="stoq-select" value={categoryId} onChange={e => { setCategoryId(e.target.value); setPage(1); }} style={{ width: 160 }}>
+          <select className="stoq-select" value={categoryId} onChange={e => { setCategoryId(e.target.value); setPage(1); }} style={{ width: 150 }}>
             <option value="">All categories</option>
             {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
+          {sites.length > 0 && (
+            <select className="stoq-select" value={siteId} onChange={e => { setSiteId(e.target.value); setPage(1); }} style={{ width: 140 }}>
+              <option value="">All sites</option>
+              {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          )}
+          <div className="stoq-segment">
+            {DATE_PRESETS.map(p => (
+              <button key={p.value} data-active={datePreset === p.value ? 'true' : undefined}
+                onClick={() => { setDatePreset(p.value); setPage(1); }}>{p.label}</button>
+            ))}
+          </div>
+          {datePreset === 'custom' && (
+            <>
+              <input type="date" className="stoq-input" value={customFrom} onChange={e => { setCustomFrom(e.target.value); setPage(1); }} style={{ width: 140, height: 32 }} />
+              <input type="date" className="stoq-input" value={customTo} onChange={e => { setCustomTo(e.target.value); setPage(1); }} style={{ width: 140, height: 32 }} />
+            </>
+          )}
           <div className="stoq-segment">
             {STATUS_FILTERS.map(f => (
               <button key={f.value} data-active={stockStatus === f.value ? 'true' : undefined}
@@ -266,6 +385,13 @@ export default function StockManagement() {
             ))}
           </div>
           <div style={{ flex: 1 }} />
+          {(search || categoryId || siteId || datePreset || stockStatus) && (
+            <button className="stoq-btn stoq-btn--sm" title="Clear all filters"
+              onClick={() => { setSearch(''); setCategoryId(''); setSiteId(''); setDatePreset(''); setCustomFrom(''); setCustomTo(''); setStockStatus(''); setPage(1); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--fg-subtle)' }}>
+              <FilterX size={13} /> Clear filters
+            </button>
+          )}
           {!isSmallScreen && (
             <div className="stoq-segment">
               <button data-active={viewMode==='table'?'true':undefined} onClick={()=>setViewMode('table')}><List size={13}/></button>
@@ -305,7 +431,7 @@ export default function StockManagement() {
                     </td>
                     <td><span className="stoq-badge stoq-badge--plain">{s.category?.name || '-'}</span></td>
                     <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-muted)' }}>{s.site?.name || '-'}</td>
-                    <td style={{ color: 'var(--fg-muted)', fontSize: 12 }}>{s.supplier?.name || '-'}</td>
+                    <td style={{ color: 'var(--fg-muted)', fontSize: 12 }}>{(s.stockSuppliers??[])[0]?.supplier?.name || '-'}</td>
                     <td className="num-cell">
                       <span style={{ fontWeight: 600, color: s.quantity <= s.reorderLevel ? 'var(--warning)' : 'var(--fg)' }}>{s.quantity}</span>
                       <span style={{ color: 'var(--fg-subtle)', fontSize: 10, marginLeft: 4 }}>{s.unit}</span>
@@ -351,7 +477,7 @@ export default function StockManagement() {
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--fg-muted)', fontFamily: 'var(--font-mono)' }}>RWF {parseFloat(s.totalValue).toLocaleString()}</div>
                   <div style={{ display: 'flex', gap: 4, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
-                    {s.supplierId && <button className="stoq-btn stoq-btn--sm" style={{ flex: 1, justifyContent: 'center', fontSize: 10 }} onClick={() => { setSelected(s); setShowPayment(true); }}><CreditCard size={10} /> Pay</button>}
+                    {s.stockSuppliers?.length > 0 && <button className="stoq-btn stoq-btn--sm" style={{ flex: 1, justifyContent: 'center', fontSize: 10 }} onClick={() => { setSelected(s); setShowPayment(true); }}><CreditCard size={10} /> Pay</button>}
                     <button className="stoq-btn stoq-btn--sm" style={{ flex: 1, justifyContent: 'center', fontSize: 10 }} onClick={() => openDetail(s)}>View</button>
                     <button className="stoq-btn stoq-btn--sm" style={{ flex: 1, justifyContent: 'center', fontSize: 10 }} onClick={() => navigate(path(`/stock/edit/${s.id}`))}>Edit</button>
                     <button className="stoq-btn stoq-btn--ghost stoq-btn--sm stoq-btn--icon" style={{ color: 'var(--danger)' }} onClick={() => { setSelected(s); setShowDelete(true); }}><Trash2 size={11} /></button>
@@ -421,7 +547,7 @@ export default function StockManagement() {
                 {[
                   ['SKU', selected.sku],
                   ['Category', selected.category?.name||'-'],
-                  ['Supplier', selected.supplier?.name||'-'],
+                  ['Supplier', (selected.stockSuppliers??[]).map(ss=>ss.supplier?.name).filter(Boolean).join(', ')||'-'],
                   ['Site', selected.site?.name||'-'],
                   ['Quantity', `${selected.quantity} ${selected.unit}`],
                   ['Unit Cost', `RWF ${parseFloat(selected.unitCost).toLocaleString()}`],
@@ -457,7 +583,7 @@ export default function StockManagement() {
               )}
             </div>
             <div className="stoq-modal__foot">
-              {selected.supplierId && (
+              {selected.stockSuppliers?.length > 0 && (
                 <button className="stoq-btn" onClick={() => { setShowDetail(false); setShowPayment(true); }}><CreditCard size={13} /> Record Payment</button>
               )}
               <button className="stoq-btn stoq-btn--primary" onClick={() => navigate(path(`/stock/edit/${selected.id}`))}>Edit Stock</button>

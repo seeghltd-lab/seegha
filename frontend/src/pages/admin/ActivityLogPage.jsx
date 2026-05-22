@@ -2,9 +2,10 @@
 import {
   Activity, Search, RefreshCw, ChevronLeft, ChevronRight,
   Filter, AlertCircle, User, Package, Truck, FileText,
-  Users, Clock, BarChart2, Trash2, X,
+  Users, Clock, BarChart2, Trash2, X, List, LayoutGrid,
 } from 'lucide-react';
 import activityLogService from '../../services/activityLogService';
+import { useViewMode } from '../../hooks/useViewMode';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -87,6 +88,7 @@ export default function ActivityLogPage() {
   const [toast, setToast]         = useState(null);
   const [showPurge, setShowPurge] = useState(false);
   const [purging, setPurging]     = useState(false);
+  const [viewMode, setViewMode]   = useViewMode('activity-log', 'table');
 
   // filters
   const [search, setSearch]               = useState('');
@@ -210,7 +212,7 @@ export default function ActivityLogPage() {
 
           {/* Toolbar */}
           <div className="stoq-toolbar" style={{ flexWrap: 'wrap', gap: 8 }}>
-            <div className="stoq-toolbar__search" style={{ position: 'relative', minWidth: 220 }}>
+            <div className="stoq-toolbar__search" style={{ position: 'relative', minWidth: 220, flex: '1 1 220px' }}>
               <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-subtle)', pointerEvents: 'none' }} />
               <input
                 className="stoq-input stoq-input--search"
@@ -234,7 +236,7 @@ export default function ActivityLogPage() {
               <option value="EMPLOYEE">Employee</option>
             </select>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
               <Filter size={12} style={{ color: 'var(--fg-subtle)', flexShrink: 0 }} />
               <input type="date" className="stoq-input" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
                 style={{ width: 140 }} title="From date" />
@@ -248,124 +250,244 @@ export default function ActivityLogPage() {
                 <X size={11} /> Clear
               </button>
             )}
+
+            {/* View toggle */}
+            <div className="stoq-segment" style={{ marginLeft: 'auto' }}>
+              <button data-active={viewMode === 'table' ? 'true' : undefined} onClick={() => setViewMode('table')} title="Table view">
+                <List size={13} />
+              </button>
+              <button data-active={viewMode === 'cards' ? 'true' : undefined} onClick={() => setViewMode('cards')} title="Card view">
+                <LayoutGrid size={13} />
+              </button>
+            </div>
           </div>
 
-          {/* Table */}
-          <div className="stoq-panel" style={{ borderRadius: 'var(--r-md)' }}>
-            <div className="table-wrap">
-              <table className="stoq-tbl">
-                <thead>
-                  <tr>
-                    <th className="no-sort">Action</th>
-                    <th className="no-sort">Entity</th>
-                    <th className="no-sort">Performed By</th>
-                    <th className="no-sort">Details</th>
-                    <th className="no-sort">When</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
+          {/* ── TABLE VIEW ── */}
+          {viewMode === 'table' && (
+            <div className="stoq-panel" style={{ borderRadius: 'var(--r-md)' }}>
+              <div className="table-wrap">
+                <table className="stoq-tbl">
+                  <thead>
                     <tr>
-                      <td colSpan={5} style={{ textAlign: 'center', padding: '48px 0' }}>
-                        <RefreshCw size={18} style={{ animation: 'spin 1s linear infinite', color: 'var(--accent)', margin: '0 auto' }} />
-                      </td>
+                      <th className="no-sort">Action</th>
+                      <th className="no-sort">Entity</th>
+                      <th className="no-sort">Performed By</th>
+                      <th className="no-sort">Details</th>
+                      <th className="no-sort">When</th>
                     </tr>
-                  ) : logs.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} style={{ textAlign: 'center', padding: '48px 0', color: 'var(--fg-subtle)' }}>
-                        <Activity size={24} style={{ margin: '0 auto 8px', display: 'block', opacity: 0.4 }} />
-                        <div style={{ fontSize: 12 }}>No activity found</div>
-                      </td>
-                    </tr>
-                  ) : logs.map(log => (
-                    <tr key={log.id}>
-                      <td style={{ whiteSpace: 'nowrap' }}>
-                        <ActionBadge action={log.action} />
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <EntityIcon entityType={log.entityType} />
-                          <div>
-                            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)' }}>
-                              {log.entityLabel || log.entityType}
-                            </div>
-                            {log.entityId && (
-                              <div style={{ fontSize: 10, color: 'var(--fg-subtle)', fontFamily: 'var(--font-mono)' }}>
-                                {log.entityId.slice(-8).toUpperCase()}
+                  </thead>
+                  <tbody>
+                    {loading ? (
+                      <tr>
+                        <td colSpan={5} style={{ textAlign: 'center', padding: '48px 0' }}>
+                          <RefreshCw size={18} style={{ animation: 'spin 1s linear infinite', color: 'var(--accent)', margin: '0 auto' }} />
+                        </td>
+                      </tr>
+                    ) : logs.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} style={{ textAlign: 'center', padding: '48px 0', color: 'var(--fg-subtle)' }}>
+                          <Activity size={24} style={{ margin: '0 auto 8px', display: 'block', opacity: 0.4 }} />
+                          <div style={{ fontSize: 12 }}>No activity found</div>
+                        </td>
+                      </tr>
+                    ) : logs.map(log => (
+                      <tr key={log.id}>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          <ActionBadge action={log.action} />
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <EntityIcon entityType={log.entityType} />
+                            <div>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)' }}>
+                                {log.entityLabel || log.entityType}
                               </div>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span className="kpi__icon" style={{ width: 24, height: 24, flexShrink: 0 }}>
-                            <User size={11} />
-                          </span>
-                          <div>
-                            <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--fg)' }}>
-                              {log.performedByName || log.performedById.slice(0, 8)}
+                              {log.entityId && (
+                                <div style={{ fontSize: 10, color: 'var(--fg-subtle)', fontFamily: 'var(--font-mono)' }}>
+                                  {log.entityId.slice(-8).toUpperCase()}
+                                </div>
+                              )}
                             </div>
-                            <span className={`stoq-badge ${log.performedByType === 'ADMIN' ? 'stoq-badge--accent' : 'stoq-badge--warning'}`}
-                              style={{ fontSize: 9 }}>
-                              {log.performedByType === 'ADMIN' ? 'Admin' : 'Employee'}
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span className="kpi__icon" style={{ width: 24, height: 24, flexShrink: 0 }}>
+                              <User size={11} />
+                            </span>
+                            <div>
+                              <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--fg)' }}>
+                                {log.performedByName || log.performedById.slice(0, 8)}
+                              </div>
+                              <span className={`stoq-badge ${log.performedByType === 'ADMIN' ? 'stoq-badge--accent' : 'stoq-badge--warning'}`}
+                                style={{ fontSize: 9 }}>
+                                {log.performedByType === 'ADMIN' ? 'Admin' : 'Employee'}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ maxWidth: 260 }}>
+                          {log.metadata && Object.keys(log.metadata).length > 0 ? (
+                            <div style={{ fontSize: 11, color: 'var(--fg-muted)', lineHeight: 1.5 }}>
+                              {Object.entries(log.metadata)
+                                .filter(([k]) => !['changes'].includes(k))
+                                .slice(0, 3)
+                                .map(([k, v]) => (
+                                  <span key={k} style={{ marginRight: 8 }}>
+                                    <span style={{ color: 'var(--fg-subtle)' }}>{k}:</span>{' '}
+                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10 }}>
+                                      {typeof v === 'object' ? JSON.stringify(v) : String(v)}
+                                    </span>
+                                  </span>
+                                ))}
+                            </div>
+                          ) : (
+                            <span style={{ color: 'var(--fg-subtle)', fontSize: 11 }}>—</span>
+                          )}
+                        </td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--fg-subtle)', fontSize: 11 }}>
+                            <Clock size={10} />
+                            <span title={new Date(log.createdAt).toLocaleString()}>{timeAgo(log.createdAt)}</span>
+                          </div>
+                          <div style={{ fontSize: 10, color: 'var(--fg-subtle)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>
+                            {new Date(log.createdAt).toLocaleDateString('en-GB')}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderTop: '1px solid var(--border)' }}>
+                  <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>
+                    Page {page} of {totalPages} · {total.toLocaleString()} events
+                  </span>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button className="stoq-btn stoq-btn--icon" disabled={page <= 1}
+                      style={{ opacity: page <= 1 ? 0.4 : 1 }} onClick={() => load(page - 1)}>
+                      <ChevronLeft size={14} />
+                    </button>
+                    <button className="stoq-btn stoq-btn--icon" disabled={page >= totalPages}
+                      style={{ opacity: page >= totalPages ? 0.4 : 1 }} onClick={() => load(page + 1)}>
+                      <ChevronRight size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── CARDS VIEW ── */}
+          {viewMode === 'cards' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {loading ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
+                  <RefreshCw size={20} style={{ animation: 'spin 1s linear infinite', color: 'var(--accent)' }} />
+                </div>
+              ) : logs.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--fg-subtle)' }}>
+                  <Activity size={28} style={{ margin: '0 auto 8px', display: 'block', opacity: 0.3 }} />
+                  <div style={{ fontSize: 12 }}>No activity found</div>
+                  {hasFilters && (
+                    <button className="stoq-btn stoq-btn--sm" style={{ marginTop: 10 }} onClick={clearFilters}>
+                      Clear filters
+                    </button>
+                  )}
+                </div>
+              ) : logs.map(log => {
+                const meta = ACTION_META[log.action] || { label: log.action, tone: 'plain' };
+                const EntityIconComp = ENTITY_ICONS[log.entityType] || Activity;
+                return (
+                  <div key={log.id} className="stoq-panel" style={{ padding: 0 }}>
+                    <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                      {/* Entity icon */}
+                      <span className="kpi__icon" style={{ width: 34, height: 34, flexShrink: 0, marginTop: 2 }}>
+                        <EntityIconComp size={15} />
+                      </span>
+
+                      {/* Main content */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        {/* Top row: action badge + time */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+                          <ActionBadge action={log.action} />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--fg-subtle)', fontSize: 11, whiteSpace: 'nowrap' }}>
+                            <Clock size={10} />
+                            <span title={new Date(log.createdAt).toLocaleString()}>{timeAgo(log.createdAt)}</span>
+                            <span style={{ color: 'var(--border)' }}>·</span>
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10 }}>
+                              {new Date(log.createdAt).toLocaleDateString('en-GB')}
                             </span>
                           </div>
                         </div>
-                      </td>
-                      <td style={{ maxWidth: 260 }}>
-                        {log.metadata && Object.keys(log.metadata).length > 0 ? (
-                          <div style={{ fontSize: 11, color: 'var(--fg-muted)', lineHeight: 1.5 }}>
+
+                        {/* Entity label */}
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)', marginBottom: 4 }}>
+                          {log.entityLabel || log.entityType}
+                          {log.entityId && (
+                            <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--fg-subtle)', marginLeft: 8, fontWeight: 400 }}>
+                              #{log.entityId.slice(-8).toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Performer row */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <span className="kpi__icon" style={{ width: 20, height: 20 }}><User size={10} /></span>
+                          <span style={{ fontSize: 11, color: 'var(--fg-muted)' }}>
+                            {log.performedByName || log.performedById.slice(0, 8)}
+                          </span>
+                          <span className={`stoq-badge ${log.performedByType === 'ADMIN' ? 'stoq-badge--accent' : 'stoq-badge--warning'}`}
+                            style={{ fontSize: 9 }}>
+                            {log.performedByType === 'ADMIN' ? 'Admin' : 'Employee'}
+                          </span>
+                        </div>
+
+                        {/* Metadata */}
+                        {log.metadata && Object.keys(log.metadata).length > 0 && (
+                          <div style={{ marginTop: 8, padding: '6px 10px', background: 'var(--bg-subtle)', borderRadius: 'var(--r-sm)', display: 'flex', flexWrap: 'wrap', gap: '4px 12px' }}>
                             {Object.entries(log.metadata)
                               .filter(([k]) => !['changes'].includes(k))
-                              .slice(0, 3)
+                              .slice(0, 4)
                               .map(([k, v]) => (
-                                <span key={k} style={{ marginRight: 8 }}>
+                                <span key={k} style={{ fontSize: 10, color: 'var(--fg-muted)' }}>
                                   <span style={{ color: 'var(--fg-subtle)' }}>{k}:</span>{' '}
-                                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10 }}>
+                                  <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--fg)' }}>
                                     {typeof v === 'object' ? JSON.stringify(v) : String(v)}
                                   </span>
                                 </span>
                               ))}
                           </div>
-                        ) : (
-                          <span style={{ color: 'var(--fg-subtle)', fontSize: 11 }}>—</span>
                         )}
-                      </td>
-                      <td style={{ whiteSpace: 'nowrap' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--fg-subtle)', fontSize: 11 }}>
-                          <Clock size={10} />
-                          <span title={new Date(log.createdAt).toLocaleString()}>{timeAgo(log.createdAt)}</span>
-                        </div>
-                        <div style={{ fontSize: 10, color: 'var(--fg-subtle)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>
-                          {new Date(log.createdAt).toLocaleDateString('en-GB')}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderTop: '1px solid var(--border)' }}>
-                <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>
-                  Page {page} of {totalPages} · {total.toLocaleString()} events
-                </span>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  <button className="stoq-btn stoq-btn--icon" disabled={page <= 1}
-                    style={{ opacity: page <= 1 ? 0.4 : 1 }} onClick={() => load(page - 1)}>
-                    <ChevronLeft size={14} />
-                  </button>
-                  <button className="stoq-btn stoq-btn--icon" disabled={page >= totalPages}
-                    style={{ opacity: page >= totalPages ? 0.4 : 1 }} onClick={() => load(page + 1)}>
-                    <ChevronRight size={14} />
-                  </button>
+              {/* Pagination for cards */}
+              {totalPages > 1 && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 4px' }}>
+                  <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>
+                    Page {page} of {totalPages} · {total.toLocaleString()} events
+                  </span>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button className="stoq-btn stoq-btn--icon" disabled={page <= 1}
+                      style={{ opacity: page <= 1 ? 0.4 : 1 }} onClick={() => load(page - 1)}>
+                      <ChevronLeft size={14} />
+                    </button>
+                    <button className="stoq-btn stoq-btn--icon" disabled={page >= totalPages}
+                      style={{ opacity: page >= totalPages ? 0.4 : 1 }} onClick={() => load(page + 1)}>
+                      <ChevronRight size={14} />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

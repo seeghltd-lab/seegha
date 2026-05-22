@@ -26,15 +26,21 @@ function IconInput({ icon: Icon, ...props }) {
   );
 }
 
+const TABS = [
+  { key: 'general',  icon: User,        label: 'General Info' },
+  { key: 'security', icon: ShieldCheck, label: 'Security' },
+  { key: 'pwa',      icon: Smartphone,  label: 'App & PWA' },
+];
+
 export default function AdminProfile() {
-  const [profile, setProfile] = useState({ names: '', email: '', phone: '' });
+  const [profile, setProfile]     = useState({ names: '', email: '', phone: '' });
   const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [avatarPreview, setAvatarPreview] = useState(null);
-  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarFile, setAvatarFile]       = useState(null);
   const [activeTab, setActiveTab] = useState('general');
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState(null);
+  const [loading, setLoading]     = useState(false);
+  const [saving, setSaving]       = useState(false);
+  const [toast, setToast]         = useState(null);
   const fileInputRef = useRef(null);
 
   const showToast = (msg, type = 'success') => {
@@ -44,10 +50,13 @@ export default function AdminProfile() {
 
   useEffect(() => {
     setLoading(true);
-    adminAuthService.getProfile().then(data => {
-      setProfile({ names: data.names || '', email: data.email || '', phone: data.phone || '' });
-      if (data.profilePicture) setAvatarPreview(`http://localhost:3000${data.profilePicture}`);
-    }).catch(() => showToast('Failed to load profile', 'error')).finally(() => setLoading(false));
+    adminAuthService.getProfile()
+      .then(data => {
+        setProfile({ names: data.names || '', email: data.email || '', phone: data.phone || '' });
+        if (data.profilePicture) setAvatarPreview(`http://localhost:3000${data.profilePicture}`);
+      })
+      .catch(() => showToast('Failed to load profile', 'error'))
+      .finally(() => setLoading(false));
   }, []);
 
   const handleAvatarSelect = (e) => {
@@ -97,6 +106,24 @@ export default function AdminProfile() {
 
   return (
     <div style={{ padding: '20px 24px 40px' }}>
+      <style>{`
+        @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+        .profile-layout { display: grid; grid-template-columns: 200px 1fr; gap: 14px; align-items: start; }
+        .profile-tab-sidebar { display: flex; flex-direction: column; gap: 2px; padding: 8px; }
+        .profile-tab-bar { display: none; }
+        .profile-fields-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px; }
+        @media (max-width: 768px) {
+          .profile-layout { grid-template-columns: 1fr; }
+          .profile-tab-sidebar-panel { display: none !important; }
+          .profile-tab-bar { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 2px; margin-bottom: 14px; }
+          .profile-tab-bar::-webkit-scrollbar { display: none; }
+          .profile-fields-2col { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 480px) {
+          .profile-fields-2col { padding: 12px; }
+        }
+      `}</style>
+
       {toast && (
         <div className={`stoq-toast ${toast.type === 'error' ? 'stoq-toast--error' : 'stoq-toast--success'}`}
           style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -112,15 +139,23 @@ export default function AdminProfile() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 14, alignItems: 'start' }}>
-        {/* Sidebar nav */}
-        <div className="stoq-panel" style={{ overflow: 'visible' }}>
-          <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {[
-              { key: 'general', icon: User, label: 'General Info' },
-              { key: 'security', icon: ShieldCheck, label: 'Security' },
-              { key: 'pwa', icon: Smartphone, label: 'App & PWA' },
-            ].map(({ key, icon: Icon, label }) => (
+      {/* Mobile tab bar (hidden on desktop) */}
+      <div className="profile-tab-bar">
+        {TABS.map(({ key, icon: Icon, label }) => (
+          <button key={key} onClick={() => setActiveTab(key)}
+            className={`stoq-tab`}
+            data-active={activeTab === key ? 'true' : 'false'}
+            style={{ whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Icon size={13} /> {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="profile-layout">
+        {/* Sidebar nav (hidden on mobile) */}
+        <div className="stoq-panel profile-tab-sidebar-panel">
+          <div className="profile-tab-sidebar">
+            {TABS.map(({ key, icon: Icon, label }) => (
               <button key={key} onClick={() => setActiveTab(key)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8,
@@ -146,8 +181,8 @@ export default function AdminProfile() {
                 <div className="stoq-panel__head">
                   <span className="stoq-panel__title">Profile Picture</span>
                 </div>
-                <div style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 16 }}>
-                  <div style={{ position: 'relative', cursor: 'pointer' }} onClick={() => fileInputRef.current?.click()}>
+                <div style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                  <div style={{ position: 'relative', cursor: 'pointer', flexShrink: 0 }} onClick={() => fileInputRef.current?.click()}>
                     <div style={{
                       width: 72, height: 72, borderRadius: '50%',
                       background: 'var(--accent)', color: 'var(--accent-fg)',
@@ -171,25 +206,35 @@ export default function AdminProfile() {
                   <div>
                     <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)' }}>Click to change photo</div>
                     <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginTop: 2 }}>JPG, PNG — max 2MB</div>
+                    <button type="button" className="stoq-btn stoq-btn--sm" style={{ marginTop: 8 }}
+                      onClick={() => fileInputRef.current?.click()}>
+                      <Camera size={11} /> Choose file
+                    </button>
                   </div>
-                  <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleAvatarSelect} style={{ display: 'none' }} />
+                  <input type="file" ref={fileInputRef} accept="image/*" onChange={handleAvatarSelect} style={{ display: 'none' }} />
                 </div>
               </div>
 
               {/* Fields */}
               <div className="stoq-panel">
                 <div className="stoq-panel__head"><span className="stoq-panel__title">Personal Information</span></div>
-                <div style={{ padding: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="profile-fields-2col">
                   <div style={{ gridColumn: '1 / -1' }}>
                     <Field label="Full Name">
-                      <IconInput icon={User} value={profile.names} onChange={e => setProfile({ ...profile, names: e.target.value })} placeholder="Administrator" />
+                      <IconInput icon={User} value={profile.names}
+                        onChange={e => setProfile({ ...profile, names: e.target.value })}
+                        placeholder="Administrator" />
                     </Field>
                   </div>
                   <Field label="Email Address">
-                    <IconInput icon={Mail} type="email" value={profile.email} onChange={e => setProfile({ ...profile, email: e.target.value })} placeholder="admin@domain.com" />
+                    <IconInput icon={Mail} type="email" value={profile.email}
+                      onChange={e => setProfile({ ...profile, email: e.target.value })}
+                      placeholder="admin@domain.com" />
                   </Field>
                   <Field label="Phone Number">
-                    <IconInput icon={Phone} value={profile.phone} onChange={e => setProfile({ ...profile, phone: e.target.value })} placeholder="+250…" />
+                    <IconInput icon={Phone} value={profile.phone}
+                      onChange={e => setProfile({ ...profile, phone: e.target.value })}
+                      placeholder="+250…" />
                   </Field>
                 </div>
               </div>
@@ -226,7 +271,6 @@ export default function AdminProfile() {
                   </Field>
                 </div>
               </div>
-
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                 <button type="submit" className="stoq-btn stoq-btn--primary" disabled={saving} style={{ opacity: saving ? 0.6 : 1 }}>
                   {saving ? <><RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Saving…</> : <><Save size={13} /> Update Password</>}

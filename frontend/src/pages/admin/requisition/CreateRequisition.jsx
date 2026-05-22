@@ -3,6 +3,7 @@ import { useNavigate, useOutletContext } from 'react-router-dom';
 import { ArrowLeft, Plus, X, Trash2, Package, Search, User, Truck, AlertCircle, CheckCircle, RefreshCw, List, LayoutGrid, ChevronDown, MapPin, Link2 } from 'lucide-react';
 import requisitionService from '../../../services/requisitionService';
 import stockService from '../../../services/stockService';
+import categoryService from '../../../services/categoryService';
 import employeeService from '../../../services/employeeService';
 import supplierService from '../../../services/supplierService';
 import siteService from '../../../services/siteService';
@@ -167,7 +168,7 @@ function StockPickerModal({ stocks, onSelect, onClose }) {
 }
 
 /* ── Item Row (cards view) ──────────────────────────────────────────── */
-function ItemRow({ item, index, stocks, onUpdate, onRemove, onOpenStockPicker }) {
+function ItemRow({ item, index, stocks, onUpdate, onRemove, onOpenStockPicker, siteSelected, categories, onCreateCategory }) {
   return (
     <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--r-md)', padding: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -197,24 +198,41 @@ function ItemRow({ item, index, stocks, onUpdate, onRemove, onOpenStockPicker })
           </div>
         ) : (
           <button type="button"
-            onClick={() => onOpenStockPicker(index)}
+            onClick={() => siteSelected && onOpenStockPicker(index)}
+            disabled={!siteSelected}
+            title={!siteSelected ? 'Select a site first' : undefined}
             style={{
               display: 'flex', alignItems: 'center', gap: 8, width: '100%',
               padding: '7px 10px', background: 'var(--bg-subtle)',
               border: '1px dashed var(--border)', borderRadius: 'var(--r-sm)',
-              cursor: 'pointer', fontSize: 12, color: 'var(--fg-muted)',
+              cursor: siteSelected ? 'pointer' : 'not-allowed',
+              fontSize: 12, color: 'var(--fg-muted)',
+              opacity: siteSelected ? 1 : 0.5,
             }}>
             <Link2 size={13} style={{ color: 'var(--fg-subtle)' }} />
-            <span>Choose from inventory…</span>
+            <span>{siteSelected ? 'Choose from inventory…' : 'Select a site first'}</span>
           </button>
         )}
       </div>
 
       {!item.stockId && (
-        <div className="stoq-field" style={{ marginBottom: 10 }}>
-          <label className="stoq-field__label">Item Name <span style={{ color: 'var(--danger)' }}>*</span></label>
-          <input className="stoq-input" value={item.itemName} onChange={e => onUpdate(index, { ...item, itemName: e.target.value })} placeholder="What is needed?" />
-        </div>
+        <>
+          <div className="stoq-field" style={{ marginBottom: 10 }}>
+            <label className="stoq-field__label">Item Name <span style={{ color: 'var(--danger)' }}>*</span></label>
+            <input className="stoq-input" value={item.itemName} onChange={e => onUpdate(index, { ...item, itemName: e.target.value })} placeholder="What is needed?" />
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <SearchableSelect
+              label="Category"
+              options={categories}
+              value={item.categoryId}
+              onChange={v => onUpdate(index, { ...item, categoryId: v })}
+              placeholder="Select or create…"
+              onCreate={onCreateCategory}
+              createLabel="category"
+            />
+          </div>
+        </>
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -236,7 +254,7 @@ function ItemRow({ item, index, stocks, onUpdate, onRemove, onOpenStockPicker })
   );
 }
 
-const emptyItem = () => ({ stockId: '', itemName: '', quantity: '', unit: '' });
+const emptyItem = () => ({ stockId: '', itemName: '', quantity: '', unit: '', categoryId: '' });
 
 export default function CreateRequisition() {
   const navigate = useNavigate();
@@ -244,11 +262,13 @@ export default function CreateRequisition() {
   const isEmployee = role === 'employee';
   const [employees, setEmployees] = useState([]);
   const [stocks, setStocks] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [sites, setSites] = useState([]);
   const [employeeId, setEmployeeId] = useState('');
   const [supplierId, setSupplierId] = useState('');
   const [siteId, setSiteId] = useState('');
+  const [siteError, setSiteError] = useState('');
   const [description, setDescription] = useState('');
   const [items, setItems] = useState([emptyItem()]);
   const [submitting, setSubmitting] = useState(false);
@@ -262,10 +282,15 @@ export default function CreateRequisition() {
 
   useEffect(() => {
     employeeService.getAllEmployees().then(d => setEmployees(d.employees || d || [])).catch(() => {});
-    stockService.getAll({ limit: 200 }).then(d => setStocks(d.stocks || [])).catch(() => {});
     supplierService.getForSelect().then(data => setSuppliers(data.map(s => ({ value: s.id, label: `${s.name} (${s.code})` })))).catch(() => {});
     siteService.getAll().then(d => setSites(d.sites || d || [])).catch(() => {});
+    categoryService.getAll().then(d => setCategories(d.map(c => ({ value: c.id, label: c.name })))).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!siteId) { setStocks([]); return; }
+    stockService.getAll({ siteId, limit: 200 }).then(d => setStocks(d.stocks || [])).catch(() => {});
+  }, [siteId]);
 
   const handleCreateSupplier = async (name) => {
     const sup = await supplierService.create({ name });
@@ -273,6 +298,14 @@ export default function CreateRequisition() {
     setSuppliers(prev => [...prev, opt]);
     showToast(`Supplier "${name}" created`);
     return sup.id;
+  };
+
+  const handleCreateCategory = async (name) => {
+    const cat = await categoryService.create({ name });
+    const opt = { value: cat.id, label: cat.name };
+    setCategories(prev => [...prev, opt]);
+    showToast(`Category "${name}" created`);
+    return cat.id;
   };
 
   const handleSelectStock = useCallback((stock) => {
@@ -286,6 +319,12 @@ export default function CreateRequisition() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    if (!siteId) {
+      setSiteError('Site is required');
+      setError('Please select a site before submitting');
+      return;
+    }
+    setSiteError('');
     for (const [i, item] of items.entries()) {
       if (!item.itemName.trim()) { setError(`Item ${i + 1}: name is required`); return; }
       if (!item.quantity || parseFloat(item.quantity) <= 0) { setError(`Item ${i + 1}: quantity must be > 0`); return; }
@@ -297,7 +336,7 @@ export default function CreateRequisition() {
         supplierId: supplierId || undefined,
         siteId: siteId || undefined,
         description: description.trim() || undefined,
-        items: items.map(it => ({ stockId: it.stockId || undefined, itemName: it.itemName.trim(), quantity: parseFloat(it.quantity), unit: it.unit })),
+        items: items.map(it => ({ stockId: it.stockId || undefined, itemName: it.itemName.trim(), quantity: parseFloat(it.quantity), unit: it.unit, categoryId: it.categoryId || undefined })),
       });
       showToast('Requisition created');
       setTimeout(() => navigate(isEmployee ? '/requisitions' : '/admin/requisition-management'), 900);
@@ -331,7 +370,7 @@ export default function CreateRequisition() {
           <button className="icon-btn" onClick={() => navigate(-1)}><ArrowLeft size={14} /></button>
           <div>
             <h1>Create Requisition</h1>
-            <div className="page-head__sub">Create a requisition — employee is optional</div>
+            <div className="page-head__sub">Select a site first — stock is filtered per site</div>
           </div>
         </div>
         <div className="page-head__actions">
@@ -376,6 +415,7 @@ export default function CreateRequisition() {
                     <tr>
                       <th className="no-sort">#</th>
                       <th className="no-sort">Item Name</th>
+                      <th className="no-sort">Category</th>
                       <th className="no-sort">Stock Link</th>
                       <th className="no-sort">Qty</th>
                       <th className="no-sort">Unit</th>
@@ -402,18 +442,38 @@ export default function CreateRequisition() {
                               placeholder="Item name" style={{ height: 28, fontSize: 11 }} />
                           )}
                         </td>
+                        <td style={{ minWidth: 130 }}>
+                          {item.stockId ? (
+                            <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>
+                              {stocks.find(s => s.id === item.stockId)?.category?.name || '—'}
+                            </span>
+                          ) : (
+                            <SearchableSelect
+                              options={categories}
+                              value={item.categoryId}
+                              onChange={v => setItems(prev => prev.map((it, j) => j === i ? { ...it, categoryId: v } : it))}
+                              placeholder="Category…"
+                              onCreate={handleCreateCategory}
+                              createLabel="category"
+                            />
+                          )}
+                        </td>
                         <td style={{ width: 130 }}>
                           {!item.stockId && (
                             <button type="button"
-                              onClick={() => setStockPickerFor(i)}
+                              onClick={() => siteId && setStockPickerFor(i)}
+                              disabled={!siteId}
+                              title={!siteId ? 'Select a site first' : undefined}
                               style={{
                                 display: 'inline-flex', alignItems: 'center', gap: 5,
                                 padding: '4px 10px', background: 'var(--bg-subtle)',
                                 border: '1px dashed var(--border)', borderRadius: 'var(--r-sm)',
-                                cursor: 'pointer', fontSize: 11, color: 'var(--fg-muted)',
+                                cursor: siteId ? 'pointer' : 'not-allowed',
+                                fontSize: 11, color: 'var(--fg-muted)',
                                 whiteSpace: 'nowrap',
+                                opacity: siteId ? 1 : 0.5,
                               }}>
-                              <Link2 size={11} /> Link stock
+                              <Link2 size={11} /> {siteId ? 'Link stock' : 'Select site'}
                             </button>
                           )}
                           {item.stockId && (
@@ -462,7 +522,10 @@ export default function CreateRequisition() {
                   <ItemRow key={i} item={item} index={i} stocks={stocks}
                     onUpdate={(idx, updated) => setItems(prev => prev.map((it, j) => j === idx ? updated : it))}
                     onRemove={(idx) => setItems(prev => prev.filter((_, j) => j !== idx))}
-                    onOpenStockPicker={(idx) => setStockPickerFor(idx)} />
+                    onOpenStockPicker={(idx) => setStockPickerFor(idx)}
+                    siteSelected={!!siteId}
+                    categories={categories}
+                    onCreateCategory={handleCreateCategory} />
                 ))}
               </div>
             )}
@@ -481,6 +544,34 @@ export default function CreateRequisition() {
 
         {/* Sidebar */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Site — REQUIRED, always first */}
+          <div className="stoq-panel" style={siteError ? { outline: '2px solid var(--danger)', outlineOffset: -1 } : {}}>
+            <div className="stoq-panel__head">
+              <span className="stoq-panel__title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className="kpi__icon"><MapPin size={13} /></span>
+                Site <span style={{ color: 'var(--danger)', marginLeft: 2 }}>*</span>
+              </span>
+            </div>
+            <div style={{ padding: 14 }}>
+              <select
+                className="stoq-select"
+                value={siteId}
+                onChange={e => { setSiteId(e.target.value); setSiteError(''); }}
+                style={{ width: '100%', ...(siteError ? { borderColor: 'var(--danger)' } : {}) }}>
+                <option value="">Select a site…</option>
+                {sites.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}{s.location ? ` — ${s.location}` : ''}</option>
+                ))}
+              </select>
+              {siteError && <p style={{ fontSize: 11, color: 'var(--danger)', marginTop: 4 }}>{siteError}</p>}
+              {!siteId && !siteError && (
+                <p style={{ fontSize: 11, color: 'var(--fg-subtle)', marginTop: 6 }}>
+                  Select a site to load inventory stock.
+                </p>
+              )}
+            </div>
+          </div>
+
           {/* Employee — only shown to admins */}
           {!isEmployee && (
             <div className="stoq-panel">
@@ -525,25 +616,6 @@ export default function CreateRequisition() {
                 onCreate={handleCreateSupplier}
                 createLabel="supplier"
               />
-            </div>
-          </div>
-
-          {/* Site */}
-          <div className="stoq-panel">
-            <div className="stoq-panel__head">
-              <span className="stoq-panel__title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span className="kpi__icon"><MapPin size={13} /></span>
-                Site
-              </span>
-              <span className="stoq-panel__sub">optional</span>
-            </div>
-            <div style={{ padding: 14 }}>
-              <select className="stoq-select" value={siteId} onChange={e => setSiteId(e.target.value)} style={{ width: '100%' }}>
-                <option value="">No site</option>
-                {sites.map(s => (
-                  <option key={s.id} value={s.id}>{s.name}{s.location ? ` — ${s.location}` : ''}</option>
-                ))}
-              </select>
             </div>
           </div>
         </div>

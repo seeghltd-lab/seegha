@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   Post,
@@ -48,6 +49,19 @@ export class RequisitionController {
     const role: 'ADMIN' | 'EMPLOYEE' = req.admin ? 'ADMIN' : 'EMPLOYEE';
     const callerId = req.admin?.id ?? req.employee?.id;
     return this.requisitionService.findOne(id, callerId, role);
+  }
+
+  @Put(':id')
+  @UseGuards(DualAuthGuard)
+  update(
+    @Param('id') id: string,
+    @Body() body: any,
+    @Req() req: any,
+  ) {
+    if (!req.admin) {
+      throw new ForbiddenException('Admin access required');
+    }
+    return this.requisitionService.updateRequisition(id, req.admin.id, body);
   }
 
   @Put(':id/approve')

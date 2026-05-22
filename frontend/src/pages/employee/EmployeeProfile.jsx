@@ -21,15 +21,21 @@ function IconInput({ icon: Icon, ...props }) {
   );
 }
 
+const TABS = [
+  { key: 'general',  icon: User,        label: 'Account Info' },
+  { key: 'security', icon: ShieldCheck, label: 'Password' },
+  { key: 'pwa',      icon: Smartphone,  label: 'App & PWA' },
+];
+
 export default function EmployeeProfile() {
-  const [profile, setProfile] = useState({ firstName: '', lastName: '', email: '', phone: '', position: '' });
+  const [profile, setProfile]     = useState({ firstName: '', lastName: '', email: '', phone: '', position: '' });
   const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [avatarPreview, setAvatarPreview] = useState(null);
-  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarFile, setAvatarFile]       = useState(null);
   const [activeTab, setActiveTab] = useState('general');
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState(null);
+  const [loading, setLoading]     = useState(false);
+  const [saving, setSaving]       = useState(false);
+  const [toast, setToast]         = useState(null);
   const fileInputRef = useRef(null);
 
   const showToast = (msg, type = 'success') => {
@@ -39,10 +45,19 @@ export default function EmployeeProfile() {
 
   useEffect(() => {
     setLoading(true);
-    employeeAuthService.getProfile().then(data => {
-      setProfile({ firstName: data.firstName || '', lastName: data.lastName || '', email: data.email || '', phone: data.phone || '', position: data.position || '' });
-      if (data.profilePicture) setAvatarPreview(`http://localhost:3000${data.profilePicture}`);
-    }).catch(() => showToast('Failed to load profile', 'error')).finally(() => setLoading(false));
+    employeeAuthService.getProfile()
+      .then(data => {
+        setProfile({
+          firstName: data.firstName || '',
+          lastName:  data.lastName  || '',
+          email:     data.email     || '',
+          phone:     data.phone     || '',
+          position:  data.position  || '',
+        });
+        if (data.profilePicture) setAvatarPreview(`http://localhost:3000${data.profilePicture}`);
+      })
+      .catch(() => showToast('Failed to load profile', 'error'))
+      .finally(() => setLoading(false));
   }, []);
 
   const handleAvatarSelect = (e) => {
@@ -90,6 +105,24 @@ export default function EmployeeProfile() {
 
   return (
     <div style={{ padding: '20px 24px 40px' }}>
+      <style>{`
+        @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+        .profile-layout { display: grid; grid-template-columns: 200px 1fr; gap: 14px; align-items: start; }
+        .profile-tab-sidebar { display: flex; flex-direction: column; gap: 2px; padding: 8px; }
+        .profile-tab-bar { display: none; }
+        .profile-fields-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px; }
+        @media (max-width: 768px) {
+          .profile-layout { grid-template-columns: 1fr; }
+          .profile-tab-sidebar-panel { display: none !important; }
+          .profile-tab-bar { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 2px; margin-bottom: 14px; }
+          .profile-tab-bar::-webkit-scrollbar { display: none; }
+          .profile-fields-2col { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 480px) {
+          .profile-fields-2col { padding: 12px; }
+        }
+      `}</style>
+
       {toast && (
         <div className={`stoq-toast ${toast.type === 'error' ? 'stoq-toast--error' : 'stoq-toast--success'}`}
           style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -105,15 +138,24 @@ export default function EmployeeProfile() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 14, alignItems: 'start' }}>
-        {/* Sidebar */}
-        <div className="stoq-panel">
-          <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {[
-              { key: 'general', icon: User, label: 'Account Info' },
-              { key: 'security', icon: ShieldCheck, label: 'Password' },
-              { key: 'pwa', icon: Smartphone, label: 'App & PWA' },
-            ].map(({ key, icon: Icon, label }) => (
+      {/* Mobile tab bar (hidden on desktop) */}
+      <div className="profile-tab-bar">
+        {TABS.map(({ key, icon: Icon, label }) => (
+          <button key={key}
+            className="stoq-tab"
+            data-active={activeTab === key ? 'true' : 'false'}
+            onClick={() => setActiveTab(key)}
+            style={{ whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Icon size={13} /> {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="profile-layout">
+        {/* Sidebar nav (hidden on mobile) */}
+        <div className="stoq-panel profile-tab-sidebar-panel">
+          <div className="profile-tab-sidebar">
+            {TABS.map(({ key, icon: Icon, label }) => (
               <button key={key} onClick={() => setActiveTab(key)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8,
@@ -129,26 +171,42 @@ export default function EmployeeProfile() {
           </div>
         </div>
 
+        {/* Content */}
         <div>
           {activeTab === 'general' && (
             <form onSubmit={saveProfile} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {/* Avatar */}
               <div className="stoq-panel">
                 <div className="stoq-panel__head"><span className="stoq-panel__title">Display Photo</span></div>
-                <div style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 16 }}>
-                  <div style={{ position: 'relative', cursor: 'pointer' }} onClick={() => fileInputRef.current?.click()}>
-                    <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'var(--accent)', color: 'var(--accent-fg)', display: 'grid', placeItems: 'center', overflow: 'hidden', border: '3px solid var(--border)' }}>
+                <div style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                  <div style={{ position: 'relative', cursor: 'pointer', flexShrink: 0 }} onClick={() => fileInputRef.current?.click()}>
+                    <div style={{
+                      width: 72, height: 72, borderRadius: '50%',
+                      background: 'var(--accent)', color: 'var(--accent-fg)',
+                      display: 'grid', placeItems: 'center',
+                      overflow: 'hidden', border: '3px solid var(--border)',
+                    }}>
                       {avatarPreview
                         ? <img src={avatarPreview} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         : <User size={28} />}
                     </div>
-                    <div style={{ position: 'absolute', bottom: 0, right: 0, width: 22, height: 22, borderRadius: '50%', background: 'var(--fg)', color: 'var(--bg)', display: 'grid', placeItems: 'center', border: '2px solid var(--panel)' }}>
+                    <div style={{
+                      position: 'absolute', bottom: 0, right: 0,
+                      width: 22, height: 22, borderRadius: '50%',
+                      background: 'var(--fg)', color: 'var(--bg)',
+                      display: 'grid', placeItems: 'center',
+                      border: '2px solid var(--panel)',
+                    }}>
                       <Camera size={11} />
                     </div>
                   </div>
                   <div>
                     <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)' }}>Click to change photo</div>
                     <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginTop: 2 }}>JPG, PNG — max 2MB</div>
+                    <button type="button" className="stoq-btn stoq-btn--sm" style={{ marginTop: 8 }}
+                      onClick={() => fileInputRef.current?.click()}>
+                      <Camera size={11} /> Choose file
+                    </button>
                   </div>
                   <input type="file" ref={fileInputRef} accept="image/*" onChange={handleAvatarSelect} style={{ display: 'none' }} />
                 </div>
@@ -156,19 +214,25 @@ export default function EmployeeProfile() {
 
               <div className="stoq-panel">
                 <div className="stoq-panel__head"><span className="stoq-panel__title">Personal Information</span></div>
-                <div style={{ padding: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="profile-fields-2col">
                   <Field label="First Name">
-                    <IconInput icon={User} value={profile.firstName} onChange={e => setProfile({ ...profile, firstName: e.target.value })} placeholder="First name" />
+                    <IconInput icon={User} value={profile.firstName}
+                      onChange={e => setProfile({ ...profile, firstName: e.target.value })}
+                      placeholder="First name" />
                   </Field>
                   <Field label="Last Name">
-                    <IconInput icon={User} value={profile.lastName} onChange={e => setProfile({ ...profile, lastName: e.target.value })} placeholder="Last name" />
+                    <IconInput icon={User} value={profile.lastName}
+                      onChange={e => setProfile({ ...profile, lastName: e.target.value })}
+                      placeholder="Last name" />
                   </Field>
                   <Field label="Email Address">
                     <IconInput icon={Mail} type="email" value={profile.email} disabled placeholder="email@domain.com" style={{ opacity: 0.6 }} />
                     <span style={{ fontSize: 10, color: 'var(--fg-subtle)' }}>Contact management to change email</span>
                   </Field>
                   <Field label="Phone Number">
-                    <IconInput icon={Phone} value={profile.phone} onChange={e => setProfile({ ...profile, phone: e.target.value })} placeholder="+250…" />
+                    <IconInput icon={Phone} value={profile.phone}
+                      onChange={e => setProfile({ ...profile, phone: e.target.value })}
+                      placeholder="+250…" />
                   </Field>
                   <div style={{ gridColumn: '1 / -1' }}>
                     <Field label="Position / Role">
@@ -198,13 +262,16 @@ export default function EmployeeProfile() {
                 </div>
                 <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <Field label="Current Password">
-                    <IconInput icon={Lock} type="password" value={passwords.currentPassword} onChange={e => setPasswords({ ...passwords, currentPassword: e.target.value })} />
+                    <IconInput icon={Lock} type="password" value={passwords.currentPassword}
+                      onChange={e => setPasswords({ ...passwords, currentPassword: e.target.value })} />
                   </Field>
                   <Field label="New Password">
-                    <IconInput icon={Lock} type="password" value={passwords.newPassword} onChange={e => setPasswords({ ...passwords, newPassword: e.target.value })} />
+                    <IconInput icon={Lock} type="password" value={passwords.newPassword}
+                      onChange={e => setPasswords({ ...passwords, newPassword: e.target.value })} />
                   </Field>
                   <Field label="Confirm New Password">
-                    <IconInput icon={Lock} type="password" value={passwords.confirmPassword} onChange={e => setPasswords({ ...passwords, confirmPassword: e.target.value })} />
+                    <IconInput icon={Lock} type="password" value={passwords.confirmPassword}
+                      onChange={e => setPasswords({ ...passwords, confirmPassword: e.target.value })} />
                   </Field>
                 </div>
               </div>

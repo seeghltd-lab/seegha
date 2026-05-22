@@ -36,6 +36,11 @@ class RequisitionService {
     return data;
   }
 
+  async update(id, payload) {
+    const { data } = await api.put(`/requisitions/${id}`, payload);
+    return data;
+  }
+
   async remove(id) {
     const { data } = await api.delete(`/requisitions/${id}`);
     return data;

@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useCallback } from 'react';
 import {
   Search, Eye, CheckCircle, XCircle, Package, ChevronLeft, ChevronRight,
-  Clock, CheckCheck, FileText, Truck, Trash2, Plus, LayoutGrid, List, Shield,
+  Clock, CheckCheck, FileText, Truck, Trash2, Plus, LayoutGrid, List, Shield, MapPin,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import requisitionService from '../../services/requisitionService';
@@ -193,6 +193,7 @@ export default function EmployeeRequisitionPage() {
               <thead>
                 <tr>
                   <th className="no-sort">Description</th>
+                  <th className="no-sort">Site</th>
                   <th className="no-sort">Items</th>
                   <th className="no-sort">Status</th>
                   <th className="no-sort">Date</th>
@@ -201,10 +202,10 @@ export default function EmployeeRequisitionPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={5} className="stoq-empty">Loading…</td></tr>
+                  <tr><td colSpan={6} className="stoq-empty">Loading…</td></tr>
                 ) : requisitions.length === 0 ? (
                   <tr>
-                    <td colSpan={5}>
+                    <td colSpan={6}>
                       <div className="stoq-empty">
                         <div className="stoq-empty__icon"><FileText size={32} /></div>
                         <div className="stoq-empty__title">No requisitions found</div>
@@ -217,6 +218,16 @@ export default function EmployeeRequisitionPage() {
                     <td>
                       <span className="cell-stack__main">{req.description || <em style={{ fontWeight: 400, color: 'var(--fg-subtle)' }}>No description</em>}</span>
                       <span className="cell-stack__sub">#{req.id.slice(-8).toUpperCase()}</span>
+                    </td>
+                    <td>
+                      {req.site ? (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                          <MapPin size={11} style={{ color: 'var(--fg-subtle)', flexShrink: 0 }} />
+                          <span style={{ fontWeight: 500 }}>{req.site.name}</span>
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--fg-subtle)', fontSize: 11 }}>—</span>
+                      )}
                     </td>
                     <td>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600 }}>
@@ -276,7 +287,7 @@ export default function EmployeeRequisitionPage() {
                       </div>
                       <StatusBadge status={req.status} />
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 12, color: 'var(--fg-muted)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 12, color: 'var(--fg-muted)', flexWrap: 'wrap' }}>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                         <Package size={11} style={{ color: 'var(--fg-subtle)' }} />
                         <strong style={{ color: 'var(--fg)' }}>{req._count?.items ?? req.items?.length ?? 0}</strong> items
@@ -284,6 +295,11 @@ export default function EmployeeRequisitionPage() {
                       <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-subtle)' }}>
                         {new Date(req.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                       </span>
+                      {req.site && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+                          <MapPin size={10} style={{ color: 'var(--fg-subtle)' }} /> {req.site.name}
+                        </span>
+                      )}
                     </div>
                     <div style={{ display: 'flex', gap: 4, borderTop: '1px solid var(--border)', paddingTop: 8 }} onClick={e => e.stopPropagation()}>
                       <button className="stoq-btn stoq-btn--ghost stoq-btn--sm" style={{ flex: 1, justifyContent: 'center' }} onClick={() => navigate(`/requisitions/${req.id}`)}><Eye size={12} /></button>
