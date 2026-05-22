@@ -172,6 +172,7 @@ export class SupplierService {
           },
         },
         payments: {
+          where: { deletedAt: null },
           orderBy: { date: 'desc' },
           include: {
             stock: { select: { id: true, sku: true, itemName: true, unit: true, unitCost: true, site: { select: { id: true, name: true } } } },
@@ -372,12 +373,62 @@ export class SupplierService {
     });
   }
 
+  async deletePayment(supplierId: string, paymentId: string, adminId: string, adminName: string) {
+    const payment = await this.prisma.supplierPayment.findFirst({
+      where: { id: paymentId, supplierId, deletedAt: null },
+    });
+    if (!payment) throw new NotFoundException('Payment not found');
+
+    // If deleting a DEBIT that covered credits via PAID_CREDITS notes, restore those credits' statuses
+    if (payment.type === 'DEBIT' && (payment.notes as string | null)?.startsWith('PAID_CREDITS:')) {
+      const parts = (payment.notes as string).replace('PAID_CREDITS:', '').split(',').filter(Boolean);
+      for (const part of parts) {
+        const [creditId, paidAmtStr] = part.split('=');
+        const paidAmt = parseFloat(paidAmtStr ?? '0');
+        if (!creditId?.trim()) continue;
+        const credit = await this.prisma.supplierPayment.findUnique({
+          where: { id: creditId.trim() },
+          select: { paidAmount: true, amount: true },
+        });
+        if (credit) {
+          const newPaid = Math.max(0, parseFloat(credit.paidAmount.toString()) - paidAmt);
+          const newStatus =
+            newPaid <= 0.001 ? 'UNPAID'
+            : newPaid >= parseFloat(credit.amount.toString()) - 0.001 ? 'PAID'
+            : 'PARTIAL';
+          await this.prisma.supplierPayment.update({
+            where: { id: creditId.trim() },
+            data: { paidAmount: new Decimal(newPaid), status: newStatus as any },
+          });
+        }
+      }
+    }
+
+    await this.prisma.supplierPayment.update({
+      where: { id: paymentId },
+      data: { deletedAt: new Date() },
+    });
+
+    this.activityLog.log({
+      action: 'PAYMENT_DELETED',
+      entityType: 'SupplierPayment',
+      entityId: paymentId,
+      entityLabel: `${payment.type} - ${payment.reference ?? paymentId}`,
+      performedById: adminId,
+      performedByType: 'ADMIN',
+      performedByName: adminName,
+      metadata: { amount: payment.amount, type: payment.type },
+    });
+
+    return { success: true };
+  }
+
   async getPayments(supplierId: string) {
     const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId } });
     if (!supplier) throw new NotFoundException('Supplier not found');
 
     const payments: any[] = await this.prisma.supplierPayment.findMany({
-      where: { supplierId },
+      where: { supplierId, deletedAt: null },
       orderBy: { date: 'desc' },
       include: {
         stock: { select: { id: true, sku: true, itemName: true, unit: true, site: { select: { id: true, name: true } } } },

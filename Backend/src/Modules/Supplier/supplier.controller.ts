@@ -62,6 +62,18 @@ export class SupplierController {
     return this.supplierService.updatePayment(id, paymentId, body);
   }
 
+  @Delete(':id/payments/:paymentId')
+  @UseGuards(DualAuthGuard)
+  deletePayment(
+    @Param('id') id: string,
+    @Param('paymentId') paymentId: string,
+    @Req() req: any,
+  ) {
+    const adminId = req.admin?.id ?? req.employee?.id;
+    const adminName = req.admin?.names ?? req.admin?.email ?? '';
+    return this.supplierService.deletePayment(id, paymentId, adminId, adminName);
+  }
+
   @Get('select')
   @UseGuards(DualAuthGuard)
   findForSelect(@Req() req: any) {

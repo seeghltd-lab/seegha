@@ -799,20 +799,31 @@ export class RequisitionService {
 
         // Auto-create payment if paymentType is set and supplier is linked
         const paymentType = item.paymentType ?? 'NONE';
-        if (paymentType !== 'NONE' && (effectiveStock as any).supplierId) {
-          await this.prisma.supplierPayment.create({
-            data: {
-              supplierId: (effectiveStock as any).supplierId,
-              stockId: effectiveStockId,
-              requisitionItemId: item.id,
-              type: paymentType as PaymentType,
-              quantity: receiveData.receivedQty,
-              amount: receiveData.receivedQty * unitCost,
-              reference: `REQ-${requisitionId.slice(-6).toUpperCase()}`,
-              notes: `Stock received via requisition`,
-              adminId: receivedById,
-            },
-          });
+        if (paymentType !== 'NONE') {
+          // Stock has no direct supplierId — use requisition's supplierId, or look up junction
+          let effectiveSupplierId: string | null = (requisition as any).supplierId ?? null;
+          if (!effectiveSupplierId && effectiveStockId) {
+            const ss = await this.prisma.stockSupplier.findFirst({
+              where: { stockId: effectiveStockId },
+              select: { supplierId: true },
+            });
+            effectiveSupplierId = ss?.supplierId ?? null;
+          }
+          if (effectiveSupplierId) {
+            await this.prisma.supplierPayment.create({
+              data: {
+                supplierId: effectiveSupplierId,
+                stockId: effectiveStockId,
+                requisitionItemId: item.id,
+                type: paymentType as PaymentType,
+                quantity: receiveData.receivedQty,
+                amount: receiveData.receivedQty * unitCost,
+                reference: `REQ-${requisitionId.slice(-6).toUpperCase()}`,
+                notes: `Stock received via requisition`,
+                adminId: receivedById,
+              },
+            });
+          }
         }
       }
     }

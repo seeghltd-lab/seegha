@@ -45,6 +45,11 @@ class SupplierService {
     const { data: res } = await api.patch(`/suppliers/${supplierId}/payments/${paymentId}`, data);
     return res;
   }
+
+  async deletePayment(supplierId, paymentId) {
+    const { data } = await api.delete(`/suppliers/${supplierId}/payments/${paymentId}`);
+    return data;
+  }
 }
 
 export default new SupplierService();

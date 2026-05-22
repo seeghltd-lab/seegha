@@ -4,7 +4,7 @@ import {
   ArrowLeft, Star, Mail, Phone, MapPin, Building2, FileText,
   Package, CreditCard, ArrowUpCircle, ArrowDownCircle, ChevronDown,
   X, RefreshCw, Plus, AlertCircle, CheckCircle,
-  TrendingDown, Edit2, List, LayoutGrid, ChevronLeft, ChevronRight, Calendar, Printer, BadgeCheck, Search,
+  TrendingDown, Edit2, List, LayoutGrid, ChevronLeft, ChevronRight, Calendar, Printer, BadgeCheck, Search, Trash2,
 } from 'lucide-react';
 import supplierService from '../../../services/supplierService';
 import { useRole } from '../../../hooks/useRole';
@@ -936,6 +936,60 @@ function GroupReceiptModal({ supplierName, dateKey, items, onClose, onPrint }) {
   );
 }
 
+// --- Delete Confirm Modal -----------------------------------------------------
+
+function DeleteConfirmModal({ payment, onConfirm, onClose }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const handleConfirm = async () => {
+    setLoading(true);
+    setError('');
+    try { await onConfirm(); }
+    catch (e) { setError(e?.response?.data?.message || 'Failed to delete. Please try again.'); setLoading(false); }
+  };
+  const isDebitWithLinks = payment.type === 'DEBIT' && payment.notes?.startsWith('PAID_CREDITS:');
+  const isPaidCredit = payment.type === 'CREDIT' && (payment.status === 'PAID' || payment.status === 'PARTIAL');
+  return (
+    <div className="stoq-modal-backdrop">
+      <div className="stoq-modal" style={{ maxWidth: 420 }}>
+        <div className="stoq-modal__head">
+          <div className="stoq-modal__title">Delete Transaction</div>
+          <button className="icon-btn" onClick={onClose}><X size={14} /></button>
+        </div>
+        <div className="stoq-modal__body" style={{ padding: '18px 24px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <p style={{ fontSize: 13 }}>
+            Are you sure you want to delete this <strong>{payment.type === 'CREDIT' ? 'invoice (credit)' : 'payment (debit)'}</strong>?
+          </p>
+          <p style={{ fontSize: 12, color: 'var(--fg-subtle)', fontFamily: 'var(--font-mono)' }}>
+            {fmt(payment.amount)}{payment.reference ? ` · ${payment.reference}` : ''}
+          </p>
+          {isDebitWithLinks && (
+            <div style={{ fontSize: 12, color: 'var(--warning)', background: 'color-mix(in oklch, var(--warning) 10%, transparent)', padding: '8px 12px', borderRadius: 6, borderLeft: '3px solid var(--warning)' }}>
+              This payment covers linked invoices — deleting it will restore their unpaid/partial status automatically.
+            </div>
+          )}
+          {isPaidCredit && (
+            <div style={{ fontSize: 12, color: 'var(--warning)', background: 'color-mix(in oklch, var(--warning) 10%, transparent)', padding: '8px 12px', borderRadius: 6, borderLeft: '3px solid var(--warning)' }}>
+              This invoice has been partially or fully paid. Deleting it does not reverse the payment records.
+            </div>
+          )}
+          {error && <p style={{ fontSize: 12, color: 'var(--danger)' }}>{error}</p>}
+        </div>
+        <div className="stoq-modal__foot">
+          <button className="stoq-btn" onClick={onClose} disabled={loading}>Cancel</button>
+          <button
+            className="stoq-btn"
+            disabled={loading}
+            style={{ opacity: loading ? 0.6 : 1, background: 'var(--danger, #e53e3e)', color: '#fff', border: 'none' }}
+            onClick={handleConfirm}>
+            {loading ? 'Deleting…' : 'Yes, Delete'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // --- Tab: Items & Requisitions ------------------------------------------------
 
 function TabItems({ supplier }) {
@@ -1243,7 +1297,7 @@ function sortByStatus(payments) {
 }
 
 // ── Payment row with checkbox ─────────────────────────────────────────────────
-function PaymentRow({ p, supplier, onReceipt, onEdit, selected, onToggle, allPayments }) {
+function PaymentRow({ p, supplier, onReceipt, onEdit, onDelete, selected, onToggle, allPayments }) {
   const isCredit = p.type === 'CREDIT';
   const [expanded, setExpanded] = useState(false);
 
@@ -1327,6 +1381,11 @@ function PaymentRow({ p, supplier, onReceipt, onEdit, selected, onToggle, allPay
             )}
             <button className="stoq-btn stoq-btn--sm stoq-btn--icon" title="Edit" onClick={() => onEdit(p)}>
               <Edit2 size={12} />
+            </button>
+            <button className="stoq-btn stoq-btn--sm stoq-btn--icon" title="Delete"
+              style={{ color: 'var(--danger)' }}
+              onClick={(e) => { e.stopPropagation(); onDelete(p); }}>
+              <Trash2 size={12} />
             </button>
             <button className="stoq-btn stoq-btn--sm stoq-btn--icon" title="View Receipt" onClick={handleReceipt}>
               <FileText size={12} />
@@ -1508,6 +1567,14 @@ function TabFinance({ supplier, onRecordPayment, onBulkPay, onEditPayment }) {
     setSelectedIds(new Set());
   };
 
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const handleDeleteConfirm = async () => {
+    await supplierService.deletePayment(supplier.id, pendingDelete.id);
+    setPendingDelete(null);
+    setSelectedIds(prev => { const next = new Set(prev); next.delete(pendingDelete.id); return next; });
+    onRecordPayment(); // triggers parent reload
+  };
+
   return (
     <>
       {receipt && <SupplierReceiptModal data={receipt} supplier={supplier} onClose={() => setReceipt(null)} />}
@@ -1518,6 +1585,13 @@ function TabFinance({ supplier, onRecordPayment, onBulkPay, onEditPayment }) {
           items={groupModal.items}
           onClose={() => setGroupModal(null)}
           onPrint={setReceipt}
+        />
+      )}
+      {pendingDelete && (
+        <DeleteConfirmModal
+          payment={pendingDelete}
+          onConfirm={handleDeleteConfirm}
+          onClose={() => setPendingDelete(null)}
         />
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -1642,6 +1716,7 @@ function TabFinance({ supplier, onRecordPayment, onBulkPay, onEditPayment }) {
                               supplier={supplier}
                               onReceipt={setReceipt}
                               onEdit={onEditPayment}
+                              onDelete={setPendingDelete}
                               selected={selectedIds.has(p.id)}
                               onToggle={() => togglePayment(p.id)}
                               allPayments={allPaymentsFlat}

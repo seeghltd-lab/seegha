@@ -427,6 +427,7 @@ model SupplierPayment {
   paidAmount          Decimal        @default(0)  @db.Decimal(14, 2)
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
+  deletedAt           DateTime?
 
   supplier        Supplier         @relation(fields: [supplierId], references: [id])
   stock           Stock?           @relation(fields: [stockId], references: [id])
