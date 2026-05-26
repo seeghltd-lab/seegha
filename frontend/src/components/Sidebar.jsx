@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import { useEmployeeAuth } from '../context/EmployeeAuthContext';
-import { SITE_NAME } from '../config/site';
+import logo from '../assets/seegh_ltd_logo.png';
 
 const hasPerm = (employee, ...names) =>
   names.some(name => employee?.permissions?.some(p => p.permission.name === name));
@@ -103,7 +103,6 @@ const Sidebar = ({ isOpen, isCollapsed, onToggle, role }) => {
   const links = role === 'admin' ? adminLinks : employeeLinks;
   const userName = user?.names || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'User';
   const userInitial = userName.charAt(0).toUpperCase();
-  const shortName = SITE_NAME.split(' ')[0];
 
   // Active detection — exact match or prefix match (but not /stock matching /stock/history)
   const isLinkActive = (linkPath) => {
@@ -122,12 +121,9 @@ const Sidebar = ({ isOpen, isCollapsed, onToggle, role }) => {
     >
       {/* Brand */}
       <div className="stoq-sidebar__brand">
-        <div className="brand-mark">
-          <span>{shortName.charAt(0)}</span>
-        </div>
-        <div style={{ minWidth: 0 }}>
-          <div className="brand-name">{shortName}</div>
-          <div className="brand-meta">{role === 'admin' ? 'Management' : 'Staff Portal'}</div>
+        <img src={logo} alt="SEEGH LTD" style={{ height: 36, width: 'auto', objectFit: 'contain', maxWidth: 120 }} />
+        <div className="brand-meta" style={{ fontSize: 10, color: 'var(--fg-subtle)', marginLeft: 4 }}>
+          {role === 'admin' ? 'Management' : 'Staff Portal'}
         </div>
         {/* <button
           onClick={onToggle}

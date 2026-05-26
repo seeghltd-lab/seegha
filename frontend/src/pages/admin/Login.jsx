@@ -1,11 +1,12 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, Link, Navigate } from 'react-router-dom';
 import { useAdminAuth } from '../../context/AdminAuthContext';
 import { useNotification } from '../../context/NotificationContext';
-import { SITE_NAME, SITE_DESCRIPTION } from '../../config/site';
+import logo from '../../assets/seegh_ltd_logo.png';
+import bannerBg from '../../assets/images/left-banner.png';
 
 const AdminLogin = () => {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -25,7 +26,7 @@ const AdminLogin = () => {
     setIsLoading(true);
     try {
       setError('');
-      const admin = await login({ email, password });
+      const admin = await login({ identifier, password });
       setRecipient(admin.id, 'ADMIN');
       navigate('/admin/dashboard');
     } catch (err) {
@@ -35,32 +36,35 @@ const AdminLogin = () => {
     }
   };
 
-  const shortName = SITE_NAME.split(' ')[0];
-
   return (
     <div className="stoq-login">
       {/* Left — brand panel */}
-      <div className="stoq-login__brand">
-        <div className="stoq-login__brand-bg" />
-        <div className="stoq-login__grid" />
+      <div
+        className="stoq-login__brand"
+        style={{
+          backgroundImage: `url(${bannerBg})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          position: 'relative',
+        }}
+      >
+        {/* Dark overlay for text readability */}
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(10,10,20,0.65)', zIndex: 0 }} />
 
         {/* Logo */}
-        <div className="stoq-login__brand-content stoq-login__logo">
-          <div className="brand-mark"><span>{shortName.charAt(0)}</span></div>
-          <div>
-            <div className="brand-name">{SITE_NAME}</div>
-            <div className="brand-meta">Management Console</div>
-          </div>
+        <div className="stoq-login__brand-content stoq-login__logo" style={{ position: 'relative', zIndex: 1 }}>
+          <img src={logo} alt="SEEGH LTD" style={{ height: 52, width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.4))' }} />
+          <div className="brand-meta" style={{ marginTop: 6, color: 'rgba(255,255,255,0.75)', fontSize: 11 }}>Management Console</div>
         </div>
 
         {/* Tagline */}
-        <div className="stoq-login__tag">
+        <div className="stoq-login__tag" style={{ position: 'relative', zIndex: 1 }}>
           Every asset,<br />every transaction.<br />
           <em>Tracked. Costed. Controlled.</em>
         </div>
 
         {/* Stats */}
-        <div className="stoq-login__stats">
+        <div className="stoq-login__stats" style={{ position: 'relative', zIndex: 1 }}>
           <div>
             <div className="stoq-login__stat-num num">99.9%</div>
             <div className="stoq-login__stat-lbl">Uptime SLA</div>
@@ -103,14 +107,14 @@ const AdminLogin = () => {
 
           <form onSubmit={handleSubmit}>
             <div className="stoq-field">
-              <label className="stoq-field__label">Work Email</label>
+              <label className="stoq-field__label">Email or Phone Number</label>
               <input
                 className="stoq-input"
-                type="email"
+                type="text"
                 required
-                placeholder="admin@company.com"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
+                placeholder="admin@company.com or +250..."
+                value={identifier}
+                onChange={e => setIdentifier(e.target.value)}
               />
             </div>
             <div className="stoq-field" style={{ marginTop: 14 }}>

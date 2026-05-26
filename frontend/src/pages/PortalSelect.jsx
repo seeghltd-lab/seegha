@@ -1,8 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { SITE_NAME } from '../config/site';
-
-const shortName = SITE_NAME.split(' ')[0];
+import logo from '../assets/seegh_ltd_logo.png';
 
 export default function PortalSelect() {
   const navigate = useNavigate();
@@ -15,11 +13,8 @@ export default function PortalSelect() {
       <div className="stoq-portal__inner">
         {/* Brand */}
         <div className="stoq-portal__brand">
-          <div className="brand-mark"><span>{shortName.charAt(0)}</span></div>
-          <div>
-            <div className="brand-name">{SITE_NAME}</div>
-            <div className="brand-meta">Select your portal to continue</div>
-          </div>
+          <img src={logo} alt="SEEGH LTD" style={{ height: 50, width: 'auto', objectFit: 'contain' }} />
+          <div className="brand-meta" style={{ marginLeft: 8 }}>Select your portal to continue</div>
         </div>
 
         {/* Status chip */}
@@ -73,7 +68,7 @@ export default function PortalSelect() {
         </div>
 
         <p className="stoq-portal__footer">
-          © {new Date().getFullYear()} {SITE_NAME} · All rights reserved
+          © {new Date().getFullYear()} SEEGH LTD · All rights reserved
         </p>
       </div>
 

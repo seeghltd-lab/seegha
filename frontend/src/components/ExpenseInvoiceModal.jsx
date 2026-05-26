@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { X, Printer } from 'lucide-react';
+import logoUrl from '../assets/seegh_ltd_logo.png';
 
 const fmtMoney = (n) =>
   new Intl.NumberFormat('en-RW', { style: 'currency', currency: 'RWF', maximumFractionDigits: 0 }).format(Number(n ?? 0));
@@ -102,7 +103,7 @@ export default function ExpenseInvoiceModal({ expense, siteName, onClose }) {
           <div className="ltr-paper" ref={docRef}>
 
             {/* Letterhead */}
-            <div className="header">SEEGH LTD</div>
+            <img src={logoUrl} alt="SEEGH LTD" style={{ height: 52, width: 'auto', objectFit: 'contain', display: 'block', marginBottom: 6 }} />
             <div className="subheader">Finance & Operations Division</div>
             <div className="divider" />
 
@@ -183,7 +184,9 @@ export default function ExpenseInvoiceModal({ expense, siteName, onClose }) {
 
             {/* Footer */}
             <div className="footer">
-              <div>SEEGH LTD — Confidential</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                <img src={logoUrl} alt="SEEGH LTD" style={{ height: 14, width: 'auto', verticalAlign: 'middle' }} /> SEEGH LTD — Confidential
+              </div>
               <div>Reference: {refNo} | Generated: {fmtDateShort(new Date())}</div>
             </div>
 

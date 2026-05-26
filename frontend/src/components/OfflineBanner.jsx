@@ -1,30 +1,38 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
-// Hits our own backend to confirm real internet — navigator.onLine stays true
-// even on WiFi with no internet route, so we need an actual network request.
-const CHECK_URL = (import.meta.env.VITE_API_URL || '') + '/api/health';
-const POLL_INTERVAL = 10_000; // re-check every 10 s while offline
+// Check real internet connectivity against 3 always-available external URLs.
+// navigator.onLine stays true on WiFi-with-no-route, so we do real fetches.
+// mode:'no-cors' avoids CORS errors on opaque responses but still throws on no internet.
+const CHECK_URLS = [
+  'https://www.gstatic.com/generate_204',
+  'https://connectivitycheck.gstatic.com/generate_204',
+  'https://1.1.1.1',
+];
+const POLL_INTERVAL = 10_000;
 
 export default function OfflineBanner() {
   const [offline, setOffline] = useState(false);
   const timerRef = useRef(null);
 
   const checkConnectivity = useCallback(async () => {
-    try {
-      await fetch(CHECK_URL, {
-        method: 'HEAD',
-        cache: 'no-store',
-        signal: AbortSignal.timeout(5000),
-      });
-      setOffline(false);
-    } catch {
-      setOffline(true);
+    for (const url of CHECK_URLS) {
+      try {
+        await fetch(url, {
+          method: 'HEAD',
+          mode: 'no-cors',
+          cache: 'no-store',
+          signal: AbortSignal.timeout(4000),
+        });
+        setOffline(false);
+        return;
+      } catch {
+        // try next URL
+      }
     }
+    setOffline(true);
   }, []);
 
   useEffect(() => {
-    // On mount: if browser already knows it's offline, show immediately;
-    // otherwise do a real fetch to catch the WiFi-but-no-internet case.
     if (!navigator.onLine) {
       setOffline(true);
     } else {
@@ -32,7 +40,7 @@ export default function OfflineBanner() {
     }
 
     const handleOffline = () => setOffline(true);
-    const handleOnline = () => checkConnectivity(); // confirm with real fetch
+    const handleOnline = () => checkConnectivity();
 
     window.addEventListener('offline', handleOffline);
     window.addEventListener('online', handleOnline);

@@ -1,8 +1,9 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, Link, Navigate } from 'react-router-dom';
 import { useEmployeeAuth } from '../../context/EmployeeAuthContext';
 import { useNotification } from '../../context/NotificationContext';
-import { SITE_NAME, SITE_DESCRIPTION } from '../../config/site';
+import logo from '../../assets/seegh_ltd_logo.png';
+import bannerBg from '../../assets/images/left-banner.png';
 
 const EmployeeLogin = () => {
   const [identifier, setIdentifier] = useState('');
@@ -35,29 +36,32 @@ const EmployeeLogin = () => {
     }
   };
 
-  const shortName = SITE_NAME.split(' ')[0];
-
   return (
     <div className="stoq-login">
       {/* Left — brand panel */}
-      <div className="stoq-login__brand">
-        <div className="stoq-login__brand-bg" />
-        <div className="stoq-login__grid" />
+      <div
+        className="stoq-login__brand"
+        style={{
+          backgroundImage: `url(${bannerBg})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          position: 'relative',
+        }}
+      >
+        {/* Dark overlay for text readability */}
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(10,10,20,0.65)', zIndex: 0 }} />
 
-        <div className="stoq-login__brand-content stoq-login__logo">
-          <div className="brand-mark"><span>{shortName.charAt(0)}</span></div>
-          <div>
-            <div className="brand-name">{SITE_NAME}</div>
-            <div className="brand-meta">Staff Portal</div>
-          </div>
+        <div className="stoq-login__brand-content stoq-login__logo" style={{ position: 'relative', zIndex: 1 }}>
+          <img src={logo} alt="SEEGH LTD" style={{ height: 52, width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.4))' }} />
+          <div className="brand-meta" style={{ marginTop: 6, color: 'rgba(255,255,255,0.75)', fontSize: 11 }}>Staff Portal</div>
         </div>
 
-        <div className="stoq-login__tag">
+        <div className="stoq-login__tag" style={{ position: 'relative', zIndex: 1 }}>
           Efficiency<br />at your<br />
           <em>fingertips.</em>
         </div>
 
-        <div className="stoq-login__stats">
+        <div className="stoq-login__stats" style={{ position: 'relative', zIndex: 1 }}>
           <div>
             <div className="stoq-login__stat-num num">5</div>
             <div className="stoq-login__stat-lbl">Active Sites</div>
@@ -105,7 +109,7 @@ const EmployeeLogin = () => {
                 className="stoq-input"
                 type="text"
                 required
-                placeholder="e.g. employee@company.com"
+                placeholder="e.g. employee@company.com or +250..."
                 value={identifier}
                 onChange={e => setIdentifier(e.target.value)}
               />

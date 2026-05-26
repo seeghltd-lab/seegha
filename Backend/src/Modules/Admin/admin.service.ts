@@ -43,13 +43,18 @@ export class AdminService {
     return adminWithoutPassword;
   }
 
-  async adminLogin(credentials: { email: string; password: string }) {
-    const admin = await this.prisma.admin.findUnique({
-      where: { email: credentials.email },
+  async adminLogin(credentials: { identifier: string; password: string }) {
+    const admin = await this.prisma.admin.findFirst({
+      where: {
+        OR: [
+          { email: credentials.identifier },
+          { phone: credentials.identifier },
+        ],
+      },
     });
 
     if (!admin) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw new UnauthorizedException('Invalid email, phone or password');
     }
 
     if (admin.isLocked) {
@@ -61,7 +66,7 @@ export class AdminService {
       admin.password,
     );
     if (!passwordValid) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw new UnauthorizedException('Invalid credentials');
     }
 
     const payload = {

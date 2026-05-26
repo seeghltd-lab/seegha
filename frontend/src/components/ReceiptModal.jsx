@@ -1,6 +1,7 @@
 ﻿import React, { useRef } from 'react';
 import { QRCode } from 'react-qr-code';
 import { X, Printer } from 'lucide-react';
+import logoUrl from '../assets/seegh_ltd_logo.png';
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
 
@@ -199,14 +200,10 @@ export default function ReceiptModal({ data, onClose }) {
 </head>
 <body>
 
-  <div class="stamp">
-    <div class="stamp-inner"></div>
-    <div class="stamp-top">SEEGH</div>
-    <div class="stamp-check">&#10003;</div>
-    <div class="stamp-bot">VERIFIED</div>
+  <div style="text-align:center;margin:4px auto 10px;">
+    <img src="${logoUrl}" alt="SEEGH LTD" style="height:38px;width:auto;object-fit:contain;display:inline-block;" />
   </div>
-
-  <div class="company">SEEGH LTD</div>
+  <div style="text-align:center;font-size:7.5pt;margin-bottom:2px;">&#10003; VERIFIED</div>
   <div style="height:3px"></div>
   <div class="subtitle">
     ${data.title ?? 'TRANSACTION RECEIPT'}<br>
@@ -251,7 +248,7 @@ export default function ReceiptModal({ data, onClose }) {
   <div class="sep-dbl"></div>
 
   <div class="footer-main">End of Receipt</div>
-  <div class="footer-sub">Powered by SEEGH LTD</div>
+  <div class="footer-sub"><img src="${logoUrl}" alt="SEEGH LTD" style="height:12px;width:auto;vertical-align:middle;margin-right:3px;" />Powered by SEEGH LTD</div>
 
   <div class="qr-wrap">
     ${qrSvgHtml}
@@ -305,16 +302,11 @@ export default function ReceiptModal({ data, onClose }) {
           {/* The receipt paper */}
           <div ref={printRef} style={paper}>
 
-            {/* Circular stamp */}
-            <div style={{ width:64,height:64,border:'2.5px solid #1a1a1a',borderRadius:'50%',margin:'4px auto 16px',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',position:'relative' }}>
-              <div style={{ position:'absolute',inset:4,border:'1px solid #1a1a1a',borderRadius:'50%' }} />
-              <div style={{ fontSize:5.5,fontWeight:700,letterSpacing:'0.25em',textTransform:'uppercase' }}>SEEGH</div>
-              <div style={{ fontSize:18,lineHeight:1,fontWeight:700 }}>✓</div>
-              <div style={{ fontSize:5,letterSpacing:'0.2em',textTransform:'uppercase' }}>VERIFIED</div>
+            {/* Logo + verified mark */}
+            <div style={{ textAlign:'center', margin:'4px auto 10px' }}>
+              <img src={logoUrl} alt="SEEGH LTD" style={{ height:40, width:'auto', objectFit:'contain', display:'block', margin:'0 auto 4px' }} />
+              <div style={{ fontSize:7, letterSpacing:'0.2em', textTransform:'uppercase', color:'#1a1a1a' }}>&#10003; VERIFIED</div>
             </div>
-
-            {/* Header */}
-            <div style={{ fontSize:11,fontWeight:700,textAlign:'center',letterSpacing:'0.05em' }}>SEEGH LTD</div>
             <div style={{ height:4 }} />
             <div style={{ fontSize:8.5,textAlign:'center',lineHeight:1.6,color:'#2a2a2a',textTransform:'uppercase' }}>
               {data.title || 'TRANSACTION RECEIPT'}<br />
@@ -392,7 +384,9 @@ export default function ReceiptModal({ data, onClose }) {
             <Sep double />
 
             <div style={{ textAlign:'center',fontSize:8.5,fontWeight:700,color:'#1a1a1a' }}>End of Receipt</div>
-            <div style={{ textAlign:'center',fontSize:8,letterSpacing:'0.1em',textTransform:'uppercase',color:'#444',marginTop:4 }}>Powered by SEEGH LTD</div>
+            <div style={{ textAlign:'center',fontSize:8,letterSpacing:'0.1em',textTransform:'uppercase',color:'#444',marginTop:4,display:'flex',alignItems:'center',justifyContent:'center',gap:3 }}>
+              <img src={logoUrl} alt="SEEGH LTD" style={{ height:12,width:'auto',verticalAlign:'middle' }} /> Powered by SEEGH LTD
+            </div>
 
             {/* QR Code */}
             <div ref={qrRef} style={{ width:80,height:80,margin:'10px auto 4px',background:'#fefdf8',padding:4 }}>
@@ -574,7 +568,7 @@ export function SupplierReceiptModal({ data, supplier, onClose }) {
 <body>
   <div class="doc-hdr">
     <div>
-      <div class="co-name">SEEGH LTD</div>
+      <img src="${logoUrl}" alt="SEEGH LTD" style="height:44px;width:auto;object-fit:contain;display:block;margin-bottom:4px;" />
       <div class="co-sub">Stock Management System</div>
     </div>
     <div class="doc-ttl">
@@ -616,7 +610,7 @@ export function SupplierReceiptModal({ data, supplier, onClose }) {
   </div>
   ${data.notes ? `<div class="notes"><strong>Notes:</strong> ${data.notes}</div>` : ''}
   <div class="doc-ftr">
-    <span>Powered by SEEGH LTD Management System</span>
+    <span><img src="${logoUrl}" alt="SEEGH LTD" style="height:12px;width:auto;vertical-align:middle;margin-right:4px;" />Powered by SEEGH LTD Management System</span>
     <span>Printed: ${new Date().toLocaleString('en-GB')}</span>
   </div>
 </body>
@@ -658,7 +652,7 @@ export function SupplierReceiptModal({ data, supplier, onClose }) {
             {/* Document header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
               <div>
-                <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-0.5px', color: '#0f1014', lineHeight: 1 }}>SEEGH LTD</div>
+                <img src={logoUrl} alt="SEEGH LTD" style={{ height: 44, width: 'auto', objectFit: 'contain', display: 'block', marginBottom: 4 }} />
                 <div style={{ fontSize: 11, color: '#888', marginTop: 5 }}>Stock Management System</div>
               </div>
               <div style={{ textAlign: 'right' }}>
@@ -765,8 +759,10 @@ export function SupplierReceiptModal({ data, supplier, onClose }) {
             )}
 
             {/* Footer */}
-            <div style={{ marginTop: 40, paddingTop: 12, borderTop: '1px solid #e5e5e5', display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#ccc' }}>
-              <span>Powered by SEEGH LTD Management System</span>
+            <div style={{ marginTop: 40, paddingTop: 12, borderTop: '1px solid #e5e5e5', display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#ccc', alignItems: 'center' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <img src={logoUrl} alt="SEEGH LTD" style={{ height: 14, width: 'auto', verticalAlign: 'middle' }} /> Powered by SEEGH LTD Management System
+              </span>
               <span>Printed: {new Date().toLocaleString('en-GB')}</span>
             </div>
           </div>

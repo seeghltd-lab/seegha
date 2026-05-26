@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useEffect } from 'react';
+import logo from '../assets/seegh_ltd_logo.png';
 
 const ACCENTS = {
   Indigo:  '#6366f1',
@@ -235,21 +236,18 @@ export default function LoadingScreen() {
             transition: 'opacity 0.6s ease-out',
           }}
         >
-          <div
+          <img
+            src={logo}
+            alt="SEEGH LTD"
             style={{
-              fontSize: 32,
-              fontWeight: 800,
-              letterSpacing: -0.8,
-              fontFamily: fontPair.display,
-              color: accentColor,
-              lineHeight: 1,
-              marginBottom: 4,
-              textTransform: 'uppercase',
-              fontVariationSettings: '"wght" 800',
+              height: 48,
+              width: 'auto',
+              objectFit: 'contain',
+              marginBottom: 8,
+              display: 'block',
+              margin: '0 auto 8px',
             }}
-          >
-            SEEGH LTD
-          </div>
+          />
           <div
             style={{
               fontSize: 10,

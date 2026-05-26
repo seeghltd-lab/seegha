@@ -106,7 +106,7 @@ const Header = ({ onToggleSidebar, role }) => {
           <button
             onClick={handleInstall}
             disabled={installing}
-            title="Install SEEGH LTD as an app"
+            title="Install app"
             style={{
               display: 'flex', alignItems: 'center', gap: 6,
               padding: '5px 11px', borderRadius: 'var(--r-sm)',
