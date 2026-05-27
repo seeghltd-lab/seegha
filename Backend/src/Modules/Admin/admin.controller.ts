@@ -13,38 +13,28 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
-import { mkdirSync } from 'fs';
+import { memoryStorage } from 'multer';
 import { Response } from 'express';
-
-mkdirSync('./uploads/admin', { recursive: true });
-
-const adminAvatarStorage = diskStorage({
-  destination: './uploads/admin',
-  filename: (_, file, cb) => {
-    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, `admin-${unique}${extname(file.originalname)}`);
-  },
-});
 import { AdminService } from './admin.service';
 import { AdminAuthGuard } from '../../Guards/admin-auth.guard';
 import { RolesGuard } from '../../Guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RequestWithAdmin } from '../../common/interfaces/request-admin.interface';
+import { CloudinaryService, CLOUDINARY_FOLDERS } from '../../Global/cloudinary/cloudinary.service';
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
-  sameSite: (process.env.NODE_ENV === 'production' ? 'none' : 'lax') as
-    | 'none'
-    | 'lax',
+  sameSite: (process.env.NODE_ENV === 'production' ? 'none' : 'lax') as 'none' | 'lax',
   maxAge: 7 * 24 * 60 * 60 * 1000,
 };
 
 @Controller('admin-auth')
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly cloudinary: CloudinaryService,
+  ) {}
 
   @Post('register')
   async register(@Body() body: any) {
@@ -77,13 +67,27 @@ export class AdminController {
 
   @Put('edit-profile')
   @UseGuards(AdminAuthGuard)
-  @UseInterceptors(FileInterceptor('profilePicture', { storage: adminAvatarStorage }))
+  @UseInterceptors(FileInterceptor('profilePicture', { storage: memoryStorage() }))
   async editProfile(
     @Req() req: RequestWithAdmin,
     @Body() body: any,
-    @UploadedFile() file?: any,
+    @UploadedFile() file?: Express.Multer.File,
   ) {
-    const profilePicture = file ? `/uploads/admin/${file.filename}` : undefined;
+    let profilePicture: string | undefined;
+    if (file) {
+      const result = await this.cloudinary.uploadImageFromBuffer(
+        file.buffer,
+        CLOUDINARY_FOLDERS.profile,
+      );
+      profilePicture = result.secure_url;
+
+      // Delete old profile picture from Cloudinary if it exists
+      const current = await this.adminService.getProfile(req.admin!.id);
+      if (current.profilePicture) {
+        this.cloudinary.deleteByUrl(current.profilePicture, 'image');
+      }
+    }
+
     return this.adminService.editProfile(req.admin!.id, { ...body, profilePicture });
   }
 

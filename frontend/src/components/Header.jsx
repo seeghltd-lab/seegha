@@ -70,6 +70,7 @@ const Header = ({ onToggleSidebar, role }) => {
 
   const userName = user?.names || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'User';
   const userInitial = userName.charAt(0).toUpperCase();
+  const userAvatar = user?.profilePicture || null;
 
   return (
     <header className="stoq-topbar">
@@ -162,7 +163,11 @@ const Header = ({ onToggleSidebar, role }) => {
             }}
             className="user-card"
           >
-            <div className="stoq-avatar">{userInitial}</div>
+            <div className="stoq-avatar" style={{ overflow: 'hidden', padding: 0 }}>
+              {userAvatar
+                ? <img src={userAvatar} alt={userName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : userInitial}
+            </div>
             <div style={{ textAlign: 'left', display: 'none' }} className="stoq-profile-name">
               <div style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.2 }}>{userName}</div>
               <div style={{ fontSize: 10, color: 'var(--fg-subtle)', textTransform: 'capitalize' }}>{role}</div>
@@ -182,9 +187,16 @@ const Header = ({ onToggleSidebar, role }) => {
               zIndex: 50,
               animation: 'stoqSlide 140ms ease-out',
             }}>
-              <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
-                <div style={{ fontSize: 12, fontWeight: 600 }}>{userName}</div>
-                <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginTop: 2 }}>{user?.email}</div>
+              <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--accent)', color: 'var(--accent-fg)', display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: 14, flexShrink: 0, overflow: 'hidden' }}>
+                  {userAvatar
+                    ? <img src={userAvatar} alt={userName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : userInitial}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{userName}</div>
+                  <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.email}</div>
+                </div>
               </div>
               <div style={{ padding: 6 }}>
                 <button

@@ -5,6 +5,7 @@ import { AdminController } from './admin.controller';
 import { AdminAuthGuard } from '../../Guards/admin-auth.guard';
 import { RolesGuard } from '../../Guards/roles.guard';
 import { Reflector } from '@nestjs/core';
+import { CloudinaryModule } from '../../Global/cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { Reflector } from '@nestjs/core';
       secret: process.env.JWT_SECRET,
       signOptions: { expiresIn: '7d' },
     }),
+    CloudinaryModule,
   ],
   controllers: [AdminController],
   providers: [AdminService, AdminAuthGuard, RolesGuard, Reflector],

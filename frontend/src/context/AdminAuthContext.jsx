@@ -96,6 +96,7 @@ export const AdminAuthProvider = ({ children }) => {
     logout,
     subscribeToNotifications,
     unsubscribeFromNotifications,
+    refreshProfile: checkAuthStatus,
   };
 
   return (

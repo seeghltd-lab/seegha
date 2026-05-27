@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
 import { Camera, Save, Lock, User, Mail, Phone, RefreshCw, AlertCircle, CheckCircle, ShieldCheck, Smartphone } from 'lucide-react';
 import adminAuthService from '../../services/adminAuthService';
+import { useAdminAuth } from '../../context/AdminAuthContext';
 import PWAPanel from '../../components/PWAPanel';
 
 function Field({ label, error, children }) {
@@ -33,6 +34,7 @@ const TABS = [
 ];
 
 export default function AdminProfile() {
+  const { refreshProfile } = useAdminAuth();
   const [profile, setProfile]     = useState({ names: '', email: '', phone: '' });
   const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [avatarPreview, setAvatarPreview] = useState(null);
@@ -53,7 +55,7 @@ export default function AdminProfile() {
     adminAuthService.getProfile()
       .then(data => {
         setProfile({ names: data.names || '', email: data.email || '', phone: data.phone || '' });
-        if (data.profilePicture) setAvatarPreview(`http://localhost:3000${data.profilePicture}`);
+        if (data.profilePicture) setAvatarPreview(data.profilePicture);
       })
       .catch(() => showToast('Failed to load profile', 'error'))
       .finally(() => setLoading(false));
@@ -74,9 +76,11 @@ export default function AdminProfile() {
       fd.append('email', profile.email);
       fd.append('phone', profile.phone);
       if (avatarFile) fd.append('profilePicture', avatarFile);
-      await adminAuthService.editProfile(fd);
+      const updated = await adminAuthService.editProfile(fd);
+      if (updated?.profilePicture) setAvatarPreview(updated.profilePicture);
       showToast('Profile updated successfully');
       setAvatarFile(null);
+      await refreshProfile(); // sync header avatar
     } catch (err) {
       showToast(err.response?.data?.message || 'Failed to update profile', 'error');
     } finally { setSaving(false); }
