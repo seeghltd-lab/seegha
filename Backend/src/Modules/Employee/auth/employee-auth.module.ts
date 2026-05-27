@@ -4,6 +4,7 @@ import { EmployeeAuthService } from './employee-auth.service';
 import { EmployeeAuthController } from './employee-auth.controller';
 import { EmployeeAuthGuard } from '../../../Guards/employee-auth.guard';
 import { AdminAuthGuard } from '../../../Guards/admin-auth.guard';
+import { CloudinaryModule } from '../../../Global/cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -11,6 +12,7 @@ import { AdminAuthGuard } from '../../../Guards/admin-auth.guard';
       secret: process.env.JWT_SECRET,
       signOptions: { expiresIn: '7d' },
     }),
+    CloudinaryModule,
   ],
   controllers: [EmployeeAuthController],
   providers: [EmployeeAuthService, EmployeeAuthGuard, AdminAuthGuard],

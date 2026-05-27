@@ -5,6 +5,7 @@ import { EmployeeController } from './employee.controller';
 import { EmployeeAuthModule } from './auth/employee-auth.module';
 import { AdminAuthGuard } from '../../Guards/admin-auth.guard';
 import { ActivityLogModule } from '../ActivityLog/activity-log.module';
+import { CloudinaryModule } from '../../Global/cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { ActivityLogModule } from '../ActivityLog/activity-log.module';
       signOptions: { expiresIn: '7d' },
     }),
     ActivityLogModule,
+    CloudinaryModule,
   ],
   controllers: [EmployeeController],
   providers: [EmployeeService, AdminAuthGuard],

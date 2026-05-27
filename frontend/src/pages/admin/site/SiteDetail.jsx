@@ -92,17 +92,14 @@ function Toast({ toast }) {
 
 // ── Workers Tab ──────────────────────────────────────────────────────────────
 
-function WorkersTab({ siteId, datePreset, customFrom, customTo }) {
+function WorkersTab({ siteId, datePreset, customFrom, customTo, navigate, path }) {
   const [data, setData] = useState({ records: [], totalWorkers: 0 });
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ workerCount: "", date: new Date().toISOString().split("T")[0], notes: "" });
-  const [submitting, setSubmitting] = useState(false);
   const [page, setPage] = useState(1);
   const [toast, setToast] = useState(null);
   const PAGE = 10;
 
-  const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
+  const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -113,20 +110,6 @@ function WorkersTab({ siteId, datePreset, customFrom, customTo }) {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setPage(1); }, [datePreset, customFrom, customTo]);
-
-  const handleAdd = async (e) => {
-    e.preventDefault();
-    if (!form.workerCount || Number(form.workerCount) < 1) return showToast("Enter a valid worker count", "error");
-    try {
-      setSubmitting(true);
-      await siteService.addWorkerRecord(siteId, { workerCount: Number(form.workerCount), date: form.date, notes: form.notes || undefined });
-      setForm({ workerCount: "", date: new Date().toISOString().split("T")[0], notes: "" });
-      setShowForm(false);
-      showToast("Worker record added");
-      load();
-    } catch (err) { showToast(err.response?.data?.message || "Failed to add record", "error"); }
-    finally { setSubmitting(false); }
-  };
 
   const handleDelete = async (recordId) => {
     if (!window.confirm("Remove this worker record?")) return;
@@ -165,36 +148,10 @@ function WorkersTab({ siteId, datePreset, customFrom, customTo }) {
       </div>
 
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <button className="stoq-btn stoq-btn--primary" onClick={() => setShowForm(true)}>
+        <button className="stoq-btn stoq-btn--primary" onClick={() => navigate(path(`/sites/${siteId}/workers/add`))}>
           <Plus size={13} /> Record Workers
         </button>
       </div>
-
-      {showForm && (
-        <div className="stoq-panel">
-          <div className="stoq-panel__head">
-            <span className="stoq-panel__title">Record Daily Workers</span>
-            <button className="icon-btn" onClick={() => setShowForm(false)}><X size={14} /></button>
-          </div>
-          <form onSubmit={handleAdd} style={{ padding: 14, display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 10, alignItems: "end" }}>
-            <div className="stoq-field">
-              <label className="stoq-field__label">Workers Count *</label>
-              <input type="number" min="1" className="stoq-input" value={form.workerCount} onChange={e => setForm({ ...form, workerCount: e.target.value })} placeholder="e.g. 24" />
-            </div>
-            <div className="stoq-field">
-              <label className="stoq-field__label">Date *</label>
-              <input type="date" className="stoq-input" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
-            </div>
-            <div className="stoq-field">
-              <label className="stoq-field__label">Notes (optional)</label>
-              <input className="stoq-input" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Any remark…" />
-            </div>
-            <button type="submit" className="stoq-btn stoq-btn--primary" disabled={submitting} style={{ opacity: submitting ? 0.6 : 1 }}>
-              <Save size={13} /> Save
-            </button>
-          </form>
-        </div>
-      )}
 
       <div className="stoq-panel">
         {loading ? (
@@ -213,6 +170,7 @@ function WorkersTab({ siteId, datePreset, customFrom, customTo }) {
                 <thead>
                   <tr>
                     <th className="no-sort">Date</th>
+                    <th className="no-sort">Category</th>
                     <th className="no-sort">Workers</th>
                     <th className="no-sort">Notes</th>
                     <th className="no-sort">Recorded By</th>
@@ -223,6 +181,7 @@ function WorkersTab({ siteId, datePreset, customFrom, customTo }) {
                   {paged.map(r => (
                     <tr key={r.id}>
                       <td>{fmtDate(r.date)}</td>
+                      <td>{r.category ? <span className="stoq-badge stoq-badge--plain">{r.category.name}</span> : <span style={{ color: "var(--fg-subtle)" }}>—</span>}</td>
                       <td><span style={{ fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 700, color: "var(--accent-soft-fg)" }}>{r.workerCount}</span></td>
                       <td style={{ color: "var(--fg-muted)" }}>{r.notes || "—"}</td>
                       <td style={{ color: "var(--fg-subtle)" }}>{r.recordedBy}</td>
@@ -1086,7 +1045,7 @@ export default function SiteDetail() {
         </div>
         <div className="page-head__actions">
           {canSeeTab("workers") && (
-            <button className="stoq-btn" onClick={() => handleTab("workers")}>
+            <button className="stoq-btn" onClick={() => navigate(path(`/sites/${id}/workers/add`))}>
               <Users size={13} /> Record Workers
             </button>
           )}
@@ -1123,7 +1082,7 @@ export default function SiteDetail() {
       </div>
 
       {activeTab === "info"     && <InfoTab site={site} />}
-      {activeTab === "workers"  && <WorkersTab siteId={id} datePreset={datePreset} customFrom={customFrom} customTo={customTo} />}
+      {activeTab === "workers"  && <WorkersTab siteId={id} datePreset={datePreset} customFrom={customFrom} customTo={customTo} navigate={navigate} path={path} />}
       {activeTab === "expenses" && <ExpensesTab siteId={id} siteName={site.name} datePreset={datePreset} customFrom={customFrom} customTo={customTo} />}
       {activeTab === "stock"    && <StockTab siteId={id} navigate={navigate} path={path} />}
       {activeTab === "stockout" && <StockOutTab siteId={id} datePreset={datePreset} customFrom={customFrom} customTo={customTo} navigate={navigate} path={path} />}

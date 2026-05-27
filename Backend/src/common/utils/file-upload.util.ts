@@ -1,36 +1,42 @@
-import { diskStorage } from 'multer';
+import { memoryStorage } from 'multer';
 import * as path from 'path';
-import * as fs from 'fs';
 
-export function deleteFile(filePath: string): void {
-  if (!filePath) return;
-  const fullPath = path.join(process.cwd(), filePath);
-  if (fs.existsSync(fullPath)) {
-    fs.unlinkSync(fullPath);
+// All files go to memory (buffer) and are uploaded to Cloudinary by the controller.
+
+const imageFilter = (_req: any, file: any, cb: any) => {
+  const ext = path.extname(file.originalname).toLowerCase();
+  if (/\.(jpeg|jpg|png|gif|webp)$/.test(ext)) cb(null, true);
+  else cb(new Error('Only image files are allowed'), false);
+};
+
+const employeeCombinedFilter = (_req: any, file: any, cb: any) => {
+  const ext = path.extname(file.originalname).toLowerCase();
+  const isImageField = ['profileImg', 'idCardImage'].includes(file.fieldname);
+  const isDocField = ['cvDocument', 'supportingDocument'].includes(file.fieldname);
+
+  if (isImageField) {
+    /\.(jpeg|jpg|png|gif|webp)$/.test(ext)
+      ? cb(null, true)
+      : cb(new Error('Only image files are allowed for this field'), false);
+  } else if (isDocField) {
+    /\.(pdf|doc|docx)$/.test(ext)
+      ? cb(null, true)
+      : cb(new Error('Only PDF or Word documents are allowed for this field'), false);
+  } else {
+    cb(null, true);
   }
-}
+};
 
+// Profile image only (employee self-update)
 export const EmployeeUploadConfig = {
-  storage: diskStorage({
-    destination: (req, file, cb) => {
-      const uploadDir = path.join(process.cwd(), 'uploads', 'profile');
-      fs.mkdirSync(uploadDir, { recursive: true });
-      cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-      const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
-      cb(null, unique + path.extname(file.originalname));
-    },
-  }),
+  storage: memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req: any, file: any, cb: any) => {
-    const allowed = /jpeg|jpg|png|gif|webp/;
-    const ext = allowed.test(path.extname(file.originalname).toLowerCase());
-    const mime = allowed.test(file.mimetype);
-    if (ext && mime) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files are allowed'), false);
-    }
-  },
+  fileFilter: imageFilter,
+};
+
+// All employee files: profileImg + idCardImage (images) + cvDocument + supportingDocument (docs)
+export const EmployeeCombinedUploadConfig = {
+  storage: memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: employeeCombinedFilter,
 };

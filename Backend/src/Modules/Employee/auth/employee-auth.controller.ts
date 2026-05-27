@@ -17,6 +17,7 @@ import { EmployeeAuthService } from './employee-auth.service';
 import { EmployeeAuthGuard } from '../../../Guards/employee-auth.guard';
 import { AdminAuthGuard } from '../../../Guards/admin-auth.guard';
 import { EmployeeUploadConfig } from '../../../common/utils/file-upload.util';
+import { CloudinaryService, CLOUDINARY_FOLDERS } from '../../../Global/cloudinary/cloudinary.service';
 import { RequestWithEmployee } from '../../../common/interfaces/request-employee.interface';
 
 const COOKIE_OPTIONS = {
@@ -30,7 +31,10 @@ const COOKIE_OPTIONS = {
 
 @Controller('employee-auth')
 export class EmployeeAuthController {
-  constructor(private readonly employeeAuthService: EmployeeAuthService) {}
+  constructor(
+    private readonly employeeAuthService: EmployeeAuthService,
+    private readonly cloudinary: CloudinaryService,
+  ) {}
 
   @Post('login')
   async login(@Body() body: any, @Res({ passthrough: true }) res: Response) {
@@ -88,11 +92,16 @@ export class EmployeeAuthController {
   async updateProfile(
     @Req() req: RequestWithEmployee,
     @Body() body: any,
-    @UploadedFiles() files: { profileImg?: any[] },
+    @UploadedFiles() files: { profileImg?: Express.Multer.File[] },
   ) {
-    const profilePicture = files?.profileImg?.[0]
-      ? `uploads/profile/${files.profileImg[0].filename}`
-      : undefined;
+    let profilePicture: string | undefined;
+    if (files?.profileImg?.[0]) {
+      const result = await this.cloudinary.uploadImageFromBuffer(
+        files.profileImg[0].buffer,
+        CLOUDINARY_FOLDERS.profile,
+      );
+      profilePicture = result.secure_url;
+    }
 
     return this.employeeAuthService.updateProfile(req.employee!.id, {
       ...body,

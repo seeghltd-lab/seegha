@@ -135,7 +135,7 @@ const EmployeeList = () => {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <div style={{ width: 32, height: 32, borderRadius: 'var(--r-sm)', background: 'var(--accent)', color: 'var(--accent-fg)', display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: 12, flexShrink: 0, overflow: 'hidden' }}>
                           {emp.profilePicture
-                            ? <img src={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/${emp.profilePicture}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ? <img src={emp.profilePicture.startsWith('http') ? emp.profilePicture : `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/${emp.profilePicture}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                             : emp.firstName.charAt(0).toUpperCase()}
                         </div>
                         <div>
@@ -189,7 +189,7 @@ const EmployeeList = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ width: 38, height: 38, borderRadius: 'var(--r-sm)', background: 'var(--accent)', color: 'var(--accent-fg)', display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: 14, flexShrink: 0, overflow: 'hidden' }}>
                     {emp.profilePicture
-                      ? <img src={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/${emp.profilePicture}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ? <img src={emp.profilePicture.startsWith('http') ? emp.profilePicture : `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/${emp.profilePicture}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       : emp.firstName.charAt(0).toUpperCase()}
                   </div>
                   <div style={{ minWidth: 0 }}>

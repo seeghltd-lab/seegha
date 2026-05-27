@@ -18,6 +18,7 @@ export class EmployeeAuthService {
   async employeeLogin(credentials: { identifier: string; password: string }) {
     const employee = await this.prisma.employee.findFirst({
       where: {
+        deletedAt: null,
         OR: [
           { email: credentials.identifier },
           { phone: credentials.identifier },
@@ -59,8 +60,8 @@ export class EmployeeAuthService {
   }
 
   async getProfile(employeeId: string) {
-    const employee = await this.prisma.employee.findUnique({
-      where: { id: employeeId },
+    const employee = await this.prisma.employee.findFirst({
+      where: { id: employeeId, deletedAt: null },
       select: {
         id: true,
         firstName: true,
@@ -87,8 +88,8 @@ export class EmployeeAuthService {
     employeeId: string,
     data: { currentPassword: string; newPassword: string },
   ) {
-    const employee = await this.prisma.employee.findUnique({
-      where: { id: employeeId },
+    const employee = await this.prisma.employee.findFirst({
+      where: { id: employeeId, deletedAt: null },
     });
     if (!employee) throw new NotFoundException('Employee not found');
 
@@ -148,8 +149,8 @@ export class EmployeeAuthService {
       profilePicture: string;
     }>,
   ) {
-    const employee = await this.prisma.employee.findUnique({
-      where: { id: employeeId },
+    const employee = await this.prisma.employee.findFirst({
+      where: { id: employeeId, deletedAt: null },
     });
     if (!employee) throw new NotFoundException('Employee not found');
 

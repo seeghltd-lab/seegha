@@ -19,6 +19,8 @@ import { SiteModule } from './Modules/Site/site.module';
 import { RequisitionModule } from './Modules/Requisition/requisition.module';
 import { UnitModule } from './Modules/Unit/unit.module';
 import { ActivityLogModule } from './Modules/ActivityLog/activity-log.module';
+import { WorkerCategoryModule } from './Modules/WorkerCategory/worker-category.module';
+import { CloudinaryModule } from './Global/cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -42,6 +44,8 @@ import { ActivityLogModule } from './Modules/ActivityLog/activity-log.module';
     RequisitionModule,
     UnitModule,
     ActivityLogModule,
+    WorkerCategoryModule,
+    CloudinaryModule
   ],
   controllers: [],
   providers: [],

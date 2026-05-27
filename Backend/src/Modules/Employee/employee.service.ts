@@ -6,8 +6,8 @@ import {
 import { PrismaService } from '../../Prisma/prisma.service';
 import { EmailService } from '../../Global/email/email.service';
 import { ActivityLogService } from '../ActivityLog/activity-log.service';
+import { CloudinaryService } from '../../Global/cloudinary/cloudinary.service';
 import { generatePassword } from '../../common/utils/generate-password.util';
-import { deleteFile } from '../../common/utils/file-upload.util';
 import * as bcrypt from 'bcryptjs';
 
 @Injectable()
@@ -16,6 +16,7 @@ export class EmployeeService {
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
     private readonly activityLog: ActivityLogService,
+    private readonly cloudinary: CloudinaryService,
   ) {}
 
   async create(
@@ -26,6 +27,10 @@ export class EmployeeService {
       phone: string;
       position: string;
       status?: any;
+      profilePicture?: string;
+      idCardImage?: string;
+      cvDocument?: string;
+      supportingDocument?: string;
     },
     actorId?: string,
     actorName?: string,
@@ -51,10 +56,13 @@ export class EmployeeService {
         position: data.position,
         status: data.status || 'ACTIVE',
         password: hashedPassword,
+        profilePicture: data.profilePicture ?? null,
+        idCardImage: data.idCardImage ?? null,
+        cvDocument: data.cvDocument ?? null,
+        supportingDocument: data.supportingDocument ?? null,
       },
     });
 
-    // Send welcome email with credentials
     try {
       await this.emailService.sendStaffWelcomeEmail({
         email: employee.email,
@@ -83,6 +91,7 @@ export class EmployeeService {
 
   async findAll() {
     return this.prisma.employee.findMany({
+      where: { deletedAt: null },
       select: {
         id: true,
         firstName: true,
@@ -93,6 +102,9 @@ export class EmployeeService {
         status: true,
         isLocked: true,
         profilePicture: true,
+        idCardImage: true,
+        cvDocument: true,
+        supportingDocument: true,
         createdAt: true,
         updatedAt: true,
         permissions: {
@@ -106,8 +118,8 @@ export class EmployeeService {
   }
 
   async findOne(id: string) {
-    const employee = await this.prisma.employee.findUnique({
-      where: { id },
+    const employee = await this.prisma.employee.findFirst({
+      where: { id, deletedAt: null },
       select: {
         id: true,
         firstName: true,
@@ -118,6 +130,9 @@ export class EmployeeService {
         status: true,
         isLocked: true,
         profilePicture: true,
+        idCardImage: true,
+        cvDocument: true,
+        supportingDocument: true,
         createdAt: true,
         updatedAt: true,
         permissions: {
@@ -150,26 +165,38 @@ export class EmployeeService {
       position: string;
       status: any;
       profilePicture: string;
+      idCardImage: string;
+      cvDocument: string;
+      supportingDocument: string;
     }>,
     actorId?: string,
     actorName?: string,
   ) {
-    const employee = await this.prisma.employee.findUnique({ where: { id } });
+    const employee = await this.prisma.employee.findFirst({ where: { id, deletedAt: null } });
     if (!employee) throw new NotFoundException('Employee not found');
 
-    if (data.profilePicture && employee.profilePicture) {
-      deleteFile(employee.profilePicture);
-    }
+    // Delete replaced cloudinary assets (fire-and-forget, errors are swallowed in deleteByUrl)
+    if (data.profilePicture && employee.profilePicture)
+      this.cloudinary.deleteByUrl(employee.profilePicture, 'image');
+    if (data.idCardImage && (employee as any).idCardImage)
+      this.cloudinary.deleteByUrl((employee as any).idCardImage, 'image');
+    if (data.cvDocument && (employee as any).cvDocument)
+      this.cloudinary.deleteByUrl((employee as any).cvDocument, 'raw');
+    if (data.supportingDocument && (employee as any).supportingDocument)
+      this.cloudinary.deleteByUrl((employee as any).supportingDocument, 'raw');
 
     const updated = await this.prisma.employee.update({
       where: { id },
       data: {
-        ...(data.firstName && { firstName: data.firstName }),
-        ...(data.lastName && { lastName: data.lastName }),
-        ...(data.phone && { phone: data.phone }),
-        ...(data.position && { position: data.position }),
-        ...(data.status && { status: data.status }),
-        ...(data.profilePicture && { profilePicture: data.profilePicture }),
+        ...(data.firstName  && { firstName:  data.firstName }),
+        ...(data.lastName   && { lastName:   data.lastName }),
+        ...(data.phone      && { phone:      data.phone }),
+        ...(data.position   && { position:   data.position }),
+        ...(data.status     && { status:     data.status }),
+        ...(data.profilePicture     && { profilePicture:     data.profilePicture }),
+        ...(data.idCardImage        && { idCardImage:        data.idCardImage }),
+        ...(data.cvDocument         && { cvDocument:         data.cvDocument }),
+        ...(data.supportingDocument && { supportingDocument: data.supportingDocument }),
       },
     });
 
@@ -190,14 +217,14 @@ export class EmployeeService {
   }
 
   async remove(id: string, actorId?: string, actorName?: string) {
-    const employee = await this.prisma.employee.findUnique({ where: { id } });
+    const employee = await this.prisma.employee.findFirst({ where: { id, deletedAt: null } });
     if (!employee) throw new NotFoundException('Employee not found');
 
-    if (employee.profilePicture) {
-      deleteFile(employee.profilePicture);
-    }
-
-    await this.prisma.employee.delete({ where: { id } });
+    // Soft-delete: mark as deleted so requisitions/stock relations are preserved
+    await this.prisma.employee.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
 
     this.activityLog.log({
       action: 'EMPLOYEE_DELETED',

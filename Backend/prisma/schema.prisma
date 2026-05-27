@@ -118,6 +118,17 @@ model Site {
   @@map("Site")
 }
 
+model WorkerCategory {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  adminId   String?
+  createdAt DateTime @default(now())
+
+  records SiteWorkerRecord[]
+
+  @@map("WorkerCategory")
+}
+
 model SiteWorkerRecord {
   id          String   @id @default(cuid())
   siteId      String
@@ -126,11 +137,14 @@ model SiteWorkerRecord {
   notes       String?  @db.Text
   recordedBy  String
   adminId     String?
+  categoryId  String?
   createdAt   DateTime @default(now())
 
-  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  site     Site             @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  category WorkerCategory?  @relation(fields: [categoryId], references: [id])
 
   @@index([siteId])
+  @@index([categoryId])
   @@map("SiteWorkerRecord")
 }
 
@@ -174,9 +188,13 @@ model Employee {
   position       String
   status         EmployeeStatus @default(ACTIVE)
   isLocked       Boolean        @default(false)
-  profilePicture String?        @map("profile_picture")
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  profilePicture     String?        @map("profile_picture")
+  idCardImage        String?        @map("id_card_image")
+  cvDocument         String?        @map("cv_document")
+  supportingDocument String?        @map("supporting_document")
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  deletedAt          DateTime?      @map("deleted_at")
 
   requisitions   Requisition[]
   permissions    EmployeePermission[]

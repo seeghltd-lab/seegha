@@ -472,7 +472,7 @@ export class StockService {
     };
     const orderField = validSortFields[sortBy] ?? 'createdAt';
 
-    const [stocks, total] = await Promise.all([
+    const [stocks, total, agg] = await Promise.all([
       this.prisma.stock.findMany({
         where,
         skip,
@@ -485,7 +485,12 @@ export class StockService {
         },
       }),
       this.prisma.stock.count({ where }),
+      this.prisma.stock.aggregate({ where, _sum: { totalValue: true } }),
     ]);
+
+    const lowStockRaw = await this.prisma.$queryRaw<[{ count: bigint }]>`
+      SELECT COUNT(*) as count FROM Stock WHERE deletedAt IS NULL AND quantity <= reorderLevel
+    `;
 
     return {
       stocks,
@@ -493,6 +498,8 @@ export class StockService {
       page,
       limit,
       totalPages: Math.ceil(total / limit),
+      aggregateTotalValue: Number(agg._sum.totalValue ?? 0),
+      lowStockCount: Number(lowStockRaw[0].count),
     };
   }
 

@@ -22,6 +22,7 @@ interface AddWorkerRecordDto {
   date?: string;
   notes?: string;
   recordedBy?: string;
+  categoryId?: string;
 }
 
 interface AddExpenseDto {
@@ -246,7 +247,9 @@ export class SiteService {
         date: data.date ? new Date(data.date) : new Date(),
         notes: data.notes || null,
         recordedBy: data.recordedBy || callerName,
+        categoryId: data.categoryId ?? null,
       },
+      include: { category: { select: { id: true, name: true } } },
     });
     this.activityLog.log({
       action: 'SITE_WORKER_RECORD_ADDED',
@@ -268,6 +271,7 @@ export class SiteService {
     const records = await this.prisma.siteWorkerRecord.findMany({
       where: { siteId },
       orderBy: { date: 'desc' },
+      include: { category: { select: { id: true, name: true } } },
     });
 
     const totalWorkers = records.reduce((sum, r) => sum + r.workerCount, 0);

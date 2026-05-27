@@ -1,10 +1,13 @@
-﻿import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus, Edit2, Trash2, Eye, LayoutGrid, List, Table2,
   ChevronLeft, ChevronRight, AlertTriangle, Package, DollarSign,
   TrendingDown, X, RefreshCw, Download, CreditCard, ArrowUpCircle, ArrowDownCircle, History, FilterX,
+  Building2, ChevronDown, ChevronUp, Landmark,
 } from 'lucide-react';
+
+const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 import stockService from '../../../services/stockService';
 import categoryService from '../../../services/categoryService';
 import supplierService from '../../../services/supplierService';
@@ -233,28 +236,41 @@ export default function StockManagement() {
     setLoading(true);
     try {
       const dateRange = getDateRange(datePreset, customFrom, customTo);
+      const isGrouped = viewMode === 'grouped';
       const data = await stockService.getAll({
         search: search || undefined,
         categoryId: categoryId || undefined,
         siteId: siteId || undefined,
         dateFrom: dateRange?.from ? dateRange.from.toISOString() : undefined,
         dateTo: dateRange?.to ? dateRange.to.toISOString() : undefined,
-        page, limit: 12, sortBy, sortOrder,
+        page: isGrouped ? 1 : page,
+        limit: isGrouped ? 200 : 12,
+        sortBy, sortOrder,
       });
       setStocks(data.stocks);
       setTotal(data.total);
       setTotalPages(data.totalPages);
-      const totalValue = data.stocks.reduce((sum, s) => sum + parseFloat(s.totalValue || 0), 0);
-      const lowStock = data.stocks.filter(s => s.quantity <= s.reorderLevel).length;
-      setStats({ total: data.total, totalValue, lowStock });
+      setStats({
+        total: data.total,
+        totalValue: data.aggregateTotalValue ?? data.stocks.reduce((sum, s) => sum + parseFloat(s.totalValue || 0), 0),
+        lowStock: data.lowStockCount ?? data.stocks.filter(s => s.quantity <= s.reorderLevel).length,
+      });
     } catch { showToast('Failed to load stock', 'error'); }
     finally { setLoading(false); }
-  }, [search, categoryId, siteId, datePreset, customFrom, customTo, sortBy, sortOrder, page]);
+  }, [search, categoryId, siteId, datePreset, customFrom, customTo, sortBy, sortOrder, page, viewMode]);
+
+  const [collapsedSites, setCollapsedSites] = useState(new Set());
+  const [siteShowCount, setSiteShowCount] = useState({});
+  const SITE_PAGE = 15;
+  const toggleSite = (id) => setCollapsedSites(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const showMoreForSite = (id) => setSiteShowCount(prev => ({ ...prev, [id]: (prev[id] ?? SITE_PAGE) + SITE_PAGE }));
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { categoryService.getAll().then(setCategories).catch(() => {}); }, []);
   useEffect(() => { siteService.getAll().then(d => setSites(d.sites || d || [])).catch(() => {}); }, []);
   useEffect(() => { const t = setTimeout(() => { if (page !== 1) setPage(1); }, 400); return () => clearTimeout(t); }, [search]);
+  useEffect(() => { setPage(1); setSiteShowCount({}); }, [viewMode]);
+  useEffect(() => { setSiteShowCount({}); }, [search, categoryId, siteId, datePreset]);
 
   const visibleStocks = stockStatus === ''
     ? stocks
@@ -263,6 +279,23 @@ export default function StockManagement() {
       : stockStatus === 'low'
         ? stocks.filter(s => s.quantity > 0 && s.quantity <= s.reorderLevel)
         : stocks.filter(s => s.quantity === 0);
+
+  const groupedStocks = useMemo(() => {
+    const map = {};
+    visibleStocks.forEach(s => {
+      const key = s.site?.id || '__none__';
+      const name = s.site?.name || 'No Site Assigned';
+      if (!map[key]) map[key] = { id: key, name, stocks: [], totalValue: 0, lowCount: 0 };
+      map[key].stocks.push(s);
+      map[key].totalValue += parseFloat(s.totalValue || 0);
+      if (s.quantity <= s.reorderLevel) map[key].lowCount++;
+    });
+    return Object.values(map).sort((a, b) => {
+      if (a.id === '__none__') return 1;
+      if (b.id === '__none__') return -1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [visibleStocks]);
 
   useSocketEvent('stock-created', load);
   useSocketEvent('stock-updated', load);
@@ -394,8 +427,9 @@ export default function StockManagement() {
           )}
           {!isSmallScreen && (
             <div className="stoq-segment">
-              <button data-active={viewMode==='table'?'true':undefined} onClick={()=>setViewMode('table')}><List size={13}/></button>
-              <button data-active={viewMode==='grid'?'true':undefined} onClick={()=>setViewMode('grid')}><LayoutGrid size={13}/></button>
+              <button data-active={viewMode==='table'?'true':undefined} onClick={()=>setViewMode('table')} title="Table view"><List size={13}/></button>
+              <button data-active={viewMode==='grid'?'true':undefined} onClick={()=>setViewMode('grid')} title="Grid view"><LayoutGrid size={13}/></button>
+              <button data-active={viewMode==='grouped'?'true':undefined} onClick={()=>setViewMode('grouped')} title="Group by site"><Building2 size={13}/></button>
             </div>
           )}
           <button className="stoq-btn stoq-btn--icon" onClick={load} title="Refresh"><RefreshCw size={13} /></button>
@@ -407,7 +441,8 @@ export default function StockManagement() {
             <table className="stoq-tbl">
               <thead>
                 <tr>
-                  <th className="no-sort">SKU / Item</th>
+                  <th className="no-sort">Item</th>
+                  <th className="no-sort">Received / SKU</th>
                   <th className="no-sort">Category</th>
                   <th className="no-sort">Site</th>
                   <th className="no-sort">Supplier</th>
@@ -420,14 +455,17 @@ export default function StockManagement() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={9} className="stoq-empty">Loading...</td></tr>
+                  <tr><td colSpan={10} className="stoq-empty">Loading...</td></tr>
                 ) : visibleStocks.length === 0 ? (
-                  <tr><td colSpan={9} className="stoq-empty">No stock items found</td></tr>
+                  <tr><td colSpan={10} className="stoq-empty">No stock items found</td></tr>
                 ) : visibleStocks.map(s => (
                   <tr key={s.id}>
                     <td>
                       <span className="cell-stack__main">{s.itemName}</span>
-                      <span className="cell-stack__sub">{s.sku}</span>
+                    </td>
+                    <td>
+                      <span className="cell-stack__main" style={{ fontSize: 12 }}>{fmtDate(s.receivedDate)}</span>
+                      <span className="cell-stack__sub" style={{ fontFamily: 'var(--font-mono)' }}>{s.sku}</span>
                     </td>
                     <td><span className="stoq-badge stoq-badge--plain">{s.category?.name || '-'}</span></td>
                     <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-muted)' }}>{s.site?.name || '-'}</td>
@@ -489,8 +527,119 @@ export default function StockManagement() {
         )}
 
 
-        {/* Pagination */}
-        {totalPages > 1 && (
+        {/* Grouped by Site View */}
+        {viewMode === 'grouped' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            {/* Truncation warning */}
+            {!loading && total > 200 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: 'var(--warning-soft)', borderBottom: '1px solid var(--border)', fontSize: 12, color: 'var(--warning)' }}>
+                <AlertTriangle size={13} />
+                Showing first 200 of {total} items. Use filters (site, category, search) to narrow down.
+              </div>
+            )}
+            {loading ? (
+              <div className="stoq-empty">Loading...</div>
+            ) : groupedStocks.length === 0 ? (
+              <div className="stoq-empty">No stock items found</div>
+            ) : groupedStocks.map(group => {
+              const isCollapsed = collapsedSites.has(group.id);
+              const shownCount = siteShowCount[group.id] ?? SITE_PAGE;
+              const displayed = group.stocks.slice(0, shownCount);
+              const remaining = group.stocks.length - displayed.length;
+              return (
+                <div key={group.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                  {/* Site header row */}
+                  <button
+                    type="button"
+                    onClick={() => toggleSite(group.id)}
+                    style={{
+                      width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '10px 16px', background: 'var(--bg-sunk)',
+                      border: 'none', cursor: 'pointer', textAlign: 'left',
+                    }}
+                  >
+                    <Landmark size={14} style={{ color: 'var(--fg-subtle)', flexShrink: 0 }} />
+                    <span style={{ fontWeight: 700, fontSize: 13, flex: 1 }}>{group.name}</span>
+                    <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>{group.stocks.length} item{group.stocks.length !== 1 ? 's' : ''}</span>
+                    {group.lowCount > 0 && (
+                      <span className="stoq-badge stoq-badge--warning" style={{ fontSize: 10 }}>
+                        <AlertTriangle size={9} /> {group.lowCount} low
+                      </span>
+                    )}
+                    <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-muted)', fontFamily: 'var(--font-mono)' }}>
+                      RWF {group.totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </span>
+                    {isCollapsed ? <ChevronDown size={14} style={{ color: 'var(--fg-subtle)', flexShrink: 0 }} /> : <ChevronUp size={14} style={{ color: 'var(--fg-subtle)', flexShrink: 0 }} />}
+                  </button>
+                  {/* Items table */}
+                  {!isCollapsed && (
+                    <>
+                      <div className="table-wrap">
+                        <table className="stoq-tbl">
+                          <thead>
+                            <tr>
+                              <th className="no-sort">Item</th>
+                              <th className="no-sort">Received / SKU</th>
+                              <th className="no-sort">Category</th>
+                              <th className="no-sort">Supplier</th>
+                              <th className="no-sort num-cell">On hand</th>
+                              <th className="no-sort num-cell">Unit cost</th>
+                              <th className="no-sort num-cell">Total</th>
+                              <th className="no-sort">Status</th>
+                              <th className="no-sort col-actions" />
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {displayed.map(s => (
+                              <tr key={s.id}>
+                                <td><span className="cell-stack__main">{s.itemName}</span></td>
+                                <td>
+                                  <span className="cell-stack__main" style={{ fontSize: 12 }}>{fmtDate(s.receivedDate)}</span>
+                                  <span className="cell-stack__sub" style={{ fontFamily: 'var(--font-mono)' }}>{s.sku}</span>
+                                </td>
+                                <td><span className="stoq-badge stoq-badge--plain">{s.category?.name || '-'}</span></td>
+                                <td style={{ color: 'var(--fg-muted)', fontSize: 12 }}>{(s.stockSuppliers??[])[0]?.supplier?.name || '-'}</td>
+                                <td className="num-cell">
+                                  <span style={{ fontWeight: 600, color: s.quantity <= s.reorderLevel ? 'var(--warning)' : 'var(--fg)' }}>{s.quantity}</span>
+                                  <span style={{ color: 'var(--fg-subtle)', fontSize: 10, marginLeft: 4 }}>{s.unit}</span>
+                                </td>
+                                <td className="num-cell">{parseInt(s.unitCost).toLocaleString()}</td>
+                                <td className="num-cell" style={{ fontWeight: 600 }}>RWF {parseFloat(s.totalValue).toLocaleString()}</td>
+                                <td>
+                                  {s.quantity === 0
+                                    ? <span className="stoq-badge stoq-badge--danger">Out</span>
+                                    : s.quantity <= s.reorderLevel
+                                      ? <span className="stoq-badge stoq-badge--warning">Low</span>
+                                      : <span className="stoq-badge stoq-badge--success">In stock</span>}
+                                </td>
+                                <td className="col-actions"><ActionBtns s={s} /></td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {remaining > 0 && (
+                        <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border)', background: 'var(--bg-sunk)' }}>
+                          <button
+                            className="stoq-btn stoq-btn--sm"
+                            onClick={() => showMoreForSite(group.id)}
+                            style={{ fontSize: 11 }}
+                          >
+                            <Plus size={11} /> Show {Math.min(SITE_PAGE, remaining)} more
+                            <span style={{ color: 'var(--fg-subtle)', marginLeft: 4 }}>({remaining} remaining)</span>
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Pagination — hidden in grouped mode */}
+        {totalPages > 1 && viewMode !== 'grouped' && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderTop: '1px solid var(--border)' }}>
             <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>Page {page} of {totalPages} - {total} total</span>
             <div style={{ display: 'flex', gap: 4 }}>

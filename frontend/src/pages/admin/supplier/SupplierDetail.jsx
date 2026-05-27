@@ -1451,7 +1451,7 @@ function PaymentRow({ p, supplier, onReceipt, onEdit, onDelete, selected, onTogg
   );
 }
 
-function TabFinance({ supplier, onRecordPayment, onBulkPay, onEditPayment }) {
+function TabFinance({ supplier, onRecordPayment, onRefresh, onBulkPay, onEditPayment }) {
   const summary = supplier.paymentSummary || { totalCredit: 0, totalDebit: 0, balance: 0 };
   const balance = summary.balance;
   const [receipt, setReceipt] = useState(null);
@@ -1572,7 +1572,7 @@ function TabFinance({ supplier, onRecordPayment, onBulkPay, onEditPayment }) {
     await supplierService.deletePayment(supplier.id, pendingDelete.id);
     setPendingDelete(null);
     setSelectedIds(prev => { const next = new Set(prev); next.delete(pendingDelete.id); return next; });
-    onRecordPayment(); // triggers parent reload
+    onRefresh(); // reload data without opening the payment modal
   };
 
   return (
@@ -1994,6 +1994,7 @@ export default function SupplierDetail() {
         <TabFinance
           supplier={supplier}
           onRecordPayment={() => { setPaymentPrefill(null); setShowPayment(true); }}
+          onRefresh={load}
           onBulkPay={(credits) => setBulkCreditItems(credits)}
           onEditPayment={(p) => setEditPayment(p)}
         />

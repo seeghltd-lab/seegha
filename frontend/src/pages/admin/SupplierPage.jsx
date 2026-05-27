@@ -172,7 +172,7 @@ export default function SupplierPage() {
                     </td>
                     <td style={{ color: 'var(--fg-muted)', fontSize: 11 }}>{[s.city, s.country].filter(Boolean).join(', ') || '-'}</td>
                     <td><StatusBadge status={s.status} /></td>
-                    <td className="num-cell">{s._count?.stocks ?? 0}</td>
+                    <td className="num-cell">{s._count?.stockSuppliers ?? 0}</td>
                     <td className="col-actions" onClick={e => e.stopPropagation()}>
                       <div className="stoq-btn-group" style={{ justifyContent: 'flex-end' }}>
                         <button className="stoq-btn stoq-btn--ghost stoq-btn--icon stoq-btn--sm" title="View" onClick={() => navigate(path(`/suppliers/${s.id}`))}><Eye size={13} /></button>
@@ -207,7 +207,7 @@ export default function SupplierPage() {
                   {s.phone && <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Phone size={11} />{s.phone}</span>}
                   {(s.city || s.country) && <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><MapPin size={11} />{[s.city, s.country].filter(Boolean).join(', ')}</span>}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--fg-subtle)', display: 'flex', alignItems: 'center', gap: 5 }}><Package size={11} />{s._count?.stocks ?? 0} stock items</div>
+                <div style={{ fontSize: 11, color: 'var(--fg-subtle)', display: 'flex', alignItems: 'center', gap: 5 }}><Package size={11} />{s._count?.stockSuppliers ?? 0} stock items</div>
                 <div style={{ display: 'flex', gap: 6, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
                   <button className="stoq-btn stoq-btn--sm" style={{ flex: 1, justifyContent: 'center' }} onClick={() => navigate(path(`/suppliers/${s.id}`))}>Details</button>
                   <button className="stoq-btn stoq-btn--sm" style={{ flex: 1, justifyContent: 'center' }} onClick={() => navigate(path(`/suppliers/edit/${s.id}`))}>Edit</button>

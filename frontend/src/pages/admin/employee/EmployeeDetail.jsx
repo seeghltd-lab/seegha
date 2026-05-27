@@ -4,10 +4,21 @@ import {
   ArrowLeft, Mail, Phone, Briefcase, Calendar, ShieldCheck, FileText,
   Lock, Unlock, Pencil, AlertCircle, RefreshCw, MapPin, Building2,
   Package, PackageMinus, HardHat, DollarSign, Users, Landmark,
+  CreditCard, Paperclip, Download, ExternalLink, CheckCircle2, XCircle,
 } from 'lucide-react';
 import employeeService from '../../../services/employeeService';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+// Cloudinary URLs are already absolute; only prepend API_URL for legacy local paths
+const fileUrl = (url) => !url ? null : url.startsWith('http') ? url : `${API_URL}/${url}`;
+
+const STATUS_STYLES = {
+  ACTIVE:     { cls: 'stoq-badge--success', label: 'Active' },
+  PROBATION:  { cls: 'stoq-badge--warning', label: 'Probation' },
+  TERMINATED: { cls: 'stoq-badge--danger',  label: 'Terminated' },
+  RESIGNED:   { cls: 'stoq-badge',          label: 'Resigned' },
+};
 
 const REQ_BADGE = {
   PENDING:            'stoq-badge stoq-badge--warning',
@@ -49,8 +60,93 @@ const SITE_TAB_LABELS = {
   canManageStockOut: { label: 'Stock Out', icon: PackageMinus },
 };
 
-const permLabel = (name) =>
-  name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+const permLabel = (name) => name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+// ── Document card ─────────────────────────────────────────────────────────
+
+function DocCard({ label, icon: Icon, color, url, isImage }) {
+  const filename = url ? url.split('/').pop() : null;
+
+  return (
+    <div className="stoq-panel" style={{ padding: 0, overflow: 'hidden' }}>
+      <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{
+          width: 28, height: 28, borderRadius: 'var(--r-sm)', flexShrink: 0,
+          background: `color-mix(in srgb, ${color} 14%, transparent)`,
+          display: 'grid', placeItems: 'center', color,
+        }}>
+          <Icon size={14} />
+        </div>
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg)' }}>{label}</span>
+        <div style={{ marginLeft: 'auto' }}>
+          {url
+            ? <span className="stoq-badge stoq-badge--success" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10 }}><CheckCircle2 size={9} /> Uploaded</span>
+            : <span className="stoq-badge" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10 }}><XCircle size={9} /> Not uploaded</span>}
+        </div>
+      </div>
+
+      {url ? (
+        <div style={{ padding: 14 }}>
+          {isImage ? (
+            <div style={{ marginBottom: 10 }}>
+              <a href={url} target="_blank" rel="noreferrer">
+                <img
+                  src={url}
+                  alt={label}
+                  style={{
+                    width: '100%', maxHeight: 200, objectFit: 'cover',
+                    borderRadius: 'var(--r-sm)', border: '1px solid var(--border)',
+                    display: 'block', cursor: 'pointer',
+                  }}
+                  onError={e => { e.currentTarget.style.display = 'none'; }}
+                />
+              </a>
+            </div>
+          ) : (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+              background: 'var(--bg-sunk)', borderRadius: 'var(--r-sm)',
+              marginBottom: 10,
+            }}>
+              <Icon size={20} style={{ color, flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {filename}
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--fg-subtle)', marginTop: 1 }}>Document file</div>
+              </div>
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <a
+              href={url}
+              target="_blank"
+              rel="noreferrer"
+              className="stoq-btn stoq-btn--sm"
+              style={{ display: 'flex', alignItems: 'center', gap: 5, textDecoration: 'none', flex: 1, justifyContent: 'center' }}
+            >
+              <ExternalLink size={12} /> View
+            </a>
+            <a
+              href={url}
+              download
+              className="stoq-btn stoq-btn--sm"
+              style={{ display: 'flex', alignItems: 'center', gap: 5, textDecoration: 'none', flex: 1, justifyContent: 'center' }}
+            >
+              <Download size={12} /> Download
+            </a>
+          </div>
+        </div>
+      ) : (
+        <div style={{ padding: '24px 14px', textAlign: 'center', color: 'var(--fg-subtle)', fontSize: 12 }}>
+          No file uploaded yet
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────
 
 export default function EmployeeDetail() {
   const navigate = useNavigate();
@@ -71,7 +167,6 @@ export default function EmployeeDetail() {
   if (isLoading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '50vh', gap: 10, color: 'var(--fg-subtle)' }}>
       <RefreshCw size={20} style={{ animation: 'spin 1s linear infinite' }} />
-      <span style={{ fontSize: 12 }}>Loading employee…</span>
     </div>
   );
 
@@ -87,10 +182,17 @@ export default function EmployeeDetail() {
   const reqs  = employee.requisitions || [];
   const sites = employee.siteAccess || [];
 
-  const miniStats = [
-    { label: 'Requisitions', value: reqs.length,  icon: FileText },
-    { label: 'Permissions',  value: perms.length,  icon: ShieldCheck },
-    { label: 'Sites',        value: sites.length,  icon: Building2 },
+  const docCount = [employee.idCardImage, employee.cvDocument, employee.supportingDocument].filter(Boolean).length;
+
+  const statusStyle = STATUS_STYLES[employee.status] || { cls: 'stoq-badge', label: employee.status };
+
+  const docUrl = (path) => fileUrl(path);
+
+  const tabs = [
+    { key: 'permissions',  icon: ShieldCheck, label: 'Permissions',  count: perms.length },
+    { key: 'requisitions', icon: FileText,    label: 'Requisitions', count: reqs.length },
+    { key: 'siteaccess',   icon: Building2,   label: 'Site Access',  count: sites.length },
+    { key: 'documents',    icon: Paperclip,   label: 'Documents',    count: docCount },
   ];
 
   return (
@@ -105,7 +207,10 @@ export default function EmployeeDetail() {
               <span className="stoq-crumbs__sep">/</span>
               <span className="stoq-crumbs__current">{employee.firstName} {employee.lastName}</span>
             </div>
-            <h1>{employee.firstName} {employee.lastName}</h1>
+            <h1 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {employee.firstName} {employee.lastName}
+              <span className={`stoq-badge ${statusStyle.cls}`}>{statusStyle.label}</span>
+            </h1>
             <div className="page-head__sub">{employee.position}</div>
           </div>
         </div>
@@ -116,17 +221,16 @@ export default function EmployeeDetail() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 14, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '270px 1fr', gap: 14, alignItems: 'start' }}>
 
         {/* ── LEFT SIDEBAR ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-          {/* Avatar card with gradient banner */}
+          {/* Avatar card */}
           <div className="stoq-panel" style={{ overflow: 'hidden', padding: 0 }}>
             <div style={{
               height: 72,
               background: 'linear-gradient(135deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 60%, #7c5cfc) 100%)',
-              position: 'relative',
             }} />
             <div style={{ padding: '0 16px 16px', marginTop: -40, textAlign: 'center' }}>
               <div style={{
@@ -141,28 +245,37 @@ export default function EmployeeDetail() {
                 boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
               }}>
                 {employee.profilePicture
-                  ? <img src={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/${employee.profilePicture}`} alt=""
+                  ? <img src={fileUrl(employee.profilePicture)} alt=""
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   : employee.firstName.charAt(0).toUpperCase()}
               </div>
-              <div style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 700, color: 'var(--fg)', lineHeight: 1.2 }}>
+              <div style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 700, lineHeight: 1.2 }}>
                 {employee.firstName} {employee.lastName}
               </div>
-              <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginTop: 3 }}>{employee.position}</div>
+              <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginTop: 2 }}>{employee.position}</div>
+
+              {/* Status + lock badges */}
               <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
-                <span className={`stoq-badge ${employee.status === 'ACTIVE' ? 'stoq-badge--success' : 'stoq-badge--danger'}`}>
-                  {employee.status}
-                </span>
+                <span className={`stoq-badge ${statusStyle.cls}`}>{statusStyle.label}</span>
                 <span className={`stoq-badge ${employee.isLocked ? 'stoq-badge--danger' : 'stoq-badge--accent'}`}>
                   {employee.isLocked ? <><Lock size={9} /> Locked</> : <><Unlock size={9} /> Unlocked</>}
                 </span>
               </div>
             </div>
 
-            {/* Mini stats strip */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderTop: '1px solid var(--border)' }}>
-              {miniStats.map(({ label, value, icon: Icon }, idx) => (
-                <div key={label} style={{ padding: '10px 6px', textAlign: 'center', borderRight: idx < miniStats.length - 1 ? '1px solid var(--border)' : 'none' }}>
+            {/* Mini stats — 2×2 grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', borderTop: '1px solid var(--border)' }}>
+              {[
+                { label: 'Permissions', value: perms.length,  icon: ShieldCheck },
+                { label: 'Sites',       value: sites.length,  icon: Building2 },
+                { label: 'Requisitions',value: reqs.length,   icon: FileText },
+                { label: 'Documents',   value: docCount,      icon: Paperclip },
+              ].map(({ label, value, icon: Icon }, idx) => (
+                <div key={label} style={{
+                  padding: '10px 6px', textAlign: 'center',
+                  borderRight: idx % 2 === 0 ? '1px solid var(--border)' : 'none',
+                  borderBottom: idx < 2 ? '1px solid var(--border)' : 'none',
+                }}>
                   <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--fg)', fontFamily: 'var(--font-display)' }}>{value}</div>
                   <div style={{ fontSize: 9, color: 'var(--fg-subtle)', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 1 }}>{label}</div>
                 </div>
@@ -176,9 +289,10 @@ export default function EmployeeDetail() {
               <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--fg-subtle)' }}>Contact Info</span>
             </div>
             {[
-              { icon: Mail,     label: 'Email',  value: employee.email,     breakAll: true },
-              { icon: Phone,    label: 'Phone',  value: employee.phone || '—' },
-              { icon: Calendar, label: 'Joined', value: fmtDate(employee.createdAt) },
+              { icon: Mail,     label: 'Email',    value: employee.email,     breakAll: true },
+              { icon: Phone,    label: 'Phone',    value: employee.phone || '—' },
+              { icon: Briefcase,label: 'Position', value: employee.position },
+              { icon: Calendar, label: 'Joined',   value: fmtDate(employee.createdAt) },
             ].map(({ icon: Icon, label, value, breakAll }) => (
               <div key={label} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 12px', borderBottom: '1px solid var(--border)' }}>
                 <Icon size={12} style={{ color: 'var(--fg-subtle)', marginTop: 1, flexShrink: 0 }} />
@@ -189,18 +303,50 @@ export default function EmployeeDetail() {
               </div>
             ))}
           </div>
+
+          {/* Quick document links */}
+          {docCount > 0 && (
+            <div className="stoq-panel" style={{ padding: 0, overflow: 'hidden' }}>
+              <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
+                <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--fg-subtle)' }}>Quick Documents</span>
+              </div>
+              {[
+                { path: employee.idCardImage,        label: 'ID Card',             icon: CreditCard,  color: '#5b8ef8' },
+                { path: employee.cvDocument,         label: 'CV / Résumé',         icon: FileText,    color: '#3aaa6e' },
+                { path: employee.supportingDocument, label: 'Supporting Document', icon: Paperclip,   color: '#c08a30' },
+              ].filter(d => d.path).map(({ path, label, icon: Icon, color }) => (
+                <a
+                  key={label}
+                  href={fileUrl(path)}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderBottom: '1px solid var(--border)', textDecoration: 'none', color: 'inherit' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-sunk)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  <Icon size={12} style={{ color, flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, fontWeight: 500, flex: 1 }}>{label}</span>
+                  <ExternalLink size={11} style={{ color: 'var(--fg-subtle)' }} />
+                </a>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* ── RIGHT AREA — TABS ── */}
         <div>
           <div className="stoq-tabs" style={{ marginBottom: 14 }}>
-            {[
-              { key: 'permissions', icon: ShieldCheck, label: `Permissions (${perms.length})` },
-              { key: 'requisitions', icon: FileText,   label: `Requisitions (${reqs.length})` },
-              { key: 'siteaccess',  icon: Building2,   label: `Site Access (${sites.length})` },
-            ].map(({ key, icon: Icon, label }) => (
+            {tabs.map(({ key, icon: Icon, label, count }) => (
               <button key={key} className="stoq-tab" data-active={tab === key ? 'true' : 'false'} onClick={() => setTab(key)}>
                 <Icon size={13} /> {label}
+                {count > 0 && (
+                  <span style={{
+                    marginLeft: 4, fontSize: 10, fontWeight: 700,
+                    background: tab === key ? 'color-mix(in srgb, var(--accent) 20%, transparent)' : 'var(--bg-sunk)',
+                    color: tab === key ? 'var(--accent)' : 'var(--fg-subtle)',
+                    borderRadius: 10, padding: '1px 6px',
+                  }}>{count}</span>
+                )}
               </button>
             ))}
           </div>
@@ -254,7 +400,6 @@ export default function EmployeeDetail() {
               </div>
             ) : (
               <div className="stoq-panel" style={{ padding: 0, overflow: 'hidden' }}>
-                {/* Status summary strip */}
                 {(() => {
                   const counts = reqs.reduce((acc, r) => { acc[r.status] = (acc[r.status] || 0) + 1; return acc; }, {});
                   return (
@@ -279,9 +424,7 @@ export default function EmployeeDetail() {
                     </thead>
                     <tbody>
                       {reqs.map(req => (
-                        <tr key={req.id}
-                          onClick={() => navigate(`/admin/requisition-management/${req.id}`)}
-                          style={{ cursor: 'pointer' }}>
+                        <tr key={req.id} onClick={() => navigate(`/admin/requisition-management/${req.id}`)} style={{ cursor: 'pointer' }}>
                           <td>
                             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-subtle)' }}>
                               #{req.id.slice(-6).toUpperCase()}
@@ -363,8 +506,53 @@ export default function EmployeeDetail() {
               </div>
             )
           )}
+
+          {/* ── DOCUMENTS TAB ── */}
+          {tab === 'documents' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Summary strip */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--bg-sunk)', borderRadius: 'var(--r-md)', border: '1px solid var(--border)' }}>
+                <Paperclip size={13} style={{ color: 'var(--fg-subtle)' }} />
+                <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
+                  {docCount === 0
+                    ? 'No documents uploaded — edit the employee to add files.'
+                    : `${docCount} of 3 documents uploaded.`}
+                </span>
+                <button className="stoq-btn stoq-btn--sm" style={{ marginLeft: 'auto' }}
+                  onClick={() => navigate(`/admin/employees/edit/${employee.id}`)}>
+                  <Pencil size={11} /> Manage Documents
+                </button>
+              </div>
+
+              {/* 3 doc cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+                <DocCard
+                  label="ID Card"
+                  icon={CreditCard}
+                  color="#5b8ef8"
+                  url={docUrl(employee.idCardImage)}
+                  isImage
+                />
+                <DocCard
+                  label="CV / Résumé"
+                  icon={FileText}
+                  color="#3aaa6e"
+                  url={docUrl(employee.cvDocument)}
+                  isImage={false}
+                />
+                <DocCard
+                  label="Supporting Document"
+                  icon={Paperclip}
+                  color="#c08a30"
+                  url={docUrl(employee.supportingDocument)}
+                  isImage={false}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
+      <style>{`@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }`}</style>
     </div>
   );
 }
