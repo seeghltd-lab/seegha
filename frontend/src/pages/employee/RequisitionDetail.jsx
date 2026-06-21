@@ -103,9 +103,16 @@ export default function EmployeeRequisitionDetail() {
     (item.receivingLogs ?? []).map(log => ({ ...log, itemName: item.itemName, unit: item.unit }))
   ).sort((a, b) => new Date(b.receivedAt) - new Date(a.receivedAt));
 
+  /* The requisition's own `supplier` field is often empty — suppliers are usually
+     linked at the stock-item level instead. Fall back to the first supplier found
+     on any linked stock so the receipt/print panel always shows a real supplier. */
+  const effectiveSupplier = requisition.supplier
+    ?? items.find(i => i.stock?.stockSuppliers?.[0]?.supplier)?.stock?.stockSuppliers?.[0]?.supplier
+    ?? null;
+
   return (
     <div>
-      {receipt && <SupplierReceiptModal data={receipt} onClose={() => setReceipt(null)} />}
+      {receipt && <SupplierReceiptModal data={receipt} supplier={effectiveSupplier} onClose={() => setReceipt(null)} />}
       {toast && (
         <div className={`stoq-toast ${toast.type === 'error' ? 'stoq-toast--error' : 'stoq-toast--success'}`}>
           {toast.type === 'error' ? <AlertCircle size={13} /> : <CheckCircle size={13} />}

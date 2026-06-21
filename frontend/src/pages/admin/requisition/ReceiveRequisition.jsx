@@ -6,6 +6,7 @@ import stockService from '../../../services/stockService';
 import categoryService from '../../../services/categoryService';
 import siteService from '../../../services/siteService';
 import { useViewMode } from '../../../hooks/useViewMode';
+import { loadDraft, clearDraft, useFormDraft } from '../../../hooks/useFormDraft';
 
 const fmt = (n) => new Intl.NumberFormat('en-RW', { style: 'currency', currency: 'RWF', minimumFractionDigits: 0 }).format(n ?? 0);
 
@@ -35,6 +36,7 @@ export default function ReceiveRequisition() {
   const navigate = useNavigate();
   const { role } = useOutletContext() ?? {};
   const backBase = role === 'employee' ? '/requisitions' : '/admin/requisition-management';
+  const draftKey = `receive-requisition-${id}`;
   const [requisition, setRequisition] = useState(null);
   const [receiveInputs, setReceiveInputs] = useState({});
   // newStockInputs: { [itemId]: { unitCost, siteId, categoryId, warehouseLocation, reorderLevel, open } }
@@ -49,6 +51,8 @@ export default function ReceiveRequisition() {
   const [itemView, setItemView] = useViewMode('requisition-items', 'cards');
 
   const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
+
+  useFormDraft(draftKey, { receiveInputs, newStockInputs }, !loading);
 
   const load = async () => {
     setLoading(true);
@@ -80,6 +84,10 @@ export default function ReceiveRequisition() {
           }
         }
       });
+      // Overlay any saved draft input for items that are still pending
+      const draft = loadDraft(draftKey);
+      Object.keys(inputs).forEach(itemId => { if (draft?.receiveInputs?.[itemId]) inputs[itemId] = draft.receiveInputs[itemId]; });
+      Object.keys(stockInputs).forEach(itemId => { if (draft?.newStockInputs?.[itemId]) stockInputs[itemId] = draft.newStockInputs[itemId]; });
       setReceiveInputs(inputs);
       setNewStockInputs(stockInputs);
     } catch { setErrors({ load: 'Failed to load requisition.' }); }
@@ -144,6 +152,7 @@ export default function ReceiveRequisition() {
         });
       const updated = await requisitionService.receiveItems(id, items);
       setRequisition(updated);
+      clearDraft(draftKey);
       setSuccess(true);
       showToast(updated.status === 'FULLY_RECEIVED' ? 'All items received!' : 'Receiving recorded');
       const nextInputs = {};

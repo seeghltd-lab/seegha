@@ -1,104 +1,27 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
-import { Plus, Trash2, X, Search, ArrowLeft, CheckCircle, AlertCircle, Truck, RefreshCw, List, LayoutGrid, ChevronDown, MapPin } from 'lucide-react';
+import { Plus, Trash2, X, ArrowLeft, CheckCircle, AlertCircle, Truck, RefreshCw, List, LayoutGrid, MapPin } from 'lucide-react';
 import requisitionService from '../../../services/requisitionService';
 import stockService from '../../../services/stockService';
 import supplierService from '../../../services/supplierService';
 import UnitPicker from '../../../components/UnitPicker';
+import PortalSelect from '../../../components/PortalSelect';
+import StockPicker from '../../../components/StockPicker';
 import { useViewMode } from '../../../hooks/useViewMode';
+import { loadDraft, clearDraft, useFormDraft } from '../../../hooks/useFormDraft';
 
 const fmt = (n) => new Intl.NumberFormat('en-RW', { style: 'currency', currency: 'RWF', minimumFractionDigits: 0 }).format(n ?? 0);
-
-function SearchableSelect({ label, options, value, onChange, placeholder, onCreate, createLabel, error }) {
-  const [open, setOpen] = useState(false);
-  const [q, setQ] = useState('');
-  const [creating, setCreating] = useState(false);
-  const ref = useRef(null);
-
-  const filtered = options.filter(o => o.label.toLowerCase().includes(q.toLowerCase()));
-  const selected = options.find(o => o.value === value);
-  const showCreate = onCreate && q.trim();
-
-  useEffect(() => {
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  const handleCreate = async () => {
-    if (!q.trim() || creating) return;
-    setCreating(true);
-    try {
-      const newId = await onCreate(q.trim());
-      onChange(newId);
-      setOpen(false);
-      setQ('');
-    } finally { setCreating(false); }
-  };
-
-  return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      {label && <label className="stoq-field__label">{label}</label>}
-      <button type="button" onClick={() => { setOpen(!open); setQ(''); }}
-        className="stoq-input"
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', textAlign: 'left', width: '100%', ...(error ? { borderColor: 'var(--danger)' } : {}) }}>
-        <span style={{ color: selected ? 'var(--fg)' : 'var(--fg-subtle)', fontWeight: selected ? 500 : 400 }}>
-          {selected ? selected.label : placeholder}
-        </span>
-        <ChevronDown size={13} style={{ color: 'var(--fg-subtle)', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }} />
-      </button>
-      {open && (
-        <div style={{ position: 'absolute', zIndex: 30, width: '100%', marginTop: 2, background: 'var(--bg-elev)', border: '1px solid var(--border)', borderRadius: 'var(--r-sm)', boxShadow: 'var(--shadow-lg)', maxHeight: 220, overflowY: 'auto' }}>
-          <div style={{ padding: 6, borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, background: 'var(--bg-elev)' }}>
-            <input autoFocus value={q} onChange={e => setQ(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (showCreate) handleCreate(); } }}
-              className="stoq-input" style={{ height: 28, fontSize: 11 }}
-              placeholder={onCreate ? 'Search or type to create…' : 'Search…'} />
-          </div>
-          <div>
-            <button type="button" onClick={() => { onChange(''); setOpen(false); }}
-              style={{ width: '100%', textAlign: 'left', padding: '7px 10px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--fg-subtle)' }}>
-              None
-            </button>
-            {filtered.map(o => (
-              <button key={o.value} type="button" onClick={() => { onChange(o.value); setOpen(false); setQ(''); }}
-                style={{ width: '100%', textAlign: 'left', padding: '7px 10px', background: value === o.value ? 'var(--accent-soft)' : 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: value === o.value ? 'var(--accent-soft-fg)' : 'var(--fg)', fontWeight: value === o.value ? 600 : 400 }}
-                onMouseEnter={e => { if (value !== o.value) e.currentTarget.style.background = 'var(--bg-sunk)'; }}
-                onMouseLeave={e => { if (value !== o.value) e.currentTarget.style.background = 'none'; }}>
-                {o.label}
-              </button>
-            ))}
-            {showCreate && (
-              <button type="button" onClick={handleCreate} disabled={creating}
-                style={{ width: '100%', textAlign: 'left', padding: '7px 10px', background: 'none', border: 'none', borderTop: '1px solid var(--border)', cursor: 'pointer', fontSize: 12, color: 'var(--accent-soft-fg)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Plus size={12} />
-                {creating ? 'Creating…' : `Create ${createLabel} "${q.trim()}"`}
-              </button>
-            )}
-            {!q.trim() && options.length === 0 && (
-              <p style={{ padding: '8px 10px', fontSize: 11, color: 'var(--fg-subtle)' }}>No {createLabel}s yet.{onCreate ? ' Type a name to create one.' : ''}</p>
-            )}
-          </div>
-        </div>
-      )}
-      {error && <p style={{ fontSize: 11, color: 'var(--danger)', marginTop: 2 }}>{error}</p>}
-    </div>
-  );
-}
 
 export default function ApproveRequisition() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { role } = useOutletContext() ?? {};
   const backBase = role === 'employee' ? '/requisitions' : '/admin/requisition-management';
+  const draftKey = `approve-requisition-${id}`;
 
   const [requisition, setRequisition] = useState(null);
   const [items, setItems] = useState([]);
   const [allStocks, setAllStocks] = useState([]);
-  const [filteredStocks, setFilteredStocks] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showStockModal, setShowStockModal] = useState(false);
-  const [selectedItemIndex, setSelectedItemIndex] = useState(null);
   const [notes, setNotes] = useState('');
   const [supplierId, setSupplierId] = useState('');
   const [suppliers, setSuppliers] = useState([]);
@@ -110,6 +33,8 @@ export default function ApproveRequisition() {
   const [itemView, setItemView] = useViewMode('requisition-items', 'cards');
 
   const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
+
+  useFormDraft(draftKey, { items, notes, supplierId }, !loading);
 
   const handleCreateSupplier = async (name) => {
     const sup = await supplierService.create({ name });
@@ -129,36 +54,28 @@ export default function ApproveRequisition() {
           supplierService.getForSelect().then(data => data.map(s => ({ value: s.id, label: `${s.name} (${s.code})` }))).catch(() => []),
         ]);
         setRequisition(req);
-        setSupplierId(req.supplierId || '');
+        const draft = loadDraft(draftKey);
+        setSupplierId(draft?.supplierId ?? req.supplierId ?? '');
+        setNotes(draft?.notes ?? '');
         setSuppliers(supplierList ?? []);
-        setItems(req.items.map(item => ({ ...item, costPrice: item.costPrice ?? (item.stock ? Number(item.stock.unitCost) : ''), paymentType: item.paymentType ?? 'NONE', isNew: false, remove: false })));
-        const stocks = stockData.stocks ?? stockData;
-        setAllStocks(stocks);
-        setFilteredStocks(stocks);
+        setItems(draft?.items ?? req.items.map(item => ({ ...item, costPrice: item.costPrice ?? (item.stock ? Number(item.stock.unitCost) : ''), paymentType: item.paymentType ?? 'NONE', isNew: false, remove: false })));
+        setAllStocks(stockData.stocks ?? stockData);
       } catch { setErrors({ load: 'Failed to load requisition.' }); }
       finally { setLoading(false); }
     };
     load();
-  }, [id]);
-
-  useEffect(() => {
-    if (!searchTerm.trim()) { setFilteredStocks(allStocks); return; }
-    const t = searchTerm.toLowerCase();
-    setFilteredStocks(allStocks.filter(s => s.itemName?.toLowerCase().includes(t) || s.sku?.toLowerCase().includes(t)));
-  }, [searchTerm, allStocks]);
+  }, [id, draftKey]);
 
   const getStock = (stockId) => allStocks.find(s => s.id === stockId) || null;
   const isAlreadySelected = (stockId, currentIdx) => items.some((item, i) => i !== currentIdx && item.stockId === stockId && !item.remove);
 
-  const openStockModal = (index) => { setSelectedItemIndex(index); setSearchTerm(''); setFilteredStocks(allStocks); setShowStockModal(true); };
-
-  const selectStock = (stock) => {
-    if (selectedItemIndex === null || isAlreadySelected(stock.id, selectedItemIndex)) return;
+  const selectStockForItem = (index, result) => {
+    if (result.id && isAlreadySelected(result.id, index)) { showToast('That stock is already linked to another item', 'error'); return; }
     const next = [...items];
-    next[selectedItemIndex] = { ...next[selectedItemIndex], stockId: stock.id, itemName: stock.itemName, unit: stock.unit, costPrice: Number(stock.unitCost) || '' };
+    next[index] = result.id
+      ? { ...next[index], stockId: result.id, itemName: result.itemName, unit: result.unit, costPrice: Number(result.unitCost) || '' }
+      : { ...next[index], stockId: '', itemName: result.itemName };
     setItems(next);
-    setShowStockModal(false);
-    setSelectedItemIndex(null);
   };
 
   const handleItemChange = (index, field, value) => { const next = [...items]; next[index] = { ...next[index], [field]: value }; setItems(next); };
@@ -204,6 +121,7 @@ export default function ApproveRequisition() {
         }),
       };
       await requisitionService.approve(id, payload);
+      clearDraft(draftKey);
       setSuccess(true);
       showToast('Requisition approved!');
       setTimeout(() => navigate(`${backBase}/${id}`), 1800);
@@ -287,7 +205,7 @@ export default function ApproveRequisition() {
           <div style={{ padding: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div className="stoq-field">
               <label className="stoq-field__label">Supplier (optional)</label>
-              <SearchableSelect
+              <PortalSelect
                 options={suppliers}
                 value={supplierId}
                 onChange={setSupplierId}
@@ -330,7 +248,6 @@ export default function ApproveRequisition() {
                   <tr>
                     <th className="no-sort">#</th>
                     <th className="no-sort">Item Name</th>
-                    <th className="no-sort">Stock Link</th>
                     <th className="no-sort">Qty</th>
                     <th className="no-sort">Unit</th>
                     <th className="no-sort num-cell">Cost (RWF)</th>
@@ -341,11 +258,10 @@ export default function ApproveRequisition() {
                 </thead>
                 <tbody>
                   {items.map((item, idx) => {
-                    const stockInfo = item.stockId ? getStock(item.stockId) : null;
                     if (item.remove) return (
                       <tr key={idx} style={{ opacity: 0.4, background: 'var(--danger-soft)' }}>
                         <td><span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>{idx + 1}</span></td>
-                        <td colSpan={6}><span style={{ fontSize: 12, color: 'var(--danger)', fontStyle: 'italic' }}>Marked for removal: {item.itemName}</span></td>
+                        <td colSpan={5}><span style={{ fontSize: 12, color: 'var(--danger)', fontStyle: 'italic' }}>Marked for removal: {item.itemName}</span></td>
                         <td>
                           <button className="icon-btn" onClick={() => toggleRemove(idx)} title="Undo" style={{ color: 'var(--success)' }}><X size={13} /></button>
                         </td>
@@ -357,24 +273,15 @@ export default function ApproveRequisition() {
                           <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>{idx + 1}</span>
                           {item.isNew && <span className="stoq-badge stoq-badge--success stoq-badge--plain" style={{ marginLeft: 4 }}>New</span>}
                         </td>
-                        <td style={{ minWidth: 160 }}>
-                          <input className="stoq-input" value={item.itemName}
-                            onChange={e => handleItemChange(idx, 'itemName', e.target.value)}
-                            style={{ ...(errors[`items.${idx}.itemName`] ? { borderColor: 'var(--danger)' } : {}), height: 28, fontSize: 11 }}
-                            placeholder="Item name" />
+                        <td style={{ minWidth: 200 }}>
+                          <StockPicker
+                            value={item.stockId}
+                            itemName={item.itemName}
+                            stocks={allStocks}
+                            onSelect={(result) => selectStockForItem(idx, result)}
+                            onClear={() => clearStock(idx)}
+                          />
                           {errors[`items.${idx}.itemName`] && <div style={{ fontSize: 10, color: 'var(--danger)' }}>{errors[`items.${idx}.itemName`]}</div>}
-                        </td>
-                        <td style={{ minWidth: 140 }}>
-                          {stockInfo ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--accent-soft-fg)' }}>{stockInfo.sku}</span>
-                              <button className="icon-btn" style={{ width: 18, height: 18, color: 'var(--danger)' }} onClick={() => clearStock(idx)}><X size={10} /></button>
-                            </div>
-                          ) : (
-                            <button className="stoq-btn stoq-btn--sm stoq-btn--ghost" style={{ fontSize: 10, height: 26 }} onClick={() => openStockModal(idx)}>
-                              <Search size={10} /> Browse
-                            </button>
-                          )}
                         </td>
                         <td style={{ width: 90 }}>
                           <input type="number" min="0.01" step="0.01" className="stoq-input" value={item.quantity}
@@ -463,30 +370,20 @@ export default function ApproveRequisition() {
                     {!item.remove && (
                       <>
                         <div style={{ marginBottom: 10 }}>
-                          {!stockInfo ? (
-                            <button type="button" onClick={() => openStockModal(idx)}
-                              className="stoq-btn stoq-btn--ghost" style={{ width: '100%', justifyContent: 'space-between', border: '1px solid var(--border)' }}>
-                              <span style={{ color: 'var(--fg-subtle)' }}>Browse stock (optional)</span>
-                              <Search size={13} />
-                            </button>
-                          ) : (
-                            <div style={{ padding: '8px 12px', background: 'var(--accent-soft)', borderRadius: 'var(--r-sm)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                              <div>
-                                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)' }}>{stockInfo.itemName}</div>
-                                <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--fg-subtle)' }}>{stockInfo.sku} · {stockInfo.quantity} {stockInfo.unit} in stock</div>
-                              </div>
-                              <button className="stoq-btn stoq-btn--sm stoq-btn--ghost" onClick={() => clearStock(idx)} style={{ color: 'var(--danger)', fontSize: 11 }}>Clear</button>
-                            </div>
-                          )}
+                          <label className="stoq-field__label" style={{ marginBottom: 4, display: 'block' }}>
+                            Item name <span style={{ color: 'var(--danger)' }}>*</span>
+                          </label>
+                          <StockPicker
+                            value={item.stockId}
+                            itemName={item.itemName}
+                            stocks={allStocks}
+                            onSelect={(result) => selectStockForItem(idx, result)}
+                            onClear={() => clearStock(idx)}
+                          />
+                          {errors[`items.${idx}.itemName`] && <span style={{ fontSize: 11, color: 'var(--danger)' }}>{errors[`items.${idx}.itemName`]}</span>}
                         </div>
 
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                          <div className="stoq-field">
-                            <label className="stoq-field__label">Item Name <span style={{ color: 'var(--danger)' }}>*</span></label>
-                            <input className="stoq-input" value={item.itemName} onChange={e => handleItemChange(idx, 'itemName', e.target.value)}
-                              style={errors[`items.${idx}.itemName`] ? { borderColor: 'var(--danger)' } : {}} />
-                            {errors[`items.${idx}.itemName`] && <span style={{ fontSize: 11, color: 'var(--danger)' }}>{errors[`items.${idx}.itemName`]}</span>}
-                          </div>
                           <div className="stoq-field">
                             <label className="stoq-field__label">Quantity <span style={{ color: 'var(--danger)' }}>*</span></label>
                             <input type="number" min="0.01" step="0.01" className="stoq-input" value={item.quantity}
@@ -564,51 +461,6 @@ export default function ApproveRequisition() {
           )}
         </div>
       </div>
-
-      {/* Stock modal */}
-      {showStockModal && (
-        <div className="stoq-modal-backdrop">
-          <div className="stoq-modal stoq-modal--wide" style={{ maxHeight: '80vh' }}>
-            <div className="stoq-modal__head">
-              <div className="stoq-modal__title">Select Stock Item</div>
-              <button className="icon-btn" onClick={() => setShowStockModal(false)}><X size={14} /></button>
-            </div>
-            <div style={{ padding: '10px 18px', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ position: 'relative' }}>
-                <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-subtle)', pointerEvents: 'none' }} />
-                <input className="stoq-input stoq-input--search" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search by name or SKU…" />
-              </div>
-            </div>
-            <div className="stoq-modal__body" style={{ padding: 10 }}>
-              {filteredStocks.length === 0 ? (
-                <p style={{ textAlign: 'center', padding: '24px 0', fontSize: 12, color: 'var(--fg-subtle)' }}>No stocks found</p>
-              ) : filteredStocks.map(stock => {
-                const isDup = isAlreadySelected(stock.id, selectedItemIndex);
-                return (
-                  <button key={stock.id} disabled={isDup} onClick={() => selectStock(stock)}
-                    style={{
-                      width: '100%', padding: '10px 12px', borderRadius: 'var(--r-sm)', textAlign: 'left',
-                      border: `1px solid ${isDup ? 'var(--border)' : 'var(--border)'}`,
-                      background: isDup ? 'var(--bg-sunk)' : 'var(--panel)',
-                      cursor: isDup ? 'not-allowed' : 'pointer', marginBottom: 4,
-                      opacity: isDup ? 0.5 : 1,
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    }}>
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)' }}>{stock.itemName}</div>
-                      <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--fg-subtle)' }}>{stock.sku}</div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-soft-fg)' }}>{stock.quantity} {stock.unit}</div>
-                      <div style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>{fmt(Number(stock.unitCost))}</div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

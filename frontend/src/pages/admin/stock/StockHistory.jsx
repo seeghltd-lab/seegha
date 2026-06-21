@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { useRole } from '../../../hooks/useRole';
 import stockService from '../../../services/stockService';
+import siteService from '../../../services/siteService';
+import { exportToExcel } from '../../../lib/exportExcel';
 
 // --- helpers ---
 
@@ -25,6 +27,7 @@ const MOVEMENT_META = {
   IN:         { label: 'IN',         cls: 'stoq-badge--success', icon: ArrowDownCircle, color: 'var(--success)' },
   OUT:        { label: 'OUT',        cls: 'stoq-badge--danger',  icon: ArrowUpCircle,   color: 'var(--danger)'  },
   ADJUSTMENT: { label: 'ADJUSTMENT', cls: 'stoq-badge--warning', icon: Activity,        color: 'var(--warning)' },
+  RETURN:     { label: 'RETURN',     cls: 'stoq-badge--success', icon: ArrowDownCircle, color: 'var(--success)' },
 };
 
 function MovementBadge({ type }) {
@@ -34,7 +37,7 @@ function MovementBadge({ type }) {
 
 // --- QtyFlow - the before → change → after visual ---
 function QtyFlow({ before, change, after, type, unit }) {
-  const isIn  = type === 'IN';
+  const isIn  = type === 'IN' || type === 'RETURN';
   const isOut = type === 'OUT';
   const isAdj = type === 'ADJUSTMENT';
 
@@ -85,6 +88,12 @@ export default function StockHistory() {
   const [movementType, setMovementType]   = useState('');
   const [dateFrom, setDateFrom]           = useState('');
   const [dateTo, setDateTo]               = useState('');
+  const [siteId, setSiteId]               = useState('');
+  const [sites, setSites]                 = useState([]);
+
+  useEffect(() => {
+    siteService.getAll().then(d => setSites(d.sites || d || [])).catch(() => {});
+  }, []);
 
   // summary stats derived from current page
   const [summary, setSummary] = useState({ in: 0, out: 0, adj: 0 });
@@ -104,6 +113,7 @@ export default function StockHistory() {
         movementType: movementType || undefined,
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
+        siteId: siteId || undefined,
       });
       setHistory(data.history);
       setTotal(data.total);
@@ -123,45 +133,54 @@ export default function StockHistory() {
     } finally {
       setLoading(false);
     }
-  }, [search, movementType, dateFrom, dateTo]);
+  }, [search, movementType, dateFrom, dateTo, siteId]);
 
   // debounce search
   useEffect(() => {
     const t = setTimeout(() => load(1), 350);
     return () => clearTimeout(t);
-  }, [search, movementType, dateFrom, dateTo]);
+  }, [search, movementType, dateFrom, dateTo, siteId]);
 
   const clearFilters = () => {
     setSearch('');
     setMovementType('');
     setDateFrom('');
     setDateTo('');
+    setSiteId('');
   };
 
-  const hasFilters = search || movementType || dateFrom || dateTo;
+  const hasFilters = search || movementType || dateFrom || dateTo || siteId;
 
-  const exportCSV = () => {
-    const headers = ['Date', 'Item', 'SKU', 'Movement', 'Qty Before', 'Qty Change', 'Qty After', 'Unit', 'Unit Price', 'Notes'];
-    const rows = history.map(h => [
-      new Date(h.createdAt).toLocaleString('en-GB'),
-      h.stock?.itemName || '',
-      h.stock?.sku || '',
-      h.movementType,
-      h.qtyBefore,
-      h.qtyChange,
-      h.qtyAfter,
-      h.stock?.unit || '',
-      h.unitPrice ?? '',
-      (h.notes || '').replace(/,/g, ';'),
-    ]);
-    const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `stock-history-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const [exporting, setExporting] = useState(false);
+  const exportExcelFile = async () => {
+    setExporting(true);
+    try {
+      const data = await stockService.getHistory({
+        page: 1,
+        limit: 100000,
+        search: search || undefined,
+        movementType: movementType || undefined,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        siteId: siteId || undefined,
+      });
+      const headers = ['Date', 'Item', 'SKU', 'Site', 'Movement', 'Qty Before', 'Qty Change', 'Qty After', 'Unit', 'Unit Price', 'Notes'];
+      const rows = data.history.map(h => [
+        new Date(h.createdAt).toLocaleString('en-GB'),
+        h.stock?.itemName || '',
+        h.stock?.sku || '',
+        sites.find(s => s.id === h.siteId)?.name || '',
+        h.movementType,
+        h.qtyBefore,
+        h.qtyChange,
+        h.qtyAfter,
+        h.stock?.unit || '',
+        h.unitPrice != null ? Number(h.unitPrice) : '',
+        h.notes || '',
+      ]);
+      exportToExcel(`stock-history-${new Date().toISOString().slice(0, 10)}`, headers, rows, 'Stock History');
+    } catch { showToast('Failed to export history'); }
+    finally { setExporting(false); }
   };
 
   return (
@@ -186,8 +205,8 @@ export default function StockHistory() {
           </div>
         </div>
         <div className="page-head__actions">
-          <button className="stoq-btn" onClick={exportCSV} disabled={history.length === 0}>
-            <Download size={13} /> Export CSV
+          <button className="stoq-btn" onClick={exportExcelFile} disabled={history.length === 0 || exporting}>
+            {exporting ? <RefreshCw size={13} style={{ animation: 'spin 0.8s linear infinite' }} /> : <Download size={13} />} Export
           </button>
           <button className="stoq-btn stoq-btn--icon" onClick={() => load(page)} title="Refresh">
             <RefreshCw size={13} />
@@ -247,13 +266,19 @@ export default function StockHistory() {
 
           {/* Movement type filter */}
           <div className="stoq-segment">
-            {[['', 'All'], ['IN', 'IN'], ['OUT', 'OUT'], ['ADJUSTMENT', 'Adjustment']].map(([val, label]) => (
+            {[['', 'All'], ['IN', 'IN'], ['OUT', 'OUT'], ['ADJUSTMENT', 'Adjustment'], ['RETURN', 'Return']].map(([val, label]) => (
               <button key={val} data-active={movementType === val ? 'true' : undefined}
                 onClick={() => setMovementType(val)}>
                 {label}
               </button>
             ))}
           </div>
+
+          {/* Site filter */}
+          <select className="stoq-select" value={siteId} onChange={e => setSiteId(e.target.value)} style={{ width: 160 }}>
+            <option value="">All sites</option>
+            {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
 
           {/* Date range */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -279,6 +304,7 @@ export default function StockHistory() {
               <tr>
                 <th className="no-sort">Date & Time</th>
                 <th className="no-sort">Item</th>
+                <th className="no-sort">Site</th>
                 <th className="no-sort">Movement</th>
                 <th className="no-sort">Before → Change → After</th>
                 <th className="no-sort num-cell">Unit Price</th>
@@ -288,13 +314,13 @@ export default function StockHistory() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', padding: '48px 0' }}>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '48px 0' }}>
                     <RefreshCw size={18} style={{ animation: 'spin 1s linear infinite', color: 'var(--accent)', margin: '0 auto' }} />
                   </td>
                 </tr>
               ) : history.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', padding: '48px 0', color: 'var(--fg-subtle)' }}>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '48px 0', color: 'var(--fg-subtle)' }}>
                     <Package size={28} style={{ margin: '0 auto 8px', display: 'block', opacity: 0.3 }} />
                     <div style={{ fontSize: 12 }}>No history records found</div>
                     {hasFilters && (
@@ -331,6 +357,13 @@ export default function StockHistory() {
                           </div>
                         </div>
                       </div>
+                    </td>
+
+                    {/* Site */}
+                    <td>
+                      <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
+                        {sites.find(s => s.id === h.siteId)?.name || '—'}
+                      </span>
                     </td>
 
                     {/* Movement type */}

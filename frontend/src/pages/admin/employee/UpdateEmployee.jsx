@@ -6,6 +6,7 @@ import {
   CreditCard, FileText, Paperclip, X, ExternalLink,
 } from 'lucide-react';
 import employeeService from '../../../services/employeeService';
+import { loadDraft, clearDraft, useFormDraft } from '../../../hooks/useFormDraft';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const fileUrl = (url) => !url ? null : url.startsWith('http') ? url : `${API_URL}/${url}`;
@@ -197,6 +198,7 @@ function IconInput({ icon: Icon, ...props }) {
 const UpdateEmployee = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const draftKey = `edit-employee-${id}`;
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
   const [error, setError] = useState('');
@@ -205,6 +207,8 @@ const UpdateEmployee = () => {
 
   const [formData, setFormData] = useState({ firstName: '', lastName: '', phone: '', position: '', status: '' });
   const [existing, setExisting] = useState({ profilePicture: null, idCardImage: null, cvDocument: null, supportingDocument: null });
+
+  useFormDraft(draftKey, formData, !isFetching);
 
   // New file picks
   const [profileImg, setProfileImg]         = useState(null);
@@ -227,7 +231,8 @@ const UpdateEmployee = () => {
     setIsFetching(true);
     employeeService.getEmployee(id)
       .then(data => {
-        setFormData({ firstName: data.firstName, lastName: data.lastName, phone: data.phone, position: data.position, status: data.status });
+        const draft = loadDraft(draftKey);
+        setFormData(draft ?? { firstName: data.firstName, lastName: data.lastName, phone: data.phone, position: data.position, status: data.status });
         setExisting({
           profilePicture:     fileUrl(data.profilePicture),
           idCardImage:        fileUrl(data.idCardImage),
@@ -238,7 +243,7 @@ const UpdateEmployee = () => {
       })
       .catch(() => setError('Could not load employee record.'))
       .finally(() => setIsFetching(false));
-  }, [id]);
+  }, [id, draftKey]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -253,6 +258,7 @@ const UpdateEmployee = () => {
       if (supportingFile) data.append('supportingDocument', supportingFile);
 
       await employeeService.updateEmployee(id, data);
+      clearDraft(draftKey);
       showToast('Employee updated successfully');
       setTimeout(() => navigate('/admin/employees'), 1200);
     } catch (err) {

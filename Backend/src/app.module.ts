@@ -16,6 +16,7 @@ import { SupplierModule } from './Modules/Supplier/supplier.module';
 import { CategoryModule } from './Modules/Category/category.module';
 import { SiteSettingsModule } from './Modules/SiteSettings/site-settings.module';
 import { SiteModule } from './Modules/Site/site.module';
+import { StockMigrationModule } from './Modules/StockMigration/stock-migration.module';
 import { RequisitionModule } from './Modules/Requisition/requisition.module';
 import { UnitModule } from './Modules/Unit/unit.module';
 import { ActivityLogModule } from './Modules/ActivityLog/activity-log.module';
@@ -41,6 +42,7 @@ import { CloudinaryModule } from './Global/cloudinary/cloudinary.module';
     CategoryModule,
     SiteSettingsModule,
     SiteModule,
+    StockMigrationModule,
     RequisitionModule,
     UnitModule,
     ActivityLogModule,

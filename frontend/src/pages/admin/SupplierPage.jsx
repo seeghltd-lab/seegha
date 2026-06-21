@@ -1,10 +1,11 @@
 ﻿import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit2, Trash2, Eye, ChevronLeft, ChevronRight, Truck, Phone, Mail, MapPin, User, Package, LayoutGrid, List, Table2, DollarSign, Star } from 'lucide-react';
+import { Plus, Edit2, Trash2, Eye, ChevronLeft, ChevronRight, Truck, Phone, Mail, MapPin, User, Package, LayoutGrid, List, Table2, DollarSign, Star, Download, RefreshCw } from 'lucide-react';
 import supplierService from '../../services/supplierService';
 import Sparkline, { genSpark } from '../../components/Sparkline';
 import { useViewMode } from '../../hooks/useViewMode';
 import { useRole } from '../../hooks/useRole';
+import { exportToExcel } from '../../lib/exportExcel';
 
 const PAGE_SIZE = 10;
 
@@ -60,6 +61,22 @@ export default function SupplierPage() {
 
   const activeCount = useMemo(() => suppliers.filter(s => s.status === 'ACTIVE').length, [suppliers]);
 
+  const [exporting, setExporting] = useState(false);
+  const exportExcelFile = async () => {
+    setExporting(true);
+    try {
+      const data = await supplierService.getAll({ search: search || undefined, status: statusFilter || undefined, page: 1, limit: 100000 });
+      const headers = ['Code', 'Name', 'Contact Person', 'Email', 'Phone', 'City', 'Country', 'Status', 'Payment Terms', 'Stock Items'];
+      const rows = data.suppliers.map(s => [
+        s.code, s.name, s.contactPerson || '', s.email || '', s.phone || '',
+        s.city || '', s.country || '', LABEL_MAP[s.status] || s.status, s.paymentTerms || '',
+        s._count?.stockSuppliers ?? 0,
+      ]);
+      exportToExcel(`suppliers-${new Date().toISOString().slice(0, 10)}`, headers, rows, 'Suppliers');
+    } catch { showToast('Failed to export suppliers', 'error'); }
+    finally { setExporting(false); }
+  };
+
   const handleDelete = async () => {
     setDeleting(true);
     try {
@@ -83,6 +100,9 @@ export default function SupplierPage() {
           <div className="page-head__sub">{total} vendors - {activeCount} active</div>
         </div>
         <div className="page-head__actions">
+          <button className="stoq-btn" onClick={exportExcelFile} disabled={exporting}>
+            {exporting ? <RefreshCw size={13} style={{ animation: 'spin 0.8s linear infinite' }} /> : <Download size={13} />} Export
+          </button>
           <button className="stoq-btn stoq-btn--primary" onClick={() => navigate(path('/suppliers/add'))}>
             <Plus size={14} /> Add supplier
           </button>
@@ -279,6 +299,7 @@ export default function SupplierPage() {
           </div>
         </div>
       )}
+      <style>{`@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 }

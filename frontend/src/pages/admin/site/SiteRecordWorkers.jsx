@@ -4,6 +4,7 @@ import { ArrowLeft, Plus, Trash2, Save, AlertCircle, CheckCircle, RefreshCw, Use
 import siteService from '../../../services/siteService';
 import workerCategoryService from '../../../services/workerCategoryService';
 import { useRole } from '../../../hooks/useRole';
+import { loadDraft, clearDraft, useFormDraft } from '../../../hooks/useFormDraft';
 
 // ── Category Combobox ─────────────────────────────────────────────────────────
 
@@ -111,14 +112,18 @@ export default function SiteRecordWorkers() {
   const { siteId } = useParams();
   const navigate = useNavigate();
   const { path } = useRole();
+  const draftKey = `site-record-workers-${siteId}`;
+  const draft = loadDraft(draftKey);
 
   const [site, setSite] = useState(null);
   const [categories, setCategories] = useState([]);
-  const [rows, setRows] = useState([emptyRow()]);
+  const [rows, setRows] = useState(draft?.rows ?? [emptyRow()]);
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState(null);
 
   const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
+
+  useFormDraft(draftKey, { rows });
 
   useEffect(() => {
     siteService.getOne(siteId).then(setSite).catch(() => navigate(-1));
@@ -163,6 +168,7 @@ export default function SiteRecordWorkers() {
     setSubmitting(false);
 
     if (failed.length === 0) {
+      clearDraft(draftKey);
       navigate(path(`/sites/${siteId}`) + '?tab=workers');
     } else {
       setRows(prev => prev.map(r => failed.find(f => f._key === r._key) || r));

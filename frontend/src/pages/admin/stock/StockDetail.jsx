@@ -44,9 +44,12 @@ function InfoTab({ stock }) {
     out: 'var(--danger)',
   };
 
+  const isEquipment = stock.stockType === 'EQUIPMENT';
+  const available = isEquipment ? (stock.quantity || 0) - (stock.quantityOut || 0) : (stock.quantity || 0);
+
   const getStatus = () => {
-    if (stock.quantity === 0) return { label: 'Out of stock', color: 'var(--danger)' };
-    if (stock.quantity <= stock.reorderLevel) return { label: 'Low stock', color: 'var(--warning)' };
+    if (available === 0) return { label: 'Out of stock', color: 'var(--danger)' };
+    if (available <= stock.reorderLevel) return { label: 'Low stock', color: 'var(--warning)' };
     return { label: 'In stock', color: 'var(--success)' };
   };
 
@@ -80,6 +83,14 @@ function InfoTab({ stock }) {
               <div style={{ fontSize: 14, fontWeight: 600 }}>{stock.unit || '—'}</div>
             </div>
             <div>
+              <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginBottom: 4 }}>Stock Type</div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>
+                <span className={`stoq-badge ${isEquipment ? 'stoq-badge--warning' : 'stoq-badge--plain'}`}>
+                  {isEquipment ? 'Equipment' : 'Material'}
+                </span>
+              </div>
+            </div>
+            <div>
               <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginBottom: 4 }}>Location</div>
               <div style={{ fontSize: 14, fontWeight: 600 }}>{stock.warehouseLocation || '—'}</div>
             </div>
@@ -108,8 +119,13 @@ function InfoTab({ stock }) {
           </div>
           <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
-              <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginBottom: 4 }}>Current Quantity</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: status.color }}>{stock.quantity || 0}</div>
+              <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginBottom: 4 }}>{isEquipment ? 'Available' : 'Current Quantity'}</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: status.color }}>{available}</div>
+              {isEquipment && (
+                <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginTop: 2 }}>
+                  {stock.quantity || 0} total · {stock.quantityOut || 0} checked out
+                </div>
+              )}
             </div>
             <div>
               <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginBottom: 4 }}>Reorder Level</div>
@@ -493,9 +509,9 @@ export default function StockDetail() {
       {/* KPI Row */}
       <div className="kpi-grid kpi-grid--4" style={{ marginBottom: 'var(--gap-card)' }}>
         <div className="kpi">
-          <div className="kpi__label"><span className="kpi__icon"><Package size={12} /></span>On Hand</div>
-          <div className="kpi__value">{stock.quantity || 0}</div>
-          <div className="kpi__foot"><span>units</span></div>
+          <div className="kpi__label"><span className="kpi__icon"><Package size={12} /></span>{stock.stockType === 'EQUIPMENT' ? 'Available' : 'On Hand'}</div>
+          <div className="kpi__value">{stock.stockType === 'EQUIPMENT' ? (stock.quantity || 0) - (stock.quantityOut || 0) : (stock.quantity || 0)}</div>
+          <div className="kpi__foot"><span>{stock.stockType === 'EQUIPMENT' ? `${stock.quantityOut || 0} checked out` : 'units'}</span></div>
         </div>
         <div className="kpi">
           <div className="kpi__label"><span className="kpi__icon"><DollarSign size={12} /></span>Unit Cost</div>

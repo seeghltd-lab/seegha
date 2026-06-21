@@ -9,6 +9,7 @@ import unitService from '../../../services/unitService';
 import siteService from '../../../services/siteService';
 import { useRole } from '../../../hooks/useRole';
 import { useViewMode } from '../../../hooks/useViewMode';
+import { loadDraft, clearDraft, useFormDraft } from '../../../hooks/useFormDraft';
 
 // --- Searchable Select Component (Portal-based to escape overflow) ----------
 
@@ -197,6 +198,7 @@ const makeEmptyItem = () => ({
   expiryDate: '',
   description: '',
   paymentType: 'CREDIT',
+  stockType: 'MATERIAL',
 });
 
 // --- Single Stock Item Row ---
@@ -283,6 +285,39 @@ function StockItemRow({
               className="stoq-input"
               style={{ background: 'var(--success-soft)', color: 'var(--success)', fontWeight: 600, cursor: 'not-allowed' }} />
           </div>
+        </div>
+
+        {/* Stock Type */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <label className="stoq-field__label" style={{ marginBottom: 0, flexShrink: 0 }}>Stock Type</label>
+          <button type="button"
+            onClick={() => set('stockType', 'MATERIAL')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px',
+              borderRadius: 'var(--r-md)', border: '2px solid',
+              borderColor: (item.stockType ?? 'MATERIAL') === 'MATERIAL' ? 'var(--accent)' : 'var(--border)',
+              background: (item.stockType ?? 'MATERIAL') === 'MATERIAL' ? 'var(--accent-soft)' : 'var(--bg)',
+              color: (item.stockType ?? 'MATERIAL') === 'MATERIAL' ? 'var(--accent-soft-fg)' : 'var(--fg-subtle)',
+              fontWeight: (item.stockType ?? 'MATERIAL') === 'MATERIAL' ? 700 : 400,
+              fontSize: 12, cursor: 'pointer', transition: 'all 0.15s',
+            }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: (item.stockType ?? 'MATERIAL') === 'MATERIAL' ? 'var(--accent)' : 'var(--border)' }} />
+            Material — consumed when used
+          </button>
+          <button type="button"
+            onClick={() => set('stockType', 'EQUIPMENT')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px',
+              borderRadius: 'var(--r-md)', border: '2px solid',
+              borderColor: item.stockType === 'EQUIPMENT' ? 'var(--warning)' : 'var(--border)',
+              background: item.stockType === 'EQUIPMENT' ? 'var(--warning-soft, #fff8e7)' : 'var(--bg)',
+              color: item.stockType === 'EQUIPMENT' ? 'var(--warning)' : 'var(--fg-subtle)',
+              fontWeight: item.stockType === 'EQUIPMENT' ? 700 : 400,
+              fontSize: 12, cursor: 'pointer', transition: 'all 0.15s',
+            }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: item.stockType === 'EQUIPMENT' ? 'var(--warning)' : 'var(--border)' }} />
+            Equipment — checked out & returned
+          </button>
         </div>
 
         {/* Credit / Debit */}
@@ -387,8 +422,10 @@ export default function AddStock() {
   const { path } = useRole();
   const { id } = useParams();
   const isEdit = Boolean(id);
+  const draftKey = isEdit ? `edit-stock-${id}` : 'add-stock';
+  const draft = isEdit ? null : loadDraft(draftKey);
 
-  const [items, setItems] = useState([makeEmptyItem()]);
+  const [items, setItems] = useState(draft?.items ?? [makeEmptyItem()]);
   const [sku, setSku] = useState('');
   const [categories, setCategories] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
@@ -405,6 +442,8 @@ export default function AddStock() {
   const [errors, setErrors] = useState([{}]);
   const [toast, setToast] = useState(null);
   const [itemView, setItemView] = useViewMode('stock-add-items', 'cards');
+
+  useFormDraft(draftKey, { items }, !loading);
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
@@ -459,7 +498,8 @@ export default function AddStock() {
     setLoading(true);
     stockService.getOne(id).then(stock => {
       setSku(stock.sku);
-      setItems([{
+      const editDraft = loadDraft(draftKey);
+      setItems(editDraft?.items ?? [{
         itemName: stock.itemName,
         categoryId: stock.categoryId || '',
         supplierId: stock.stockSuppliers?.[0]?.supplierId || '',
@@ -472,10 +512,11 @@ export default function AddStock() {
         reorderLevel: stock.reorderLevel,
         expiryDate: stock.expiryDate ? new Date(stock.expiryDate).toISOString().slice(0, 10) : '',
         description: stock.description || '',
+        stockType: stock.stockType || 'MATERIAL',
       }]);
       if (stock.stockImg) setImagePreview(`http://localhost:3000${stock.stockImg}`);
     }).catch(() => showToast('Failed to load stock', 'error')).finally(() => setLoading(false));
-  }, [id, isEdit]);
+  }, [id, isEdit, draftKey]);
 
   const updateItem = (index, updated) => {
     setItems(prev => prev.map((it, i) => i === index ? updated : it));
@@ -543,6 +584,7 @@ export default function AddStock() {
         await stockService.batchCreate(items.map(cleanItem));
         showToast(`${items.length} stock items created`);
       }
+      clearDraft(draftKey);
       setTimeout(() => navigate(path('/stock')), 900);
     } catch (err) {
       showToast(err.response?.data?.message || 'Failed to save stock', 'error');
@@ -638,6 +680,7 @@ export default function AddStock() {
                     <th className="no-sort" style={{ width: 130 }}>Category</th>
                     <th className="no-sort" style={{ width: 130 }}>Supplier</th>
                     <th className="no-sort" style={{ width: 90 }}>Unit</th>
+                    <th className="no-sort" style={{ width: 100 }}>Type</th>
                     <th className="no-sort num-cell" style={{ width: 80 }}>Qty *</th>
                     <th className="no-sort num-cell" style={{ width: 110 }}>Unit Cost *</th>
                     <th className="no-sort num-cell" style={{ width: 110 }}>Total</th>
@@ -702,6 +745,15 @@ export default function AddStock() {
                             onCreate={handleCreateUnit}
                             createLabel="unit"
                           />
+                        </td>
+                        {/* Stock Type */}
+                        <td>
+                          <select className="stoq-select" value={item.stockType ?? 'MATERIAL'}
+                            onChange={e => updateItem(idx, { ...item, stockType: e.target.value })}
+                            style={{ width: '100%', height: 28, fontSize: 11 }}>
+                            <option value="MATERIAL">Material</option>
+                            <option value="EQUIPMENT">Equipment</option>
+                          </select>
                         </td>
                         {/* Qty */}
                         <td>

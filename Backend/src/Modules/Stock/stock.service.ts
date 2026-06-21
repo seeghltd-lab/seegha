@@ -20,6 +20,7 @@ interface CreateStockDto {
   description?: string;
   stockImg?: string;
   paymentType?: 'CREDIT' | 'DEBIT';
+  stockType?: 'MATERIAL' | 'EQUIPMENT';
 }
 
 interface StockFilters {
@@ -127,6 +128,7 @@ export class StockService {
           expiryDate: data.expiryDate ? new Date(data.expiryDate) : null,
           description: data.description,
           stockImg: data.stockImg,
+          stockType: data.stockType === 'EQUIPMENT' ? 'EQUIPMENT' : 'MATERIAL',
         },
       });
     } catch (e) {
@@ -239,6 +241,7 @@ export class StockService {
               expiryDate: data.expiryDate ? new Date(data.expiryDate) : null,
               description: data.description,
               stockImg: data.stockImg,
+              stockType: data.stockType === 'EQUIPMENT' ? 'EQUIPMENT' : 'MATERIAL',
             },
           });
         } catch (e) {
@@ -369,6 +372,7 @@ export class StockService {
               reorderLevel: data.reorderLevel !== undefined ? Number(data.reorderLevel) : 5,
               expiryDate: data.expiryDate ? new Date(data.expiryDate) : null,
               description: data.description,
+              stockType: data.stockType === 'EQUIPMENT' ? 'EQUIPMENT' : 'MATERIAL',
             },
           });
         } catch (e) {
@@ -489,7 +493,8 @@ export class StockService {
     ]);
 
     const lowStockRaw = await this.prisma.$queryRaw<[{ count: bigint }]>`
-      SELECT COUNT(*) as count FROM Stock WHERE deletedAt IS NULL AND quantity <= reorderLevel
+      SELECT COUNT(*) as count FROM Stock WHERE deletedAt IS NULL AND
+        (CASE WHEN stockType = 'EQUIPMENT' THEN quantity - quantityOut ELSE quantity END) <= reorderLevel
     `;
 
     return {
@@ -544,6 +549,7 @@ export class StockService {
         expiryDate: data.expiryDate ? new Date(data.expiryDate) : undefined,
         description: data.description,
         stockImg: data.stockImg,
+        stockType: data.stockType !== undefined ? (data.stockType === 'EQUIPMENT' ? 'EQUIPMENT' : 'MATERIAL') : undefined,
       },
     });
 
@@ -644,16 +650,20 @@ export class StockService {
       include: { category: { select: { name: true } } },
     });
 
-    const lowStock = stocks.filter((s) => s.quantity <= s.reorderLevel);
+    const lowStock = stocks.filter((s) => {
+      const available = s.stockType === 'EQUIPMENT' ? s.quantity - s.quantityOut : s.quantity;
+      return available <= s.reorderLevel;
+    });
     return { lowStock, count: lowStock.length };
   }
 
-  async getHistory(adminId: string, filters: { page?: number; limit?: number; movementType?: string; dateFrom?: string; dateTo?: string; search?: string } = {}) {
-    const { page = 1, limit = 20, movementType, dateFrom, dateTo, search } = filters;
+  async getHistory(adminId: string, filters: { page?: number; limit?: number; movementType?: string; dateFrom?: string; dateTo?: string; search?: string; siteId?: string } = {}) {
+    const { page = 1, limit = 20, movementType, dateFrom, dateTo, search, siteId } = filters;
     const skip = (page - 1) * limit;
 
     const where: any = {};
     if (movementType) where.movementType = movementType;
+    if (siteId) where.siteId = siteId;
     if (dateFrom || dateTo) {
       where.createdAt = {};
       if (dateFrom) where.createdAt.gte = new Date(dateFrom);

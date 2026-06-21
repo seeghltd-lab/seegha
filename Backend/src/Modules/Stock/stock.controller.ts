@@ -67,6 +67,7 @@ export class StockController {
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
     @Query('search') search?: string,
+    @Query('siteId') siteId?: string,
   ) {
     const callerId = req.admin?.id ?? req.employee?.id;
     return this.stockService.getHistory(callerId, {
@@ -76,6 +77,7 @@ export class StockController {
       dateFrom,
       dateTo,
       search,
+      siteId,
     });
   }
 

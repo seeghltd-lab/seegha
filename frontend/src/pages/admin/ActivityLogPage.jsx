@@ -2,10 +2,11 @@
 import {
   Activity, Search, RefreshCw, ChevronLeft, ChevronRight,
   Filter, AlertCircle, User, Package, Truck, FileText,
-  Users, Clock, BarChart2, Trash2, X, List, LayoutGrid,
+  Users, Clock, BarChart2, Trash2, X, List, LayoutGrid, Download,
 } from 'lucide-react';
 import activityLogService from '../../services/activityLogService';
 import { useViewMode } from '../../hooks/useViewMode';
+import { exportToExcel } from '../../lib/exportExcel';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -165,6 +166,34 @@ export default function ActivityLogPage() {
 
   const hasFilters = search || entityType || performedByType || dateFrom || dateTo;
 
+  const [exporting, setExporting] = useState(false);
+  const exportExcelFile = async () => {
+    setExporting(true);
+    try {
+      const data = await activityLogService.getAll({
+        page: 1,
+        limit: 100000,
+        search: search || undefined,
+        entityType: entityType || undefined,
+        performedByType: performedByType || undefined,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+      });
+      const headers = ['Date', 'Action', 'Entity Type', 'Entity Label', 'Performed By', 'Performer Type', 'Metadata'];
+      const rows = data.logs.map(log => [
+        new Date(log.createdAt).toLocaleString('en-GB'),
+        ACTION_META[log.action]?.label ?? log.action,
+        log.entityType,
+        log.entityLabel || '',
+        log.performedByName || log.performedById,
+        log.performedByType,
+        log.metadata ? JSON.stringify(log.metadata) : '',
+      ]);
+      exportToExcel(`activity-log-${new Date().toISOString().slice(0, 10)}`, headers, rows, 'Activity Log');
+    } catch { showToast('Failed to export activity log', 'error'); }
+    finally { setExporting(false); }
+  };
+
   return (
     <div style={{ padding: '20px 24px 40px' }}>
       {toast && (
@@ -185,6 +214,9 @@ export default function ActivityLogPage() {
           <div className="page-head__sub">{total.toLocaleString()} total events recorded</div>
         </div>
         <div className="page-head__actions">
+          <button className="stoq-btn" onClick={exportExcelFile} disabled={exporting}>
+            {exporting ? <RefreshCw size={13} style={{ animation: 'spin 0.8s linear infinite' }} /> : <Download size={13} />} Export
+          </button>
           <button className="stoq-btn" onClick={() => setShowPurge(true)}>
             <Trash2 size={13} /> Purge old logs
           </button>

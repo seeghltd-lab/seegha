@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Upload, Save, MapPin, User, Calendar, DollarSign, AlignLeft, ArrowLeft, Landmark, CheckCircle, AlertCircle, RefreshCw, ShieldCheck } from 'lucide-react';
 import siteService from '../../../services/siteService';
 import { useRole } from '../../../hooks/useRole';
+import { loadDraft, clearDraft, useFormDraft } from '../../../hooks/useFormDraft';
 
 function Field({ label, required, error, children }) {
   return (
@@ -35,9 +36,11 @@ export default function AddEditSite() {
   const { path, isAdmin } = useRole();
   const siteListPath = isAdmin ? path('/site-management') : '/sites';
   const isEdit = Boolean(id);
+  const draftKey = isEdit ? `edit-site-${id}` : 'add-site';
   const fileRef = useRef(null);
 
-  const [form, setForm] = useState({ name: '', location: '', managerName: '', status: 'ACTIVE', description: '', budget: '', startDate: '', endDate: '' });
+  const draft = isEdit ? null : loadDraft(draftKey);
+  const [form, setForm] = useState(draft ?? { name: '', location: '', managerName: '', status: 'ACTIVE', description: '', budget: '', startDate: '', endDate: '' });
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -48,13 +51,16 @@ export default function AddEditSite() {
   const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
+  useFormDraft(draftKey, form, !loading);
+
   useEffect(() => {
     if (!isEdit) return;
     siteService.getOne(id).then(site => {
-      setForm({ name: site.name, location: site.location, managerName: site.managerName || '', status: site.status, description: site.description || '', budget: site.budget, startDate: site.startDate ? new Date(site.startDate).toISOString().split('T')[0] : '', endDate: site.endDate ? new Date(site.endDate).toISOString().split('T')[0] : '' });
+      const editDraft = loadDraft(draftKey);
+      setForm(editDraft ?? { name: site.name, location: site.location, managerName: site.managerName || '', status: site.status, description: site.description || '', budget: site.budget, startDate: site.startDate ? new Date(site.startDate).toISOString().split('T')[0] : '', endDate: site.endDate ? new Date(site.endDate).toISOString().split('T')[0] : '' });
       if (site.image) setImagePreview(`http://localhost:3000${site.image}`);
     }).catch(() => navigate(siteListPath)).finally(() => setLoading(false));
-  }, [id]);
+  }, [id, draftKey]);
 
   const validate = () => {
     const errs = {};
@@ -75,6 +81,7 @@ export default function AddEditSite() {
       if (imageFile) fd.append('image', imageFile);
       if (isEdit) await siteService.update(id, fd);
       else await siteService.create(fd);
+      clearDraft(draftKey);
       showToast(isEdit ? 'Site updated' : 'Site created');
       setTimeout(() => navigate(siteListPath), 900);
     } catch (err) {

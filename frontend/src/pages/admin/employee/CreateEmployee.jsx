@@ -6,6 +6,9 @@ import {
   CreditCard, FileText, Paperclip, Upload, X, Eye,
 } from 'lucide-react';
 import employeeService from '../../../services/employeeService';
+import { loadDraft, clearDraft, useFormDraft } from '../../../hooks/useFormDraft';
+
+const DRAFT_KEY = 'create-employee';
 
 // ── Predefined positions ────────────────────────────────────────────────────
 
@@ -174,10 +177,13 @@ const CreateEmployee = () => {
   const [toast, setToast] = useState(null);
   const photoRef = useRef(null);
 
-  const [formData, setFormData] = useState({
+  const draft = loadDraft(DRAFT_KEY);
+  const [formData, setFormData] = useState(draft ?? {
     firstName: '', lastName: '', email: '', phone: '',
     position: 'Standard Staff', status: 'ACTIVE',
   });
+
+  useFormDraft(DRAFT_KEY, formData);
 
   // File states
   const [profileImg, setProfileImg]       = useState(null);
@@ -214,6 +220,7 @@ const CreateEmployee = () => {
       if (supportingFile)  data.append('supportingDocument', supportingFile);
 
       await employeeService.createEmployee(data);
+      clearDraft(DRAFT_KEY);
       setSuccess(true);
       showToast('Employee created successfully');
       setTimeout(() => navigate('/admin/employees'), 1800);

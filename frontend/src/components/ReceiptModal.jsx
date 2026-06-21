@@ -601,7 +601,7 @@ export function SupplierReceiptModal({ data, supplier, onClose }) {
   <div class="gt">
     <div style="display:flex;flex-direction:column;gap:2px">
       <span class="gt-items">${items.length} item${items.length !== 1 ? 's' : ''}</span>
-      ${data.issuedTo ? `<span style="font-size:8.5pt;color:#555">Supplied by <strong>${data.issuedTo}</strong></span>` : ''}
+      ${(supplier?.name || (data.type !== 'REQUISITION' && data.issuedTo)) ? `<span style="font-size:8.5pt;color:#555">Supplied by <strong>${supplier?.name || data.issuedTo}</strong></span>` : ''}
     </div>
     <div class="gt-right">
       <span class="gt-label">Grand Total</span>

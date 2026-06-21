@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import supplierService from '../../../services/supplierService';
 import { useRole } from '../../../hooks/useRole';
+import { loadDraft, clearDraft, useFormDraft } from '../../../hooks/useFormDraft';
 
 const emptyForm = {
   name: '',
@@ -115,8 +116,10 @@ export default function AddEditSupplier() {
   const { path } = useRole();
   const { id } = useParams();
   const isEdit = Boolean(id);
+  const draftKey = isEdit ? `edit-supplier-${id}` : 'add-supplier';
 
-  const [form, setForm] = useState(emptyForm);
+  const draft = isEdit ? null : loadDraft(draftKey);
+  const [form, setForm] = useState(draft ?? emptyForm);
   const [loading, setLoading] = useState(isEdit);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
@@ -131,13 +134,16 @@ export default function AddEditSupplier() {
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }));
   const setVal = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
+  useFormDraft(draftKey, form, !loading);
+
   useEffect(() => {
     if (!isEdit) return;
     setLoading(true);
     supplierService.getOne(id)
       .then(sup => {
         setCode(sup.code);
-        setForm({
+        const editDraft = loadDraft(draftKey);
+        setForm(editDraft ?? {
           name: sup.name || '',
           contactPerson: sup.contactPerson || '',
           email: sup.email || '',
@@ -153,7 +159,7 @@ export default function AddEditSupplier() {
       })
       .catch(() => showToast('Failed to load supplier', 'error'))
       .finally(() => setLoading(false));
-  }, [id, isEdit]);
+  }, [id, isEdit, draftKey]);
 
   const validate = () => {
     const errs = {};
@@ -179,6 +185,7 @@ export default function AddEditSupplier() {
         await supplierService.create(payload);
         showToast('Supplier created successfully');
       }
+      clearDraft(draftKey);
       setTimeout(() => navigate(path('/suppliers')), 900);
     } catch (err) {
       showToast(err.response?.data?.message || 'Failed to save supplier', 'error');

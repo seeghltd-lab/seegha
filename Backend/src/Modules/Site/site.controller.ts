@@ -4,6 +4,7 @@ import {
   Post,
   Body,
   Put,
+  Patch,
   Param,
   Delete,
   UseInterceptors,
@@ -198,6 +199,15 @@ export class SiteController {
     const callerType: 'ADMIN' | 'EMPLOYEE' = req.admin ? 'ADMIN' : 'EMPLOYEE';
     const callerName = req.admin?.names ?? req.admin?.email ?? req.employee?.firstName ?? req.employee?.email;
     return this.siteService.deleteStockOut(id, callerId, callerType, callerName);
+  }
+
+  @Patch(':siteId/stock-out/:id/return')
+  @UseGuards(DualAuthGuard)
+  async returnStockOut(@Param('siteId') siteId: string, @Param('id') id: string, @Body() body: any, @Req() req: any) {
+    const callerId = req.admin?.id ?? req.employee?.id;
+    const callerType: 'ADMIN' | 'EMPLOYEE' = req.admin ? 'ADMIN' : 'EMPLOYEE';
+    const callerName = req.admin?.names ?? req.admin?.email ?? req.employee?.firstName ?? req.employee?.email;
+    return this.siteService.returnStockOut(id, body?.notes, callerId, callerType, callerName);
   }
 
   // ─── Site Employee Access ─────────────────────────────

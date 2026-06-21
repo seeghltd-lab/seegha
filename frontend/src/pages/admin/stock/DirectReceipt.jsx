@@ -11,6 +11,9 @@ import categoryService from '../../../services/categoryService';
 import UnitPicker from '../../../components/UnitPicker';
 import { useAdminAuth } from '../../../context/AdminAuthContext';
 import { useEmployeeAuth } from '../../../context/EmployeeAuthContext';
+import { loadDraft, clearDraft, useFormDraft } from '../../../hooks/useFormDraft';
+
+const DRAFT_KEY = 'direct-receipt';
 
 // -- Searchable Select --------------------------------------------------------
 // Uses a portal-style fixed dropdown to avoid overflow:hidden clipping
@@ -223,9 +226,10 @@ export default function DirectReceipt() {
     ? (admin?.names || 'Admin')
     : (`${employee?.firstName || ''} ${employee?.lastName || ''}`.trim() || 'Employee');
 
-  const [siteId, setSiteId] = useState('');
-  const [supplierId, setSupplierId] = useState('');
-  const [items, setItems] = useState([makeEmptyItem()]);
+  const draft = loadDraft(DRAFT_KEY);
+  const [siteId, setSiteId] = useState(draft?.siteId ?? '');
+  const [supplierId, setSupplierId] = useState(draft?.supplierId ?? '');
+  const [items, setItems] = useState(draft?.items ?? [makeEmptyItem()]);
   const [itemView, setItemView] = useState('cards'); // 'cards' | 'table'
 
   const [sites, setSites] = useState([]);
@@ -238,6 +242,8 @@ export default function DirectReceipt() {
   const [errors, setErrors] = useState({});
 
   const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
+
+  useFormDraft(DRAFT_KEY, { siteId, supplierId, items });
 
   useEffect(() => {
     const load = async () => {
@@ -289,6 +295,7 @@ export default function DirectReceipt() {
         notes: it.notes.trim() || undefined,
       }));
       await stockService.directReceipt(payload);
+      clearDraft(DRAFT_KEY);
       showToast(`${payload.length} item${payload.length > 1 ? 's' : ''} recorded successfully`);
       setTimeout(() => navigate(isAdminUser ? '/admin/stock' : '/dashboard'), 1500);
     } catch (err) {

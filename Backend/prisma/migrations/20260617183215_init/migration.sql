@@ -36,6 +36,17 @@ CREATE TABLE `Site` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
+CREATE TABLE `WorkerCategory` (
+    `id` VARCHAR(191) NOT NULL,
+    `name` VARCHAR(191) NOT NULL,
+    `adminId` VARCHAR(191) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    UNIQUE INDEX `WorkerCategory_name_key`(`name`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
 CREATE TABLE `SiteWorkerRecord` (
     `id` VARCHAR(191) NOT NULL,
     `siteId` VARCHAR(191) NOT NULL,
@@ -44,9 +55,11 @@ CREATE TABLE `SiteWorkerRecord` (
     `notes` TEXT NULL,
     `recordedBy` VARCHAR(191) NOT NULL,
     `adminId` VARCHAR(191) NULL,
+    `categoryId` VARCHAR(191) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
     INDEX `SiteWorkerRecord_siteId_idx`(`siteId`),
+    INDEX `SiteWorkerRecord_categoryId_idx`(`categoryId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -91,8 +104,12 @@ CREATE TABLE `Employee` (
     `status` ENUM('ACTIVE', 'TERMINATED', 'RESIGNED', 'PROBATION') NOT NULL DEFAULT 'ACTIVE',
     `isLocked` BOOLEAN NOT NULL DEFAULT false,
     `profile_picture` VARCHAR(191) NULL,
+    `id_card_image` VARCHAR(191) NULL,
+    `cv_document` VARCHAR(191) NULL,
+    `supporting_document` VARCHAR(191) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
+    `deleted_at` DATETIME(3) NULL,
 
     UNIQUE INDEX `Employee_email_key`(`email`),
     PRIMARY KEY (`id`)
@@ -141,7 +158,6 @@ CREATE TABLE `Stock` (
     `sku` VARCHAR(191) NOT NULL,
     `itemName` VARCHAR(191) NOT NULL,
     `categoryId` VARCHAR(191) NULL,
-    `supplierId` VARCHAR(191) NULL,
     `unit` VARCHAR(191) NOT NULL,
     `quantity` INTEGER NOT NULL DEFAULT 0,
     `unitCost` DECIMAL(12, 2) NOT NULL,
@@ -156,12 +172,13 @@ CREATE TABLE `Stock` (
     `siteId` VARCHAR(191) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
+    `deletedAt` DATETIME(3) NULL,
 
     UNIQUE INDEX `Stock_sku_key`(`sku`),
     INDEX `Stock_adminId_idx`(`adminId`),
     INDEX `Stock_categoryId_idx`(`categoryId`),
-    INDEX `Stock_supplierId_idx`(`supplierId`),
     INDEX `Stock_siteId_idx`(`siteId`),
+    UNIQUE INDEX `Stock_itemName_siteId_key`(`itemName`, `siteId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -177,6 +194,7 @@ CREATE TABLE `StockHistory` (
     `notes` VARCHAR(191) NULL,
     `createdByAdminId` VARCHAR(191) NULL,
     `createdByEmployeeId` VARCHAR(191) NULL,
+    `siteId` VARCHAR(191) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
     INDEX `StockHistory_stockId_idx`(`stockId`),
@@ -296,16 +314,31 @@ CREATE TABLE `SupplierPayment` (
     `type` ENUM('CREDIT', 'DEBIT') NOT NULL,
     `amount` DECIMAL(14, 2) NOT NULL,
     `quantity` DECIMAL(14, 4) NULL,
-    `reference` VARCHAR(191) NULL,
+    `reference` TEXT NULL,
     `notes` TEXT NULL,
     `date` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `adminId` VARCHAR(191) NOT NULL,
+    `status` ENUM('UNPAID', 'PAID', 'PARTIAL') NULL DEFAULT 'UNPAID',
+    `paidAmount` DECIMAL(14, 2) NOT NULL DEFAULT 0,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
+    `deletedAt` DATETIME(3) NULL,
 
     INDEX `SupplierPayment_supplierId_idx`(`supplierId`),
     INDEX `SupplierPayment_stockId_idx`(`stockId`),
     INDEX `SupplierPayment_requisitionItemId_idx`(`requisitionItemId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `StockSupplier` (
+    `id` VARCHAR(191) NOT NULL,
+    `stockId` VARCHAR(191) NOT NULL,
+    `supplierId` VARCHAR(191) NOT NULL,
+
+    INDEX `StockSupplier_stockId_idx`(`stockId`),
+    INDEX `StockSupplier_supplierId_idx`(`supplierId`),
+    UNIQUE INDEX `StockSupplier_stockId_supplierId_key`(`stockId`, `supplierId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -345,17 +378,56 @@ CREATE TABLE `PushSubscription` (
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
+-- CreateTable
+CREATE TABLE `StockOut` (
+    `id` VARCHAR(191) NOT NULL,
+    `siteId` VARCHAR(191) NOT NULL,
+    `stockId` VARCHAR(191) NOT NULL,
+    `quantity` DOUBLE NOT NULL,
+    `unit` VARCHAR(191) NOT NULL,
+    `notes` TEXT NULL,
+    `date` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `recordedById` VARCHAR(191) NOT NULL,
+    `recordedByType` VARCHAR(191) NOT NULL DEFAULT 'ADMIN',
+    `recordedByName` VARCHAR(191) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    INDEX `StockOut_siteId_idx`(`siteId`),
+    INDEX `StockOut_stockId_idx`(`stockId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `SiteEmployeeAccess` (
+    `id` VARCHAR(191) NOT NULL,
+    `siteId` VARCHAR(191) NOT NULL,
+    `employeeId` VARCHAR(191) NOT NULL,
+    `canManageInfo` BOOLEAN NOT NULL DEFAULT false,
+    `canManageWorkers` BOOLEAN NOT NULL DEFAULT false,
+    `canManageExpenses` BOOLEAN NOT NULL DEFAULT false,
+    `canManageStock` BOOLEAN NOT NULL DEFAULT false,
+    `canManageStockOut` BOOLEAN NOT NULL DEFAULT false,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    INDEX `SiteEmployeeAccess_siteId_idx`(`siteId`),
+    INDEX `SiteEmployeeAccess_employeeId_idx`(`employeeId`),
+    UNIQUE INDEX `SiteEmployeeAccess_siteId_employeeId_key`(`siteId`, `employeeId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
 -- AddForeignKey
 ALTER TABLE `SiteWorkerRecord` ADD CONSTRAINT `SiteWorkerRecord_siteId_fkey` FOREIGN KEY (`siteId`) REFERENCES `Site`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `SiteWorkerRecord` ADD CONSTRAINT `SiteWorkerRecord_categoryId_fkey` FOREIGN KEY (`categoryId`) REFERENCES `WorkerCategory`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `SiteExpense` ADD CONSTRAINT `SiteExpense_siteId_fkey` FOREIGN KEY (`siteId`) REFERENCES `Site`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Stock` ADD CONSTRAINT `Stock_categoryId_fkey` FOREIGN KEY (`categoryId`) REFERENCES `Category`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `Stock` ADD CONSTRAINT `Stock_supplierId_fkey` FOREIGN KEY (`supplierId`) REFERENCES `Supplier`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Stock` ADD CONSTRAINT `Stock_siteId_fkey` FOREIGN KEY (`siteId`) REFERENCES `Site`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
@@ -395,3 +467,21 @@ ALTER TABLE `SupplierPayment` ADD CONSTRAINT `SupplierPayment_stockId_fkey` FORE
 
 -- AddForeignKey
 ALTER TABLE `SupplierPayment` ADD CONSTRAINT `SupplierPayment_requisitionItemId_fkey` FOREIGN KEY (`requisitionItemId`) REFERENCES `RequisitionItem`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `StockSupplier` ADD CONSTRAINT `StockSupplier_stockId_fkey` FOREIGN KEY (`stockId`) REFERENCES `Stock`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `StockSupplier` ADD CONSTRAINT `StockSupplier_supplierId_fkey` FOREIGN KEY (`supplierId`) REFERENCES `Supplier`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `StockOut` ADD CONSTRAINT `StockOut_siteId_fkey` FOREIGN KEY (`siteId`) REFERENCES `Site`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `StockOut` ADD CONSTRAINT `StockOut_stockId_fkey` FOREIGN KEY (`stockId`) REFERENCES `Stock`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `SiteEmployeeAccess` ADD CONSTRAINT `SiteEmployeeAccess_siteId_fkey` FOREIGN KEY (`siteId`) REFERENCES `Site`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `SiteEmployeeAccess` ADD CONSTRAINT `SiteEmployeeAccess_employeeId_fkey` FOREIGN KEY (`employeeId`) REFERENCES `Employee`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

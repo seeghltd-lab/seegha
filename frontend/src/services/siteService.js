@@ -93,6 +93,11 @@ class SiteService {
     return data;
   }
 
+  async returnStockOut(siteId, id, notes) {
+    const { data } = await api.patch(`/sites/${siteId}/stock-out/${id}/return`, { notes });
+    return data;
+  }
+
   // Site Employee Access
   async getSiteAccess(siteId) {
     const { data } = await api.get(`/sites/${siteId}/access`);

@@ -16,6 +16,7 @@ import { useSocketEvent } from '../../../context/SocketContext';
 import Sparkline, { genSpark } from '../../../components/Sparkline';
 import { useViewMode } from '../../../hooks/useViewMode';
 import { useRole } from '../../../hooks/useRole';
+import { exportToExcel } from '../../../lib/exportExcel';
 
 const STATUS_FILTERS = [
   { label: 'All',      value: '' },
@@ -316,14 +317,33 @@ export default function StockManagement() {
     navigate(path(`/stock/${stock.id}`));
   };
 
-  const exportCSV = () => {
-    const headers = ['SKU','Item Name','Category','Supplier','Quantity','Unit','Unit Cost','Total Value','Site','Location'];
-    const rows = stocks.map(s => [s.sku,s.itemName,s.category?.name||'',(s.stockSuppliers??[]).map(ss=>ss.supplier?.name).filter(Boolean).join('/')||'',s.quantity,s.unit,s.unitCost,s.totalValue,s.site?.name||'',s.warehouseLocation||'']);
-    const csv = [headers,...rows].map(r=>r.join(',')).join('\n');
-    const blob = new Blob([csv],{type:'text/csv'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href=url; a.download=`stock-${new Date().toISOString().slice(0,10)}.csv`; a.click();
-    URL.revokeObjectURL(url);
+  const [exporting, setExporting] = useState(false);
+  const exportExcelFile = async () => {
+    setExporting(true);
+    try {
+      const dateRange = getDateRange(datePreset, customFrom, customTo);
+      const data = await stockService.getAll({
+        search: search || undefined,
+        categoryId: categoryId || undefined,
+        siteId: siteId || undefined,
+        dateFrom: dateRange?.from ? dateRange.from.toISOString() : undefined,
+        dateTo: dateRange?.to ? dateRange.to.toISOString() : undefined,
+        page: 1,
+        limit: 100000,
+        sortBy, sortOrder,
+      });
+      const filtered = stockStatus === ''
+        ? data.stocks
+        : stockStatus === 'ok'
+          ? data.stocks.filter(s => s.quantity > s.reorderLevel)
+          : stockStatus === 'low'
+            ? data.stocks.filter(s => s.quantity > 0 && s.quantity <= s.reorderLevel)
+            : data.stocks.filter(s => s.quantity === 0);
+      const headers = ['SKU','Item Name','Category','Supplier','Quantity','Unit','Unit Cost','Total Value','Site','Location'];
+      const rows = filtered.map(s => [s.sku,s.itemName,s.category?.name||'',(s.stockSuppliers??[]).map(ss=>ss.supplier?.name).filter(Boolean).join('/')||'',s.quantity,s.unit,Number(s.unitCost),Number(s.totalValue),s.site?.name||'',s.warehouseLocation||'']);
+      exportToExcel(`stock-${new Date().toISOString().slice(0,10)}`, headers, rows, 'Stock');
+    } catch { showToast('Failed to export stock', 'error'); }
+    finally { setExporting(false); }
   };
 
   const LowBadge = ({ stock }) => stock.quantity <= stock.reorderLevel
@@ -350,7 +370,9 @@ export default function StockManagement() {
           <div className="page-head__sub">{total} SKUs across all sites</div>
         </div>
         <div className="page-head__actions">
-          <button className="stoq-btn" onClick={exportCSV}><Download size={13} /> CSV</button>
+          <button className="stoq-btn" onClick={exportExcelFile} disabled={exporting}>
+            {exporting ? <RefreshCw size={13} style={{ animation: 'spin 0.8s linear infinite' }} /> : <Download size={13} />} Export
+          </button>
           <button className="stoq-btn" onClick={() => navigate(path('/stock/history'))}>
             <History size={13} /> History
           </button>
@@ -462,6 +484,7 @@ export default function StockManagement() {
                   <tr key={s.id}>
                     <td>
                       <span className="cell-stack__main">{s.itemName}</span>
+                      {s.stockType === 'EQUIPMENT' && <span className="stoq-badge stoq-badge--plain" style={{ marginLeft: 6, fontSize: 9 }}>Equipment</span>}
                     </td>
                     <td>
                       <span className="cell-stack__main" style={{ fontSize: 12 }}>{fmtDate(s.receivedDate)}</span>
@@ -471,17 +494,29 @@ export default function StockManagement() {
                     <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--fg-muted)' }}>{s.site?.name || '-'}</td>
                     <td style={{ color: 'var(--fg-muted)', fontSize: 12 }}>{(s.stockSuppliers??[])[0]?.supplier?.name || '-'}</td>
                     <td className="num-cell">
-                      <span style={{ fontWeight: 600, color: s.quantity <= s.reorderLevel ? 'var(--warning)' : 'var(--fg)' }}>{s.quantity}</span>
-                      <span style={{ color: 'var(--fg-subtle)', fontSize: 10, marginLeft: 4 }}>{s.unit}</span>
+                      {s.stockType === 'EQUIPMENT' ? (
+                        <>
+                          <span style={{ fontWeight: 600, color: (s.quantity - s.quantityOut) <= s.reorderLevel ? 'var(--warning)' : 'var(--fg)' }}>{s.quantity - s.quantityOut}</span>
+                          <span style={{ color: 'var(--fg-subtle)', fontSize: 10, marginLeft: 4 }}>avail / {s.quantityOut} out</span>
+                        </>
+                      ) : (
+                        <>
+                          <span style={{ fontWeight: 600, color: s.quantity <= s.reorderLevel ? 'var(--warning)' : 'var(--fg)' }}>{s.quantity}</span>
+                          <span style={{ color: 'var(--fg-subtle)', fontSize: 10, marginLeft: 4 }}>{s.unit}</span>
+                        </>
+                      )}
                     </td>
                     <td className="num-cell">{parseInt(s.unitCost).toLocaleString()}</td>
                     <td className="num-cell" style={{ fontWeight: 600 }}>RWF {parseFloat(s.totalValue).toLocaleString()}</td>
                     <td>
-                      {s.quantity === 0
-                        ? <span className="stoq-badge stoq-badge--danger">Out</span>
-                        : s.quantity <= s.reorderLevel
-                          ? <span className="stoq-badge stoq-badge--warning">Low - {s.quantity}/{s.reorderLevel}</span>
-                          : <span className="stoq-badge stoq-badge--success">In stock</span>}
+                      {(() => {
+                        const available = s.stockType === 'EQUIPMENT' ? s.quantity - s.quantityOut : s.quantity;
+                        return available === 0
+                          ? <span className="stoq-badge stoq-badge--danger">Out</span>
+                          : available <= s.reorderLevel
+                            ? <span className="stoq-badge stoq-badge--warning">Low - {available}/{s.reorderLevel}</span>
+                            : <span className="stoq-badge stoq-badge--success">In stock</span>;
+                      })()}
                     </td>
                     <td className="col-actions"><ActionBtns s={s} /></td>
                   </tr>

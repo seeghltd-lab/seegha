@@ -9,6 +9,7 @@ import unitService from '../../../services/unitService';
 import siteService from '../../../services/siteService';
 import { useRole } from '../../../hooks/useRole';
 import { useViewMode } from '../../../hooks/useViewMode';
+import { loadDraft, clearDraft, useFormDraft } from '../../../hooks/useFormDraft';
 
 // ── Searchable Select (Portal-based) ─────────────────────────────────────────
 
@@ -261,9 +262,11 @@ export default function SiteAddStock() {
   const navigate = useNavigate();
   const { path } = useRole();
   const { siteId } = useParams();
+  const draftKey = `site-add-stock-${siteId}`;
+  const draft = loadDraft(draftKey);
 
   const [site, setSite] = useState(null);
-  const [items, setItems] = useState([makeEmptyItem(siteId)]);
+  const [items, setItems] = useState(draft?.items ?? [makeEmptyItem(siteId)]);
   const [categories, setCategories] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [units, setUnits] = useState([]);
@@ -281,6 +284,8 @@ export default function SiteAddStock() {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);
   };
+
+  useFormDraft(draftKey, { items });
 
   const siteStockPath = `${path('/sites/' + siteId)}?tab=stock`;
 
@@ -364,6 +369,7 @@ export default function SiteAddStock() {
         await stockService.batchCreate(items.map(cleanItem));
         showToast(items.length > 1 ? `${items.length} stock items created` : 'Stock item created');
       }
+      clearDraft(draftKey);
       setTimeout(() => navigate(siteStockPath), 900);
     } catch (err) {
       showToast(err.response?.data?.message || 'Failed to save stock', 'error');

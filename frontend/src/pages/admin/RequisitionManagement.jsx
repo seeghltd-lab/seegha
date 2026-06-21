@@ -2,6 +2,7 @@
 import {
   Search, Eye, CheckCircle, XCircle, Package, ChevronLeft, ChevronRight,
   Clock, CheckCheck, FileText, Truck, Trash2, Plus, LayoutGrid, List, MapPin,
+  Download, RefreshCw,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import requisitionService from '../../services/requisitionService';
@@ -9,6 +10,7 @@ import { useRole } from '../../hooks/useRole';
 import { useSocketEvent } from '../../context/SocketContext';
 import Sparkline, { genSpark } from '../../components/Sparkline';
 import { useViewMode } from '../../hooks/useViewMode';
+import { exportToExcel } from '../../lib/exportExcel';
 
 const SPARK_SEEDS  = { PENDING: 4, APPROVED: 6, PARTIALLY_RECEIVED: 8, FULLY_RECEIVED: 2, REJECTED: 10 };
 const SPARK_COLORS = { PENDING: 'var(--fg-subtle)', APPROVED: 'var(--accent)', PARTIALLY_RECEIVED: 'var(--warning)', FULLY_RECEIVED: 'var(--success)', REJECTED: 'var(--danger)' };
@@ -125,6 +127,33 @@ export default function RequisitionManagement() {
     return acc;
   }, {});
 
+  const [exporting, setExporting] = useState(false);
+  const exportExcelFile = async () => {
+    setExporting(true);
+    try {
+      const data = await requisitionService.getAll({
+        search: search || undefined,
+        status: statusFilter || undefined,
+        page: 1,
+        limit: 100000,
+      });
+      const headers = ['Reference', 'Status', 'Employee', 'Site', 'Supplier', 'Item Count', 'Description', 'Created Date', 'Approved Date'];
+      const rows = data.requisitions.map(r => [
+        `REQ-${r.id.slice(-8).toUpperCase()}`,
+        STATUS_CONFIG[r.status]?.label ?? r.status,
+        r.employee ? `${r.employee.firstName} ${r.employee.lastName}` : 'Admin',
+        r.site?.name || '',
+        r.supplier?.name || '',
+        r._count?.items ?? r.items?.length ?? 0,
+        r.description || '',
+        new Date(r.createdAt).toLocaleDateString('en-GB'),
+        r.approvedAt ? new Date(r.approvedAt).toLocaleDateString('en-GB') : '',
+      ]);
+      exportToExcel(`requisitions-${new Date().toISOString().slice(0, 10)}`, headers, rows, 'Requisitions');
+    } catch { showToast('Failed to export requisitions', 'error'); }
+    finally { setExporting(false); }
+  };
+
   return (
     <div>
       <Toast toast={toast} />
@@ -136,6 +165,9 @@ export default function RequisitionManagement() {
           <div className="page-head__sub">{total} total requests</div>
         </div>
         <div className="page-head__actions">
+          <button className="stoq-btn" onClick={exportExcelFile} disabled={exporting}>
+            {exporting ? <RefreshCw size={13} style={{ animation: 'spin 0.8s linear infinite' }} /> : <Download size={13} />} Export
+          </button>
           <button className="stoq-btn stoq-btn--primary" onClick={() => navigate(path('/requisition-management/create'))}>
             <Plus size={13} /> New Requisition
           </button>
@@ -414,6 +446,7 @@ export default function RequisitionManagement() {
           </div>
         </div>
       )}
+      <style>{`@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 }

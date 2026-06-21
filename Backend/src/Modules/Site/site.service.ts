@@ -384,8 +384,11 @@ export class SiteService {
     return this.prisma.$transaction(async (tx) => {
       const stock = await tx.stock.findUnique({ where: { id: data.stockId } });
       if (!stock) throw new NotFoundException('Stock item not found');
-      if (stock.quantity < data.quantity) {
-        throw new BadRequestException(`Insufficient stock. Available: ${stock.quantity} ${stock.unit}`);
+
+      const isEquipment = stock.stockType === 'EQUIPMENT';
+      const available = isEquipment ? stock.quantity - stock.quantityOut : stock.quantity;
+      if (available < data.quantity) {
+        throw new BadRequestException(`Insufficient stock. Available: ${available} ${stock.unit}`);
       }
 
       const record = await tx.stockOut.create({
@@ -403,24 +406,32 @@ export class SiteService {
         include: { stock: { select: { id: true, itemName: true, sku: true, unit: true } } },
       });
 
-      const qtyAfter = stock.quantity - data.quantity;
-      await tx.stock.update({
-        where: { id: data.stockId },
-        data: {
-          quantity: { decrement: data.quantity },
-          totalValue: new Decimal(qtyAfter * Number(stock.unitCost)),
-        },
-      });
+      const availableAfter = available - data.quantity;
+
+      if (isEquipment) {
+        await tx.stock.update({
+          where: { id: data.stockId },
+          data: { quantityOut: { increment: data.quantity } },
+        });
+      } else {
+        await tx.stock.update({
+          where: { id: data.stockId },
+          data: {
+            quantity: { decrement: data.quantity },
+            totalValue: new Decimal(availableAfter * Number(stock.unitCost)),
+          },
+        });
+      }
 
       await tx.stockHistory.create({
         data: {
           stockId: data.stockId,
           movementType: 'OUT',
-          qtyBefore: stock.quantity,
+          qtyBefore: available,
           qtyChange: -data.quantity,
-          qtyAfter,
+          qtyAfter: availableAfter,
           siteId,
-          notes: data.notes || `Stock out recorded`,
+          notes: data.notes || (isEquipment ? 'Equipment checked out (in-use)' : 'Stock out recorded'),
           createdByAdminId: callerType === 'ADMIN' ? callerId : null,
           createdByEmployeeId: callerType !== 'ADMIN' ? callerId : null,
         },
@@ -438,6 +449,69 @@ export class SiteService {
       });
 
       return record;
+    });
+  }
+
+  async returnStockOut(
+    stockOutId: string,
+    returnNotes: string | undefined,
+    callerId: string,
+    callerType: 'ADMIN' | 'EMPLOYEE',
+    callerName?: string,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const stockOut = await tx.stockOut.findUnique({ where: { id: stockOutId } });
+      if (!stockOut) throw new NotFoundException('Stock out record not found');
+
+      const stock = await tx.stock.findUnique({ where: { id: stockOut.stockId } });
+      if (!stock) throw new NotFoundException('Stock item not found');
+
+      if (stock.stockType !== 'EQUIPMENT') {
+        throw new BadRequestException('Only equipment checkouts can be returned');
+      }
+      if (stockOut.status !== 'OUT') {
+        throw new BadRequestException('This checkout has already been returned');
+      }
+
+      const updated = await tx.stockOut.update({
+        where: { id: stockOutId },
+        data: { status: 'RETURNED', returnedAt: new Date(), returnNotes: returnNotes || null },
+        include: { stock: { select: { id: true, itemName: true, sku: true, unit: true } } },
+      });
+
+      const availableBefore = stock.quantity - stock.quantityOut;
+      const restoreQty = Math.min(stockOut.quantity, stock.quantityOut);
+      await tx.stock.update({
+        where: { id: stock.id },
+        data: { quantityOut: { decrement: restoreQty } },
+      });
+
+      await tx.stockHistory.create({
+        data: {
+          stockId: stock.id,
+          movementType: 'RETURN',
+          qtyBefore: availableBefore,
+          qtyChange: restoreQty,
+          qtyAfter: availableBefore + restoreQty,
+          siteId: stockOut.siteId,
+          notes: `Equipment returned${returnNotes ? `: ${returnNotes}` : ''}`,
+          createdByAdminId: callerType === 'ADMIN' ? callerId : null,
+          createdByEmployeeId: callerType !== 'ADMIN' ? callerId : null,
+        },
+      });
+
+      this.activityLog.log({
+        action: 'STOCK_OUT_RETURNED',
+        entityType: 'StockOut',
+        entityId: stockOutId,
+        entityLabel: stock.itemName,
+        performedById: callerId,
+        performedByType: callerType,
+        performedByName: callerName,
+        metadata: { siteId: stockOut.siteId, quantity: stockOut.quantity, stockId: stock.id },
+      });
+
+      return updated;
     });
   }
 
@@ -460,7 +534,7 @@ export class SiteService {
     const [records, total] = await this.prisma.$transaction([
       this.prisma.stockOut.findMany({
         where,
-        include: { stock: { select: { id: true, itemName: true, sku: true, unit: true } } },
+        include: { stock: { select: { id: true, itemName: true, sku: true, unit: true, stockType: true, quantity: true, quantityOut: true } } },
         orderBy: { date: 'desc' },
         skip,
         take: limitNum,
@@ -500,33 +574,46 @@ export class SiteService {
     return this.prisma.$transaction(async (tx) => {
       const existing = await tx.stockOut.findUnique({ where: { id } });
       if (!existing) throw new NotFoundException('Stock out record not found');
+      if (existing.status === 'RETURNED') {
+        throw new BadRequestException('Cannot edit a checkout that has already been returned');
+      }
 
       if (data.quantity !== undefined) {
         const diff = data.quantity - existing.quantity;
         if (diff !== 0) {
           const stock = await tx.stock.findUnique({ where: { id: existing.stockId } });
           if (!stock) throw new NotFoundException('Stock item not found');
+          const isEquipment = stock.stockType === 'EQUIPMENT';
+          const available = isEquipment ? stock.quantity - stock.quantityOut : stock.quantity;
 
-          if (diff > 0 && stock.quantity < diff) {
-            throw new BadRequestException(`Insufficient stock. Available: ${stock.quantity} ${stock.unit}`);
+          if (diff > 0 && available < diff) {
+            throw new BadRequestException(`Insufficient stock. Available: ${available} ${stock.unit}`);
           }
 
-          const qtyAfter = stock.quantity - diff;
-          await tx.stock.update({
-            where: { id: existing.stockId },
-            data: {
-              quantity: { decrement: diff },
-              totalValue: new Decimal(qtyAfter * Number(stock.unitCost)),
-            },
-          });
+          const availableAfter = available - diff;
+
+          if (isEquipment) {
+            await tx.stock.update({
+              where: { id: existing.stockId },
+              data: { quantityOut: { increment: diff } },
+            });
+          } else {
+            await tx.stock.update({
+              where: { id: existing.stockId },
+              data: {
+                quantity: { decrement: diff },
+                totalValue: new Decimal(availableAfter * Number(stock.unitCost)),
+              },
+            });
+          }
 
           await tx.stockHistory.create({
             data: {
               stockId: existing.stockId,
               movementType: 'ADJUSTMENT',
-              qtyBefore: stock.quantity,
+              qtyBefore: available,
               qtyChange: -diff,
-              qtyAfter,
+              qtyAfter: availableAfter,
               siteId: existing.siteId,
               notes: `Stock out updated from ${existing.quantity} to ${data.quantity}`,
               createdByAdminId: callerType === 'ADMIN' ? callerId : null,
@@ -559,23 +646,35 @@ export class SiteService {
       if (!existing) throw new NotFoundException('Stock out record not found');
 
       const stock = await tx.stock.findUnique({ where: { id: existing.stockId } });
-      if (stock) {
-        const qtyAfter = stock.quantity + existing.quantity;
-        await tx.stock.update({
-          where: { id: existing.stockId },
-          data: {
-            quantity: { increment: existing.quantity },
-            totalValue: new Decimal(qtyAfter * Number(stock.unitCost)),
-          },
-        });
+      // Equipment checkouts that were already returned had their quantityOut
+      // settled by returnStockOut() — deleting the row here must not double-restore.
+      if (stock && !(stock.stockType === 'EQUIPMENT' && existing.status === 'RETURNED')) {
+        const isEquipment = stock.stockType === 'EQUIPMENT';
+        const available = isEquipment ? stock.quantity - stock.quantityOut : stock.quantity;
+        const availableAfter = available + existing.quantity;
+
+        if (isEquipment) {
+          await tx.stock.update({
+            where: { id: existing.stockId },
+            data: { quantityOut: { decrement: Math.min(existing.quantity, stock.quantityOut) } },
+          });
+        } else {
+          await tx.stock.update({
+            where: { id: existing.stockId },
+            data: {
+              quantity: { increment: existing.quantity },
+              totalValue: new Decimal(availableAfter * Number(stock.unitCost)),
+            },
+          });
+        }
 
         await tx.stockHistory.create({
           data: {
             stockId: existing.stockId,
             movementType: 'ADJUSTMENT',
-            qtyBefore: stock.quantity,
+            qtyBefore: available,
             qtyChange: existing.quantity,
-            qtyAfter,
+            qtyAfter: availableAfter,
             siteId: existing.siteId,
             notes: `Stock out record deleted — quantity restored`,
             createdByAdminId: callerType === 'ADMIN' ? callerId : null,

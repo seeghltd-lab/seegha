@@ -3,14 +3,17 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Save, AlignLeft, Layers, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
 import categoryService from '../../../services/categoryService';
 import { useRole } from '../../../hooks/useRole';
+import { loadDraft, clearDraft, useFormDraft } from '../../../hooks/useFormDraft';
 
 export default function AddEditCategory() {
   const navigate = useNavigate();
   const { path } = useRole();
   const { id } = useParams();
   const isEdit = Boolean(id);
+  const draftKey = isEdit ? `edit-category-${id}` : 'add-category';
 
-  const [form, setForm] = useState({ name: '', description: '' });
+  const draft = isEdit ? null : loadDraft(draftKey);
+  const [form, setForm] = useState(draft ?? { name: '', description: '' });
   const [loading, setLoading] = useState(isEdit);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
@@ -21,17 +24,22 @@ export default function AddEditCategory() {
     setTimeout(() => setToast(null), 3500);
   };
 
+  useFormDraft(draftKey, form, !loading);
+
   useEffect(() => {
     if (!isEdit) return;
     setLoading(true);
     categoryService.getAll().then(data => {
       const lists = Array.isArray(data) ? data : data.categories || [];
       const item = lists.find(c => c.id === id);
-      if (item) setForm({ name: item.name, description: item.description || '' });
+      if (item) {
+        const editDraft = loadDraft(draftKey);
+        setForm(editDraft ?? { name: item.name, description: item.description || '' });
+      }
       else throw new Error('Not found');
     }).catch(() => showToast('Failed to load category', 'error'))
       .finally(() => setLoading(false));
-  }, [id, isEdit]);
+  }, [id, isEdit, draftKey]);
 
   const validate = () => {
     const errs = {};
@@ -52,6 +60,7 @@ export default function AddEditCategory() {
         await categoryService.create(form);
         showToast('Category created successfully');
       }
+      clearDraft(draftKey);
       setTimeout(() => navigate(path('/categories')), 900);
     } catch (err) {
       showToast(err.response?.data?.message || 'Failed to save category', 'error');

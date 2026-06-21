@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Landmark, MapPin, User, Calendar, DollarSign, Activity, Package, Users, Plus, Trash2, X, Save, Edit2, AlertCircle, RefreshCw, CheckCircle, ChevronLeft, ChevronRight, Printer, PackageMinus, LayoutGrid, List, Search, AlertTriangle, TrendingDown, Eye } from "lucide-react";
+import { ArrowLeft, Landmark, MapPin, User, Calendar, DollarSign, Activity, Package, Users, Plus, Trash2, X, Save, Edit2, AlertCircle, RefreshCw, CheckCircle, ChevronLeft, ChevronRight, Printer, PackageMinus, LayoutGrid, List, Search, AlertTriangle, TrendingDown, Eye, Download, ArrowLeftRight, XCircle } from "lucide-react";
 import siteService from "../../../services/siteService";
 import stockService from "../../../services/stockService";
+import stockMigrationService from "../../../services/stockMigrationService";
 import categoryService from "../../../services/categoryService";
 import { useRole } from "../../../hooks/useRole";
 import { useViewMode } from "../../../hooks/useViewMode";
 import { useSocketEvent } from "../../../context/SocketContext";
 import { SupplierReceiptModal } from "../../../components/ReceiptModal";
 import Sparkline, { genSpark } from "../../../components/Sparkline";
+import { exportToExcel } from "../../../lib/exportExcel";
 
 const ALL_TABS = [
   { id: "info",     label: "Info",      icon: Landmark },
@@ -16,6 +18,7 @@ const ALL_TABS = [
   { id: "expenses", label: "Expenses",  icon: DollarSign },
   { id: "stock",    label: "Stock",     icon: Package },
   { id: "stockout", label: "Stock Out", icon: PackageMinus },
+  { id: "migrations", label: "Migrations", icon: ArrowLeftRight },
 ];
 
 const fmtCurrency = (v) => new Intl.NumberFormat("en-RW", { style: "currency", currency: "RWF", maximumFractionDigits: 0 }).format(v ?? 0);
@@ -123,6 +126,12 @@ function WorkersTab({ siteId, datePreset, customFrom, customTo, navigate, path }
   const paged = filtered.slice((page - 1) * PAGE, page * PAGE);
   const filteredTotal = filtered.reduce((s, r) => s + r.workerCount, 0);
 
+  const exportExcelFile = () => {
+    const headers = ["Date", "Category", "Workers", "Notes", "Recorded By"];
+    const rows = filtered.map(r => [fmtDate(r.date), r.category?.name || "", r.workerCount, r.notes || "", r.recordedBy || ""]);
+    exportToExcel(`site-workers-${new Date().toISOString().slice(0, 10)}`, headers, rows, "Workers");
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <Toast toast={toast} />
@@ -147,7 +156,10 @@ function WorkersTab({ siteId, datePreset, customFrom, customTo, navigate, path }
         </div>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+        <button className="stoq-btn" onClick={exportExcelFile} disabled={filtered.length === 0}>
+          <Download size={13} /> Export
+        </button>
         <button className="stoq-btn stoq-btn--primary" onClick={() => navigate(path(`/sites/${siteId}/workers/add`))}>
           <Plus size={13} /> Record Workers
         </button>
@@ -271,6 +283,12 @@ function ExpensesTab({ siteId, siteName, datePreset, customFrom, customTo }) {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE));
   const paged = filtered.slice((page - 1) * PAGE, page * PAGE);
 
+  const exportExcelFile = () => {
+    const headers = ["Date", "Description", "Category", "Reference", "Amount", "Notes"];
+    const rows = filtered.map(e => [fmtDate(e.date), e.description, e.category || "", e.reference || "", Number(e.amount), e.notes || ""]);
+    exportToExcel(`site-expenses-${new Date().toISOString().slice(0, 10)}`, headers, rows, "Expenses");
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {receiptData && <SupplierReceiptModal data={receiptData} onClose={() => setReceiptData(null)} />}
@@ -296,7 +314,10 @@ function ExpensesTab({ siteId, siteName, datePreset, customFrom, customTo }) {
         </div>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+        <button className="stoq-btn" onClick={exportExcelFile} disabled={filtered.length === 0}>
+          <Download size={13} /> Export
+        </button>
         <button className="stoq-btn stoq-btn--primary" onClick={() => setShowForm(true)}>
           <Plus size={13} /> Add Expense
         </button>
@@ -668,12 +689,42 @@ function StockOutTab({ siteId, datePreset, customFrom, customTo, navigate, path 
     } catch (err) { showToast(err.response?.data?.message || "Failed to delete", "error"); }
   };
 
+  const handleReturn = async (id) => {
+    if (!window.confirm("Mark this equipment as returned? It will become available again.")) return;
+    try {
+      await siteService.returnStockOut(siteId, id);
+      showToast("Equipment marked as returned");
+      load();
+    } catch (err) { showToast(err.response?.data?.message || "Failed to mark as returned", "error"); }
+  };
+
   const openEdit = (record) => {
     setEditTarget(record);
     setForm({ stockId: record.stockId, quantity: record.quantity, notes: record.notes || "", date: new Date(record.date).toISOString().slice(0, 10) });
   };
 
   const totalQtyOut = data.records.reduce((s, r) => s + r.quantity, 0);
+
+  const [exporting, setExporting] = useState(false);
+  const exportExcelFile = async () => {
+    setExporting(true);
+    try {
+      const params = { page: 1, limit: 100000 };
+      if (datePreset === "custom" && customFrom) { params.dateFrom = customFrom; if (customTo) params.dateTo = customTo; }
+      else if (datePreset === "today") { const t = new Date(); params.dateFrom = t.toISOString().slice(0, 10); params.dateTo = t.toISOString().slice(0, 10); }
+      else if (datePreset === "week") { const t = new Date(); const s = new Date(t); s.setDate(t.getDate()-7); params.dateFrom = s.toISOString().slice(0, 10); params.dateTo = t.toISOString().slice(0, 10); }
+      else if (datePreset === "month") { const t = new Date(); params.dateFrom = new Date(t.getFullYear(), t.getMonth(), 1).toISOString().slice(0, 10); params.dateTo = t.toISOString().slice(0, 10); }
+      const full = await siteService.getStockOuts(siteId, params);
+      const headers = ["Date", "Item", "SKU", "Qty Out", "Unit", "Status", "Notes", "Recorded By"];
+      const rows = full.records.map(r => [
+        fmtDate(r.date), r.stock?.itemName || "", r.stock?.sku || "", r.quantity, r.unit,
+        r.stock?.stockType === "EQUIPMENT" ? (r.status === "RETURNED" ? "Returned" : "Checked out") : "",
+        r.notes || "", r.recordedByName || r.recordedByType || "",
+      ]);
+      exportToExcel(`site-stock-out-${new Date().toISOString().slice(0, 10)}`, headers, rows, "Stock Out");
+    } catch { showToast("Failed to export stock out records", "error"); }
+    finally { setExporting(false); }
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -700,7 +751,10 @@ function StockOutTab({ siteId, datePreset, customFrom, customTo, navigate, path 
         </div>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+        <button className="stoq-btn" onClick={exportExcelFile} disabled={exporting || data.total === 0}>
+          {exporting ? <RefreshCw size={13} style={{ animation: "spin 0.8s linear infinite" }} /> : <Download size={13} />} Export
+        </button>
         <button className="stoq-btn stoq-btn--primary" onClick={() => navigate(path("/sites/" + siteId + "/stock-out/add"))}>
           <PackageMinus size={13} /> Record Stock Out
         </button>
@@ -760,13 +814,17 @@ function StockOutTab({ siteId, datePreset, customFrom, customTo, navigate, path 
                     <th className="no-sort">Date</th>
                     <th className="no-sort">Item</th>
                     <th className="no-sort num-cell">Qty Out</th>
+                    <th className="no-sort">Status</th>
                     <th className="no-sort">Notes</th>
                     <th className="no-sort">Recorded By</th>
                     <th className="no-sort col-actions"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {data.records.map(r => (
+                  {data.records.map(r => {
+                    const isEquipment = r.stock?.stockType === "EQUIPMENT";
+                    const isReturned = r.status === "RETURNED";
+                    return (
                     <tr key={r.id}>
                       <td style={{ color: "var(--fg-muted)" }}>{fmtDate(r.date)}</td>
                       <td>
@@ -778,18 +836,233 @@ function StockOutTab({ siteId, datePreset, customFrom, customTo, navigate, path 
                           {r.quantity} <span style={{ fontSize: 10, fontWeight: 400, color: "var(--fg-subtle)" }}>{r.unit}</span>
                         </span>
                       </td>
+                      <td>
+                        {isEquipment ? (
+                          <span className={`stoq-badge ${isReturned ? "stoq-badge--success" : "stoq-badge--warning"}`}>
+                            {isReturned ? "Returned" : "Checked out"}
+                          </span>
+                        ) : (
+                          <span style={{ color: "var(--fg-subtle)", fontSize: 11 }}>—</span>
+                        )}
+                      </td>
                       <td style={{ color: "var(--fg-muted)" }}>{r.notes || "—"}</td>
                       <td style={{ color: "var(--fg-subtle)", fontSize: 11 }}>{r.recordedByName || r.recordedByType}</td>
                       <td style={{ display: "flex", gap: 4 }}>
-                        <button className="icon-btn" onClick={() => openEdit(r)}><Edit2 size={12} /></button>
-                        <button className="icon-btn" style={{ color: "var(--danger)" }} onClick={() => handleDelete(r.id)}><Trash2 size={13} /></button>
+                        {isEquipment && !isReturned && (
+                          <button className="stoq-btn stoq-btn--sm" style={{ fontSize: 10 }} onClick={() => handleReturn(r.id)}>
+                            Mark Returned
+                          </button>
+                        )}
+                        {!isReturned && (
+                          <>
+                            <button className="icon-btn" onClick={() => openEdit(r)}><Edit2 size={12} /></button>
+                            <button className="icon-btn" style={{ color: "var(--danger)" }} onClick={() => handleDelete(r.id)}><Trash2 size={13} /></button>
+                          </>
+                        )}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
             <Pagination page={page} totalPages={data.totalPages} total={data.total} onPage={setPage} label="records" />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Migrations Tab ───────────────────────────────────────────────────────────
+
+const MIGRATION_STATUS_CFG = {
+  IN_TRANSIT: { label: "In Transit", cls: "stoq-badge--warning" },
+  RECEIVED:   { label: "Received",   cls: "stoq-badge--success" },
+  CANCELLED:  { label: "Cancelled",  cls: "" },
+  REJECTED:   { label: "Rejected",   cls: "stoq-badge--danger" },
+};
+
+function MigrationsTab({ siteId, datePreset, customFrom, customTo, navigate, path }) {
+  const [data, setData] = useState({ migrations: [], total: 0, totalPages: 1 });
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [toast, setToast] = useState(null);
+  const [acting, setActing] = useState(null);
+  const [exporting, setExporting] = useState(false);
+
+  const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3200); };
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = { siteId, page, limit: 15 };
+      if (datePreset === "custom" && customFrom) { params.dateFrom = customFrom; if (customTo) params.dateTo = customTo; }
+      else if (datePreset === "today") { const t = new Date(); params.dateFrom = t.toISOString().slice(0, 10); params.dateTo = t.toISOString().slice(0, 10); }
+      else if (datePreset === "week") { const t = new Date(); const s = new Date(t); s.setDate(t.getDate()-7); params.dateFrom = s.toISOString().slice(0, 10); params.dateTo = t.toISOString().slice(0, 10); }
+      else if (datePreset === "month") { const t = new Date(); params.dateFrom = new Date(t.getFullYear(), t.getMonth(), 1).toISOString().slice(0, 10); params.dateTo = t.toISOString().slice(0, 10); }
+      setData(await stockMigrationService.getAll(params));
+    } catch { showToast("Failed to load migrations", "error"); }
+    finally { setLoading(false); }
+  }, [siteId, page, datePreset, customFrom, customTo]);
+
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { setPage(1); }, [datePreset, customFrom, customTo]);
+
+  const handleReceive = async (id) => {
+    if (!window.confirm("Confirm this stock has arrived and been received at this site?")) return;
+    setActing(id);
+    try { await stockMigrationService.receive(id); showToast("Migration received"); load(); }
+    catch (err) { showToast(err.response?.data?.message || "Failed to confirm receipt", "error"); }
+    finally { setActing(null); }
+  };
+
+  const handleCancel = async (id) => {
+    const reason = window.prompt("Reason for cancelling (optional):") ?? "";
+    setActing(id);
+    try { await stockMigrationService.cancel(id, reason || undefined); showToast("Migration cancelled — quantity restored"); load(); }
+    catch (err) { showToast(err.response?.data?.message || "Failed to cancel", "error"); }
+    finally { setActing(null); }
+  };
+
+  const handleReject = async (id) => {
+    const reason = window.prompt("Reason for rejecting this incoming migration:");
+    if (!reason || !reason.trim()) { showToast("A reason is required to reject", "error"); return; }
+    setActing(id);
+    try { await stockMigrationService.reject(id, reason); showToast("Migration rejected — quantity restored at source"); load(); }
+    catch (err) { showToast(err.response?.data?.message || "Failed to reject", "error"); }
+    finally { setActing(null); }
+  };
+
+  const exportExcelFile = async () => {
+    setExporting(true);
+    try {
+      const params = { siteId, page: 1, limit: 100000 };
+      if (datePreset === "custom" && customFrom) { params.dateFrom = customFrom; if (customTo) params.dateTo = customTo; }
+      else if (datePreset === "today") { const t = new Date(); params.dateFrom = t.toISOString().slice(0, 10); params.dateTo = t.toISOString().slice(0, 10); }
+      else if (datePreset === "week") { const t = new Date(); const s = new Date(t); s.setDate(t.getDate()-7); params.dateFrom = s.toISOString().slice(0, 10); params.dateTo = t.toISOString().slice(0, 10); }
+      else if (datePreset === "month") { const t = new Date(); params.dateFrom = new Date(t.getFullYear(), t.getMonth(), 1).toISOString().slice(0, 10); params.dateTo = t.toISOString().slice(0, 10); }
+      const full = await stockMigrationService.getAll(params);
+      const headers = ["Date", "Item", "From Site", "To Site", "Qty", "Unit", "Mode", "Status", "Initiated By", "Received By"];
+      const rows = full.migrations.map(m => [
+        fmtDate(m.dispatchedAt), m.stock?.itemName || "", m.sourceSite?.name || "", m.destinationSite?.name || "",
+        m.quantity, m.unit, m.instant ? "Instant" : "Two-phase",
+        MIGRATION_STATUS_CFG[m.status]?.label || m.status, m.initiatedByName || "", m.receivedByName || "",
+      ]);
+      exportToExcel(`site-stock-migrations-${new Date().toISOString().slice(0, 10)}`, headers, rows, "Migrations");
+    } catch { showToast("Failed to export migrations", "error"); }
+    finally { setExporting(false); }
+  };
+
+  const inCount  = data.migrations.filter(m => m.destinationSiteId === siteId).length;
+  const outCount = data.migrations.filter(m => m.sourceSiteId === siteId).length;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <Toast toast={toast} />
+
+      <div className="kpi-grid kpi-grid--3">
+        <div className="kpi">
+          <div className="kpi__label"><span className="kpi__icon"><ArrowLeftRight size={12} /></span>Total{datePreset ? " (filtered)" : ""}</div>
+          <div className="kpi__value">{data.total}</div>
+          <div className="kpi__foot"><span>migration records</span></div>
+          <Sparkline data={genSpark(4, 14, 0.2)} />
+        </div>
+        <div className="kpi">
+          <div className="kpi__label"><span className="kpi__icon"><ArrowLeftRight size={12} /></span>Incoming (this page)</div>
+          <div className="kpi__value" style={{ color: "var(--success)" }}>{inCount}</div>
+          <div className="kpi__foot"><span>arriving at this site</span></div>
+          <Sparkline data={genSpark(3, 14, 0.15)} color="var(--success)" />
+        </div>
+        <div className="kpi">
+          <div className="kpi__label"><span className="kpi__icon"><ArrowLeftRight size={12} /></span>Outgoing (this page)</div>
+          <div className="kpi__value" style={{ color: "var(--warning, oklch(0.6 0.15 85))" }}>{outCount}</div>
+          <div className="kpi__foot"><span>leaving this site</span></div>
+          <Sparkline data={genSpark(5, 14, 0.1)} />
+        </div>
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+        <button className="stoq-btn" onClick={exportExcelFile} disabled={exporting || data.total === 0}>
+          {exporting ? <RefreshCw size={13} style={{ animation: "spin 0.8s linear infinite" }} /> : <Download size={13} />} Export
+        </button>
+        <button className="stoq-btn stoq-btn--primary" onClick={() => navigate(path("/sites/" + siteId + "/migrate-stock"))}>
+          <ArrowLeftRight size={13} /> Migrate Stock
+        </button>
+      </div>
+
+      <div className="stoq-panel">
+        {loading ? (
+          <div style={{ display: "flex", justifyContent: "center", padding: 32 }}>
+            <RefreshCw size={20} style={{ animation: "spin 1s linear infinite", color: "var(--fg-subtle)" }} />
+          </div>
+        ) : data.migrations.length === 0 ? (
+          <div className="stoq-empty">
+            <ArrowLeftRight size={24} className="stoq-empty__icon" />
+            <div className="stoq-empty__title">No migrations{datePreset ? " in this period" : " yet"}</div>
+          </div>
+        ) : (
+          <>
+            <div className="table-wrap">
+              <table className="stoq-tbl">
+                <thead>
+                  <tr>
+                    <th className="no-sort">Date</th>
+                    <th className="no-sort">Item</th>
+                    <th className="no-sort">Direction</th>
+                    <th className="no-sort num-cell">Qty</th>
+                    <th className="no-sort">Mode</th>
+                    <th className="no-sort">Status</th>
+                    <th className="no-sort col-actions"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.migrations.map(m => {
+                    const isIncoming = m.destinationSiteId === siteId;
+                    const statusCfg = MIGRATION_STATUS_CFG[m.status] || { label: m.status, cls: "" };
+                    return (
+                      <tr key={m.id}>
+                        <td style={{ color: "var(--fg-muted)" }}>{fmtDate(m.dispatchedAt)}</td>
+                        <td>
+                          <span className="cell-stack__main">{m.stock?.itemName || "—"}</span>
+                          <span className="cell-stack__sub" style={{ fontFamily: "var(--font-mono)" }}>{m.stock?.sku}</span>
+                        </td>
+                        <td>
+                          {isIncoming
+                            ? <span style={{ fontSize: 11, color: "var(--success)" }}>From {m.sourceSite?.name || "—"}</span>
+                            : <span style={{ fontSize: 11, color: "var(--warning, oklch(0.6 0.15 85))" }}>To {m.destinationSite?.name || "—"}</span>}
+                        </td>
+                        <td className="num-cell">
+                          <span style={{ fontFamily: "var(--font-display)", fontSize: 14, fontWeight: 700 }}>
+                            {m.quantity} <span style={{ fontSize: 10, fontWeight: 400, color: "var(--fg-subtle)" }}>{m.unit}</span>
+                          </span>
+                        </td>
+                        <td><span style={{ fontSize: 11, color: "var(--fg-subtle)" }}>{m.instant ? "Instant" : "Two-phase"}</span></td>
+                        <td><span className={`stoq-badge ${statusCfg.cls}`}>{statusCfg.label}</span></td>
+                        <td style={{ display: "flex", gap: 4 }}>
+                          {m.status === "IN_TRANSIT" && isIncoming && (
+                            <>
+                              <button className="stoq-btn stoq-btn--sm" style={{ fontSize: 10 }} disabled={acting === m.id} onClick={() => handleReceive(m.id)}>
+                                Confirm Receipt
+                              </button>
+                              <button className="icon-btn" style={{ color: "var(--danger)" }} disabled={acting === m.id} onClick={() => handleReject(m.id)} title="Reject">
+                                <XCircle size={13} />
+                              </button>
+                            </>
+                          )}
+                          {m.status === "IN_TRANSIT" && !isIncoming && (
+                            <button className="stoq-btn stoq-btn--sm" style={{ fontSize: 10, color: "var(--danger)" }} disabled={acting === m.id} onClick={() => handleCancel(m.id)}>
+                              Cancel
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <Pagination page={page} totalPages={data.totalPages} total={data.total} onPage={setPage} label="migrations" />
           </>
         )}
       </div>
@@ -975,6 +1248,7 @@ export default function SiteDetail() {
       expenses: myAccess.canManageExpenses,
       stock:    myAccess.canManageStock,
       stockout: myAccess.canManageStockOut,
+      migrations: myAccess.canManageStockOut,
     };
     return !!map[tabId];
   };
@@ -1014,7 +1288,7 @@ export default function SiteDetail() {
     notes:       site.description || null,
   });
 
-  const showDateFilter = ["workers", "expenses", "stockout"].includes(activeTab);
+  const showDateFilter = ["workers", "expenses", "stockout", "migrations"].includes(activeTab);
 
   return (
     <div style={{ padding: "20px 24px 40px" }}>
@@ -1086,6 +1360,7 @@ export default function SiteDetail() {
       {activeTab === "expenses" && <ExpensesTab siteId={id} siteName={site.name} datePreset={datePreset} customFrom={customFrom} customTo={customTo} />}
       {activeTab === "stock"    && <StockTab siteId={id} navigate={navigate} path={path} />}
       {activeTab === "stockout" && <StockOutTab siteId={id} datePreset={datePreset} customFrom={customFrom} customTo={customTo} navigate={navigate} path={path} />}
+      {activeTab === "migrations" && <MigrationsTab siteId={id} datePreset={datePreset} customFrom={customFrom} customTo={customTo} navigate={navigate} path={path} />}
     </div>
   );
 }

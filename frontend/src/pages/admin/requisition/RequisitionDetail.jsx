@@ -114,6 +114,13 @@ export default function RequisitionDetail() {
   const statusCfg  = STATUS_CFG[requisition.status] || STATUS_CFG.PENDING;
   const StatusIcon = statusCfg.icon;
 
+  /* The requisition's own `supplier` field is often empty — suppliers are usually
+     linked at the stock-item level instead. Fall back to the first supplier found
+     on any linked stock so the receipt/print panel always shows a real supplier. */
+  const effectiveSupplier = requisition.supplier
+    ?? items.find(i => i.stock?.stockSuppliers?.[0]?.supplier)?.stock?.stockSuppliers?.[0]?.supplier
+    ?? null;
+
   /* collect all receiving logs for the timeline tab */
   const allLogs = items.flatMap(item =>
     (item.receivingLogs ?? []).map(log => ({ ...log, itemName: item.itemName, unit: item.unit }))
@@ -121,7 +128,7 @@ export default function RequisitionDetail() {
 
   return (
     <div>
-      {receipt && <SupplierReceiptModal data={receipt} onClose={() => setReceipt(null)} />}
+      {receipt && <SupplierReceiptModal data={receipt} supplier={effectiveSupplier} onClose={() => setReceipt(null)} />}
       {toast && (
         <div className={`stoq-toast ${toast.type === 'error' ? 'stoq-toast--error' : 'stoq-toast--success'}`}>
           {toast.type === 'error' ? <AlertCircle size={13} /> : <CheckCircle size={13} />}

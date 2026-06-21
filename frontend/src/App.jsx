@@ -44,6 +44,7 @@ const AddEditSite         = lazy(() => import("./pages/admin/site/AddEditSite"))
 const SiteDetail          = lazy(() => import("./pages/admin/site/SiteDetail"));
 const SiteAddStock        = lazy(() => import("./pages/admin/site/SiteAddStock"));
 const SiteStockOut        = lazy(() => import("./pages/admin/site/SiteStockOut"));
+const MigrateStock        = lazy(() => import("./pages/admin/site/MigrateStock"));
 const SiteRecordWorkers   = lazy(() => import("./pages/admin/site/SiteRecordWorkers"));
 const EmployeeProfile     = lazy(() => import("./pages/employee/EmployeeProfile"));
 const RequisitionManagement = lazy(() => import("./pages/admin/RequisitionManagement"));
@@ -124,6 +125,7 @@ function App() {
                     <Route path="/sites/edit/:id"                 element={<AddEditSite />} />
                     <Route path="/sites/:siteId/stock/add"        element={<SiteAddStock />} />
                     <Route path="/sites/:siteId/stock-out/add"    element={<SiteStockOut />} />
+                    <Route path="/sites/:siteId/migrate-stock"    element={<MigrateStock />} />
                     <Route path="/sites/:siteId/workers/add"      element={<SiteRecordWorkers />} />
                     <Route path="/sites/:id"                      element={<SiteDetail />} />
 
@@ -175,6 +177,7 @@ function App() {
                     <Route path="/admin/sites/edit/:id"               element={<AddEditSite />} />
                     <Route path="/admin/sites/:siteId/stock/add"      element={<SiteAddStock />} />
                     <Route path="/admin/sites/:siteId/stock-out/add"  element={<SiteStockOut />} />
+                    <Route path="/admin/sites/:siteId/migrate-stock"  element={<MigrateStock />} />
                     <Route path="/admin/sites/:siteId/workers/add"    element={<SiteRecordWorkers />} />
                     <Route path="/admin/sites/:id"                    element={<SiteDetail />} />
 

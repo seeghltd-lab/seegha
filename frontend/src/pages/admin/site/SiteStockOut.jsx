@@ -5,6 +5,7 @@ import siteService from '../../../services/siteService';
 import stockService from '../../../services/stockService';
 import { useRole } from '../../../hooks/useRole';
 import { useViewMode } from '../../../hooks/useViewMode';
+import { loadDraft, clearDraft, useFormDraft } from '../../../hooks/useFormDraft';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -31,17 +32,21 @@ export default function SiteStockOut() {
   const { siteId } = useParams();
   const navigate = useNavigate();
   const { path } = useRole();
+  const draftKey = `site-stock-out-${siteId}`;
+  const draft = loadDraft(draftKey);
 
   const [site, setSite] = useState(null);
   const [siteStocks, setSiteStocks] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
-  const [rows, setRows] = useState([makeEmptyRow()]);
+  const [rows, setRows] = useState(draft?.rows ?? [makeEmptyRow()]);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState(null);
   const [viewMode, setViewMode] = useViewMode('site-stockout-add');
 
   const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 4000); };
+
+  useFormDraft(draftKey, { rows });
 
   useEffect(() => {
     Promise.all([
@@ -64,13 +69,15 @@ export default function SiteStockOut() {
     setErrors(prev => { const next = { ...prev }; delete next[key + '_' + field]; return next; });
   };
 
+  const getAvailable = (stock) => stock.stockType === 'EQUIPMENT' ? stock.quantity - stock.quantityOut : stock.quantity;
+
   const getAvailableQty = (stockId) => {
     const stock = siteStocks.find(s => s.id === stockId);
     if (!stock) return 0;
     const usedInOtherRows = rows
       .filter(r => r.stockId === stockId && r._key !== 'current')
       .reduce((sum, r) => sum + (parseFloat(r.quantity) || 0), 0);
-    return Math.max(0, stock.quantity - usedInOtherRows);
+    return Math.max(0, getAvailable(stock) - usedInOtherRows);
   };
 
   const usedStockIds = (currentKey) =>
@@ -91,8 +98,11 @@ export default function SiteStockOut() {
         errs[row._key + '_quantity'] = 'Enter a valid quantity';
       } else {
         const stock = siteStocks.find(s => s.id === row.stockId);
-        if (stock && parseFloat(row.quantity) > stock.quantity) {
-          errs[row._key + '_quantity'] = `Max available: ${stock.quantity} ${stock.unit}`;
+        if (stock) {
+          const available = getAvailable(stock);
+          if (parseFloat(row.quantity) > available) {
+            errs[row._key + '_quantity'] = `Max available: ${available} ${stock.unit}`;
+          }
         }
       }
     });
@@ -125,6 +135,7 @@ export default function SiteStockOut() {
     setSubmitting(false);
 
     if (results.failed.length === 0) {
+      clearDraft(draftKey);
       showToast(`${results.ok.length} item${results.ok.length !== 1 ? 's' : ''} recorded successfully`);
       setTimeout(() => navigate(path('/sites/' + siteId) + '?tab=stockout'), 900);
     } else if (results.ok.length > 0) {
@@ -194,9 +205,10 @@ export default function SiteStockOut() {
                       <option value="">— Select item —</option>
                       {siteStocks.map(s => {
                         const alreadyUsed = usedStockIds(row._key).includes(s.id);
+                        const available = getAvailable(s);
                         return (
-                          <option key={s.id} value={s.id} disabled={s.quantity <= 0 || alreadyUsed}>
-                            {s.itemName} — {s.quantity} {s.unit} available{alreadyUsed ? ' (already added)' : ''}
+                          <option key={s.id} value={s.id} disabled={available <= 0 || alreadyUsed}>
+                            {s.itemName} — {available} {s.unit} available{s.stockType === 'EQUIPMENT' ? ' (equipment)' : ''}{alreadyUsed ? ' (already added)' : ''}
                           </option>
                         );
                       })}
@@ -204,16 +216,16 @@ export default function SiteStockOut() {
                     {errors[row._key + '_stockId'] && <span style={{ fontSize: 11, color: 'var(--danger)' }}>{errors[row._key + '_stockId']}</span>}
                     {stock && (
                       <div style={{ fontSize: 10, color: 'var(--fg-subtle)', marginTop: 3, display: 'flex', gap: 8 }}>
-                        <span>Available: <strong>{stock.quantity} {stock.unit}</strong></span>
-                        {stock.quantity <= (stock.reorderLevel || 0) && <span style={{ color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 3 }}><AlertTriangle size={10} /> Low stock</span>}
+                        <span>Available: <strong>{getAvailable(stock)} {stock.unit}</strong></span>
+                        {getAvailable(stock) <= (stock.reorderLevel || 0) && <span style={{ color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 3 }}><AlertTriangle size={10} /> Low stock</span>}
                       </div>
                     )}
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                     <div className="stoq-field">
-                      <label className="stoq-field__label">Quantity <span style={{ color: 'var(--danger)' }}>*</span>{stock ? ` (max ${stock.quantity})` : ''}</label>
-                      <input type="number" min="0.01" step="0.01" max={stock?.quantity || undefined}
+                      <label className="stoq-field__label">Quantity <span style={{ color: 'var(--danger)' }}>*</span>{stock ? ` (max ${getAvailable(stock)})` : ''}</label>
+                      <input type="number" min="0.01" step="0.01" max={stock ? getAvailable(stock) : undefined}
                         className="stoq-input" value={row.quantity} placeholder="0"
                         onChange={e => updateRow(row._key, 'quantity', e.target.value)} />
                       {errors[row._key + '_quantity'] && <span style={{ fontSize: 11, color: 'var(--danger)' }}>{errors[row._key + '_quantity']}</span>}
@@ -257,18 +269,19 @@ export default function SiteStockOut() {
                             <option value="">— Select item —</option>
                             {siteStocks.map(s => {
                               const alreadyUsed = usedStockIds(row._key).includes(s.id);
+                              const available = getAvailable(s);
                               return (
-                                <option key={s.id} value={s.id} disabled={s.quantity <= 0 || alreadyUsed}>
-                                  {s.itemName} ({s.quantity} {s.unit}){alreadyUsed ? ' — already added' : ''}
+                                <option key={s.id} value={s.id} disabled={available <= 0 || alreadyUsed}>
+                                  {s.itemName} ({available} {s.unit}){s.stockType === 'EQUIPMENT' ? ' [equipment]' : ''}{alreadyUsed ? ' — already added' : ''}
                                 </option>
                               );
                             })}
                           </select>
                           {errors[row._key + '_stockId'] && <div style={{ fontSize: 11, color: 'var(--danger)', marginTop: 2 }}>{errors[row._key + '_stockId']}</div>}
-                          {stock && <div style={{ fontSize: 10, color: 'var(--fg-subtle)', marginTop: 2 }}>Available: {stock.quantity} {stock.unit}</div>}
+                          {stock && <div style={{ fontSize: 10, color: 'var(--fg-subtle)', marginTop: 2 }}>Available: {getAvailable(stock)} {stock.unit}</div>}
                         </td>
                         <td>
-                          <input type="number" min="0.01" step="0.01" max={stock?.quantity || undefined}
+                          <input type="number" min="0.01" step="0.01" max={stock ? getAvailable(stock) : undefined}
                             className="stoq-input" value={row.quantity} placeholder="0"
                             onChange={e => updateRow(row._key, 'quantity', e.target.value)} style={{ width: '100%' }} />
                           {errors[row._key + '_quantity'] && <div style={{ fontSize: 11, color: 'var(--danger)', marginTop: 2 }}>{errors[row._key + '_quantity']}</div>}

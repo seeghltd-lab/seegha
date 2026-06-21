@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Student ID Card — German School Kigali</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --gold:       #E6B00F;
+  --gold-light: #F6D44A;
+  --gold-deep:  #BE8E08;
+  --gold-soft:  #FBF2D2;
+  --ink:        #16130E;
+  --ink-2:      #464036;
+  --muted:      #8C8576;
+  --faint:      #B6AE9E;
+  --line:       #E8E2D4;
+  --red:        #CE1F2D;
+  --paper:      #FFFFFF;
+  --paper-tint: #FCFAF3;
+
+  --disp: "Oswald", sans-serif;
+  --sans: "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--sans);
+  background: #1a1813;
+  color: var(--ink);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+  padding: 46px 24px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.stage-cap { text-align: center; color: #cdbf9a; }
+.stage-cap .t { font-family: var(--disp); font-weight: 600; font-size: 13px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--gold-light); }
+.stage-cap .s { font-size: 12px; color: #8c8267; margin-top: 6px; letter-spacing: 0.02em; }
+
+.cards { display: flex; gap: 34px; flex-wrap: wrap; justify-content: center; align-items: flex-start; }
+
+/* ====================== CARD SHELL ====================== */
+.card {
+  width: 350px;
+  height: 556px;
+  background: var(--paper);
+  border-radius: 18px;
+  overflow: hidden;
+  position: relative;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.5) inset,
+    0 30px 60px -20px rgba(0,0,0,0.55),
+    0 12px 28px -12px rgba(0,0,0,0.45);
+  display: flex;
+  flex-direction: column;
+}
+/* security diagonal microweave on the paper */
+.card::before {
+  content: "";
+  position: absolute; inset: 0;
+  background:
+    repeating-linear-gradient(45deg, rgba(20,18,14,0.02) 0 1px, transparent 1px 8px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ====================== TOP BANDS ====================== */
+.band {
+  position: relative;
+  z-index: 2;
+  height: 50px;
+  background: var(--gold);
+  border-bottom: 2px solid var(--gold-deep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 5px;
+}
+.band .eyebrow {
+  font-family: var(--disp);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.band .accent { width: 56px; height: 2.5px; background: var(--red); border-radius: 2px; }
+
+.titlebar {
+  position: relative;
+  z-index: 2;
+  height: 38px;
+  background: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.titlebar .tt {
+  font-family: var(--disp);
+  font-weight: 500;
+  font-size: 14px;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: #fff;
+  padding-left: 0.34em;
+  white-space: nowrap;
+}
+/* microprint line under the black bar */
+.microprint {
+  position: relative; z-index: 2;
+  height: 11px;
+  overflow: hidden;
+  background: var(--ink);
+  display: flex; align-items: center;
+  white-space: nowrap;
+}
+.microprint span {
+  font-family: var(--mono);
+  font-size: 5px;
+  letter-spacing: 0.32em;
+  color: rgba(246,212,74,0.55);
+  text-transform: uppercase;
+  padding: 0 4px;
+}
+
+/* ====================== BODY ====================== */
+.body {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  padding: 22px 24px 18px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- Logo lockup (front) ---- */
+.lockup { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.logo-ring {
+  width: 84px; height: 84px;
+  border-radius: 50%;
+  padding: 4px;
+  background: var(--gold);
+  box-shadow: 0 4px 12px rgba(190,142,8,0.22);
+}
+image-slot.logo {
+  width: 76px; height: 76px;
+  display: block;
+  border-radius: 50%;
+  background: var(--paper-tint);
+}
+.school-name {
+  font-family: var(--disp);
+  font-weight: 700;
+  font-size: 23px;
+  letter-spacing: 0.015em;
+  line-height: 1.05;
+  margin-top: 14px;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.school-sub {
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-top: 4px;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+/* ---- divider with diamond ---- */
+.divider { display: flex; align-items: center; gap: 9px; margin: 18px 0; }
+.divider .ln { flex: 1; height: 1.5px; background: var(--gold); opacity: 0.55; }
+.divider .dia { width: 7px; height: 7px; background: var(--gold); transform: rotate(45deg); flex: none; box-shadow: 0 0 0 2px var(--gold-soft); }
+
+/* ---- identity row (photo + fields) ---- */
+.identity { display: flex; gap: 18px; align-items: flex-start; }
+.photo-frame {
+  position: relative;
+  flex: none;
+  width: 112px; height: 138px;
+  padding: 4px;
+  background: var(--gold);
+  border-radius: 10px;
+  box-shadow: 0 6px 16px -6px rgba(190,142,8,0.4);
+}
+image-slot.photo {
+  width: 104px; height: 130px;
+  display: block;
+  border-radius: 7px;
+  background: var(--paper-tint);
+}
+/* hologram seal overlapping the photo */
+.seal {
+  position: absolute;
+  right: -13px; bottom: -13px;
+  width: 46px; height: 46px;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 3px 9px rgba(0,0,0,0.22), 0 0 0 2.5px #fff;
+  display: grid; place-items: center;
+  z-index: 3;
+}
+.seal::before {
+  content: "";
+  position: absolute; inset: 6px;
+  border-radius: 50%;
+  border: 1px dashed rgba(22,19,14,0.5);
+}
+.seal .mono-mark {
+  font-family: var(--disp);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+}
+
+.fields { flex: 1; min-width: 0; padding-top: 2px; }
+.name {
+  font-family: var(--disp);
+  font-weight: 700;
+  font-size: 30px;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  color: var(--ink);
+  text-transform: uppercase;
+}
+.field { margin-top: 15px; }
+.field .lbl {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.field .val {
+  font-family: var(--disp);
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--ink);
+  margin-top: 2px;
+  letter-spacing: 0.02em;
+}
+.field .val.id { font-family: var(--mono); font-weight: 600; font-size: 14.5px; letter-spacing: 0.01em; }
+.level-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--ink); color: var(--gold-light);
+  font-family: var(--disp); font-weight: 600; font-size: 15px;
+  padding: 2px 11px; border-radius: 5px; margin-top: 3px; letter-spacing: 0.04em;
+}
+
+/* ---- front foot meta (issued / expires + barcode) ---- */
+.front-meta { margin-top: auto; }
+.issue-row {
+  display: flex; justify-content: space-between;
+  padding-top: 14px; margin-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.issue-row .blk .l { font-family: var(--mono); font-size: 8.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
+.issue-row .blk .v { font-family: var(--mono); font-weight: 600; font-size: 13px; color: var(--ink); margin-top: 3px; }
+.issue-row .blk.r { text-align: right; }
+.sign { text-align: right; }
+.sign .scribble {
+  font-family: "Brush Script MT", cursive;
+  font-size: 22px; color: var(--ink);
+  line-height: 1; transform: rotate(-4deg);
+  font-style: italic;
+}
+.sign .sl { font-family: var(--mono); font-size: 8px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin-top: 4px; border-top: 1px solid var(--line); padding-top: 4px; }
+
+/* ====================== BACK ====================== */
+.back-head {
+  font-family: var(--disp);
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink);
+  display: flex; align-items: center; gap: 9px;
+}
+.back-head::after { content: ""; width: 40px; height: 2px; background: var(--gold); margin-left: auto; }
+
+.contact-list { margin-top: 18px; display: flex; flex-direction: column; gap: 15px; }
+.contact-row { display: flex; align-items: center; gap: 13px; }
+.contact-row .ic {
+  width: 38px; height: 38px; flex: none;
+  border-radius: 9px;
+  background: var(--gold);
+  display: grid; place-items: center;
+  color: var(--ink);
+}
+.contact-row .ic svg { width: 17px; height: 17px; }
+.contact-row .meta { min-width: 0; }
+.contact-row .meta .l { font-family: var(--mono); font-size: 8.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
+.contact-row .meta .v { font-size: 14px; font-weight: 600; color: var(--ink); margin-top: 2px; letter-spacing: 0.01em; }
+
+.notice {
+  margin-top: 20px;
+  padding: 14px 15px;
+  background: var(--paper-tint);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--gold);
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+.notice b { color: var(--ink); font-weight: 600; }
+
+/* barcode */
+.barcode-wrap { margin-top: 18px; text-align: center; }
+.barcode {
+  height: 46px;
+  margin: 0 auto;
+  width: 220px;
+  background-image: repeating-linear-gradient(90deg,
+    var(--ink) 0 2px, transparent 2px 4px,
+    var(--ink) 4px 7px, transparent 7px 9px,
+    var(--ink) 9px 10px, transparent 10px 13px,
+    var(--ink) 13px 17px, transparent 17px 18px,
+    var(--ink) 18px 20px, transparent 20px 24px);
+}
+.barcode-num { font-family: var(--mono); font-size: 11px; letter-spacing: 0.3em; color: var(--ink); margin-top: 6px; padding-left: 0.3em; }
+
+/* valid through */
+.valid {
+  margin-top: auto;
+  text-align: center;
+  padding-top: 16px;
+}
+.valid .l { font-family: var(--mono); font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--muted); }
+.valid .v { font-family: var(--disp); font-weight: 700; font-size: 30px; color: var(--ink); margin-top: 4px; letter-spacing: 0.06em; }
+.valid .v .sl { color: var(--gold-deep); margin: 0 4px; }
+
+/* ====================== FOOTER BAND ====================== */
+.foot {
+  position: relative; z-index: 2;
+  height: 40px;
+  background: var(--gold);
+  border-top: 2px solid var(--gold-deep);
+  display: flex; align-items: center; justify-content: center;
+}
+.foot .ft {
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink);
+  padding-left: 0.22em;
+}
+
+@media (max-width: 760px) {
+  body { padding: 30px 16px; }
+  .cards { gap: 24px; }
+}
+
+@media print {
+  body { background: #fff; padding: 0; gap: 18px; }
+  .stage-cap { display: none; }
+  .card { box-shadow: 0 0 0 1px #ddd; break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+<div class="stage-cap">
+  <div class="t">German School Kigali</div>
+  <div class="s">Official Student Identification · Front &amp; Reverse</div>
+</div>
+
+<div class="cards">
+  <!-- ============ FRONT ============ -->
+  <div class="card" data-screen-label="ID Front">
+    <div class="band">
+      <div class="eyebrow">Your Gateway to Germany</div>
+      <div class="accent"></div>
+    </div>
+    <div class="titlebar"><div class="tt">Student ID Card</div></div>
+    <div class="microprint"><span>GERMANSCHOOLKIGALI · GERMANSCHOOLKIGALI · GERMANSCHOOLKIGALI · GERMANSCHOOLKIGALI · GERMANSCHOOLKIGALI · GERMANSCHOOLKIGALI</span></div>
+
+    <div class="body">
+      <div class="lockup">
+        <div class="logo-ring">
+          <image-slot class="logo" id="gsk-logo" shape="circle" placeholder="Logo"></image-slot>
+        </div>
+        <div class="school-name">German School Kigali</div>
+        <div class="school-sub">German Language Education</div>
+      </div>
+
+      <div class="divider"><span class="ln"></span><span class="dia"></span><span class="ln"></span></div>
+
+      <div class="identity">
+        <div class="photo-frame">
+          <image-slot class="photo" id="gsk-photo" shape="rounded" radius="7" placeholder="Photo"></image-slot>
+          <div class="seal"><span class="mono-mark">GSK</span></div>
+        </div>
+        <div class="fields">
+          <div class="name">Nisa</div>
+          <div class="field">
+            <div class="lbl">Level</div>
+            <div class="level-pill">A2</div>
+          </div>
+          <div class="field">
+            <div class="lbl">Student ID</div>
+            <div class="val id">GSK-2026-2255</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="front-meta">
+        <div class="issue-row">
+          <div class="blk">
+            <div class="l">Issued</div>
+            <div class="v">09 / 2025</div>
+          </div>
+          <div class="blk" style="text-align:center">
+            <div class="l">Expires</div>
+            <div class="v">12 / 2027</div>
+          </div>
+          <div class="blk r sign">
+            <div class="scribble">Nisa</div>
+            <div class="sl">Signature</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="foot"><div class="ft">Reg: GSK-2026-2255</div></div>
+  </div>
+
+  <!-- ============ BACK ============ -->
+  <div class="card" data-screen-label="ID Back">
+    <div class="band">
+      <div class="eyebrow">If Found — Please Return</div>
+      <div class="accent"></div>
+    </div>
+    <div class="titlebar"><div class="tt">Contact School</div></div>
+    <div class="microprint"><span>GERMANSCHOOLKIGALI · GERMANSCHOOLKIGALI · GERMANSCHOOLKIGALI · GERMANSCHOOLKIGALI · GERMANSCHOOLKIGALI · GERMANSCHOOLKIGALI</span></div>
+
+    <div class="body">
+      <div class="back-head">Contact Information</div>
+
+      <div class="contact-list">
+        <div class="contact-row">
+          <div class="ic">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          </div>
+          <div class="meta"><div class="l">Phone</div><div class="v">+250 788 000 000</div></div>
+        </div>
+        <div class="contact-row">
+          <div class="ic">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg>
+          </div>
+          <div class="meta"><div class="l">Email</div><div class="v"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="3a53545c557a5d5f48575b5449595255555651535d5b565314484d">[email&#160;protected]</a></div></div>
+        </div>
+        <div class="contact-row">
+          <div class="ic">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          </div>
+          <div class="meta"><div class="l">Address</div><div class="v">KG 11 Ave, Kigali, Rwanda</div></div>
+        </div>
+      </div>
+
+      <div class="notice">
+        This card is the property of <b>German School Kigali</b>. If found, please return it to the school office immediately. Your honesty and integrity are greatly appreciated.
+      </div>
+
+      <div class="barcode-wrap">
+        <div class="barcode"></div>
+        <div class="barcode-num">GSK-2026-2255</div>
+      </div>
+
+      <div class="valid">
+        <div class="l">Valid Through</div>
+        <div class="v">12<span class="sl">/</span>2027</div>
+      </div>
+    </div>
+
+    <div class="foot"><div class="ft">German School Kigali</div></div>
+  </div>
+</div>
+
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script src="image-slot.js"></script>
+</body>
+</html>

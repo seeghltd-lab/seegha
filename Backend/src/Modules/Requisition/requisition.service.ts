@@ -41,6 +41,16 @@ interface RequisitionFilters {
   employeeId?: string;
 }
 
+interface PaymentAdjustment {
+  paymentId: string;
+  oldAmount: number;
+  newAmount: number;
+  paymentStatus: string | null;
+  requisitionItemId: string;
+  oldCostPrice: number | null;
+  newCostPrice: number;
+}
+
 @Injectable()
 export class RequisitionService {
   constructor(
@@ -49,6 +59,65 @@ export class RequisitionService {
     private readonly notifications: NotificationService,
     private readonly activityLog: ActivityLogService,
   ) {}
+
+  /**
+   * Recomputes the `amount` of every SupplierPayment linked to a requisition
+   * item when that item's costPrice is edited after a payment was already
+   * created (payments are created against a snapshot price at receive time
+   * and never auto-sync otherwise).
+   */
+  private async syncSupplierPaymentsForItem(
+    tx: any,
+    requisitionItemId: string,
+    newCostPrice: number,
+  ): Promise<Omit<PaymentAdjustment, 'requisitionItemId' | 'oldCostPrice' | 'newCostPrice'>[]> {
+    const payments = await tx.supplierPayment.findMany({
+      where: { requisitionItemId },
+    });
+    const adjustments: Omit<PaymentAdjustment, 'requisitionItemId' | 'oldCostPrice' | 'newCostPrice'>[] = [];
+    for (const payment of payments) {
+      const oldAmount = Number(payment.amount);
+      const newAmount = Number(payment.quantity ?? 0) * newCostPrice;
+      if (newAmount === oldAmount) continue;
+      await tx.supplierPayment.update({
+        where: { id: payment.id },
+        data: { amount: newAmount },
+      });
+      adjustments.push({
+        paymentId: payment.id,
+        oldAmount,
+        newAmount,
+        paymentStatus: payment.status,
+      });
+    }
+    return adjustments;
+  }
+
+  /** Writes one audit log entry per SupplierPayment auto-adjusted by a price edit. */
+  private logPaymentAdjustments(
+    adjustments: PaymentAdjustment[],
+    performedById: string,
+    performedByType: 'ADMIN' | 'EMPLOYEE',
+  ) {
+    for (const adj of adjustments) {
+      this.activityLog.log({
+        action: 'SUPPLIER_PAYMENT_AUTO_ADJUSTED',
+        entityType: 'SupplierPayment',
+        entityId: adj.paymentId,
+        entityLabel: `Payment ${adj.paymentId.slice(-6).toUpperCase()}`,
+        performedById,
+        performedByType,
+        metadata: {
+          requisitionItemId: adj.requisitionItemId,
+          oldAmount: adj.oldAmount,
+          newAmount: adj.newAmount,
+          oldCostPrice: adj.oldCostPrice,
+          newCostPrice: adj.newCostPrice,
+          paymentStatus: adj.paymentStatus,
+        },
+      });
+    }
+  }
 
   async create(data: CreateRequisitionDto, creator: CreatorContext) {
     if (!data.items || data.items.length === 0) {
@@ -209,7 +278,20 @@ export class RequisitionService {
     const requisition = await this.prisma.requisition.findUnique({
       where: { id },
       include: {
-        supplier: { select: { id: true, name: true, code: true, phone: true } },
+        supplier: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            phone: true,
+            email: true,
+            address: true,
+            city: true,
+            country: true,
+            contactPerson: true,
+            paymentTerms: true,
+          },
+        },
         site: { select: { id: true, name: true, location: true } },
         employee: {
           select: {
@@ -232,6 +314,24 @@ export class RequisitionService {
                 quantity: true,
                 unitCost: true,
                 warehouseLocation: true,
+                stockSuppliers: {
+                  include: {
+                    supplier: {
+                      select: {
+                        id: true,
+                        name: true,
+                        code: true,
+                        phone: true,
+                        email: true,
+                        address: true,
+                        city: true,
+                        country: true,
+                        contactPerson: true,
+                        paymentTerms: true,
+                      },
+                    },
+                  },
+                },
               },
             },
             receivingLogs: {
@@ -271,51 +371,73 @@ export class RequisitionService {
     }
 
     // Optionally edit items before approving
+    let paymentAdjustments: PaymentAdjustment[] = [];
     if (body.items) {
-      for (const i of body.items) {
-        if (i.remove && i.id) {
-          await this.prisma.requisitionItem.delete({ where: { id: i.id } });
-          continue;
-        }
+      paymentAdjustments = await this.prisma.$transaction(async (tx) => {
+        const adjustments: PaymentAdjustment[] = [];
+        for (const i of body.items!) {
+          if (i.remove && i.id) {
+            await tx.requisitionItem.delete({ where: { id: i.id } });
+            continue;
+          }
 
-        // Resolve costPrice: use provided value, else fall back to stock.unitCost
-        let costPrice = i.costPrice != null ? Number(i.costPrice) : undefined;
-        if (costPrice === undefined && i.stockId) {
-          const stock = await this.prisma.stock.findUnique({
-            where: { id: i.stockId },
-            select: { unitCost: true },
-          });
-          if (stock) costPrice = Number(stock.unitCost);
-        }
+          // Resolve costPrice: use provided value, else fall back to stock.unitCost
+          let costPrice = i.costPrice != null ? Number(i.costPrice) : undefined;
+          if (costPrice === undefined && i.stockId) {
+            const stock = await tx.stock.findUnique({
+              where: { id: i.stockId },
+              select: { unitCost: true },
+            });
+            if (stock) costPrice = Number(stock.unitCost);
+          }
 
-        if (i.id) {
-          await this.prisma.requisitionItem.update({
-            where: { id: i.id },
-            data: {
-              itemName: i.itemName,
-              quantity: i.quantity,
-              unit: i.unit,
-              note: i.note || null,
-              stockId: i.stockId || null,
-              costPrice: costPrice ?? null,
-              ...(i.paymentType !== undefined ? { paymentType: i.paymentType } : {}),
-            },
-          });
-        } else {
-          await this.prisma.requisitionItem.create({
-            data: {
-              requisitionId: id,
-              itemName: i.itemName,
-              quantity: i.quantity,
-              unit: i.unit,
-              note: i.note || null,
-              stockId: i.stockId || null,
-              costPrice: costPrice ?? null,
-              ...(i.paymentType !== undefined ? { paymentType: i.paymentType } : {}),
-            },
-          });
+          if (i.id) {
+            const existing = requisition.items.find((x) => x.id === i.id);
+            await tx.requisitionItem.update({
+              where: { id: i.id },
+              data: {
+                itemName: i.itemName,
+                quantity: i.quantity,
+                unit: i.unit,
+                note: i.note || null,
+                stockId: i.stockId || null,
+                costPrice: costPrice ?? null,
+                ...(i.paymentType !== undefined ? { paymentType: i.paymentType } : {}),
+              },
+            });
+            if (
+              existing &&
+              existing.receivedQty > 0 &&
+              costPrice !== undefined &&
+              Number(costPrice) !== Number(existing.costPrice ?? 0)
+            ) {
+              const adj = await this.syncSupplierPaymentsForItem(tx, i.id, costPrice);
+              adjustments.push(
+                ...adj.map((a) => ({
+                  ...a,
+                  requisitionItemId: i.id!,
+                  oldCostPrice: existing.costPrice != null ? Number(existing.costPrice) : null,
+                  newCostPrice: costPrice!,
+                })),
+              );
+            }
+          } else {
+            await tx.requisitionItem.create({
+              data: {
+                requisitionId: id,
+                itemName: i.itemName,
+                quantity: i.quantity,
+                unit: i.unit,
+                note: i.note || null,
+                stockId: i.stockId || null,
+                costPrice: costPrice ?? null,
+                ...(i.paymentType !== undefined ? { paymentType: i.paymentType } : {}),
+              },
+            });
+          }
         }
-      }
+        return adjustments;
+      });
     }
 
     const updated = await this.prisma.requisition.update({
@@ -355,6 +477,8 @@ export class RequisitionService {
       performedByType: approverType,
       metadata: { notes: body.notes, supplierId: body.supplierId },
     });
+
+    this.logPaymentAdjustments(paymentAdjustments, approverId, approverType);
 
     return updated;
   }
@@ -405,69 +529,91 @@ export class RequisitionService {
     }
 
     // Process item edits
+    let paymentAdjustments: PaymentAdjustment[] = [];
     if (body.items && body.items.length > 0) {
-      for (const i of body.items) {
-        // Delete
-        if (i.remove && i.id) {
-          const existing = requisition.items.find((x) => x.id === i.id);
-          if (existing && existing.receivedQty > 0) {
-            throw new BadRequestException(
-              `Cannot remove item "${existing.itemName}" — it has already been received. The stock quantity is committed.`,
-            );
+      paymentAdjustments = await this.prisma.$transaction(async (tx) => {
+        const adjustments: PaymentAdjustment[] = [];
+        for (const i of body.items!) {
+          // Delete
+          if (i.remove && i.id) {
+            const existing = requisition.items.find((x) => x.id === i.id);
+            if (existing && existing.receivedQty > 0) {
+              throw new BadRequestException(
+                `Cannot remove item "${existing.itemName}" — it has already been received. The stock quantity is committed.`,
+              );
+            }
+            await tx.requisitionItem.delete({ where: { id: i.id } });
+            continue;
           }
-          await this.prisma.requisitionItem.delete({ where: { id: i.id } });
-          continue;
-        }
 
-        if (i.id) {
-          // Update existing
-          const existing = requisition.items.find((x) => x.id === i.id);
-          if (existing) {
-            // Block quantity reduction below receivedQty
-            if (i.quantity !== undefined && i.quantity < existing.receivedQty) {
-              throw new BadRequestException(
-                `Cannot set quantity to ${i.quantity} for "${existing.itemName}" — already received ${existing.receivedQty}.`,
-              );
+          if (i.id) {
+            // Update existing
+            const existing = requisition.items.find((x) => x.id === i.id);
+            if (existing) {
+              // Block quantity reduction below receivedQty
+              if (i.quantity !== undefined && i.quantity < existing.receivedQty) {
+                throw new BadRequestException(
+                  `Cannot set quantity to ${i.quantity} for "${existing.itemName}" — already received ${existing.receivedQty}.`,
+                );
+              }
+              // Block stockId change on received items
+              if (
+                i.stockId !== undefined &&
+                i.stockId !== existing.stockId &&
+                existing.receivedQty > 0
+              ) {
+                throw new BadRequestException(
+                  `Cannot re-link stock for "${existing.itemName}" — item has already been received against its current stock.`,
+                );
+              }
             }
-            // Block stockId change on received items
+            await tx.requisitionItem.update({
+              where: { id: i.id },
+              data: {
+                ...(i.itemName !== undefined ? { itemName: i.itemName } : {}),
+                ...(i.quantity !== undefined ? { quantity: i.quantity } : {}),
+                ...(i.unit !== undefined ? { unit: i.unit } : {}),
+                ...(i.note !== undefined ? { note: i.note || null } : {}),
+                ...(i.stockId !== undefined ? { stockId: i.stockId || null } : {}),
+                ...(i.costPrice !== undefined ? { costPrice: i.costPrice } : {}),
+                ...(i.paymentType !== undefined ? { paymentType: i.paymentType } : {}),
+              },
+            });
             if (
-              i.stockId !== undefined &&
-              i.stockId !== existing.stockId &&
-              existing.receivedQty > 0
+              existing &&
+              existing.receivedQty > 0 &&
+              i.costPrice !== undefined &&
+              i.costPrice !== null &&
+              Number(i.costPrice) !== Number(existing.costPrice ?? 0)
             ) {
-              throw new BadRequestException(
-                `Cannot re-link stock for "${existing.itemName}" — item has already been received against its current stock.`,
+              const adj = await this.syncSupplierPaymentsForItem(tx, i.id, Number(i.costPrice));
+              adjustments.push(
+                ...adj.map((a) => ({
+                  ...a,
+                  requisitionItemId: i.id!,
+                  oldCostPrice: existing.costPrice != null ? Number(existing.costPrice) : null,
+                  newCostPrice: Number(i.costPrice),
+                })),
               );
             }
+          } else {
+            // Create new item
+            await tx.requisitionItem.create({
+              data: {
+                requisitionId: id,
+                itemName: i.itemName!,
+                quantity: i.quantity!,
+                unit: i.unit ?? '',
+                note: i.note || null,
+                stockId: i.stockId || null,
+                costPrice: i.costPrice ?? null,
+                ...(i.paymentType !== undefined ? { paymentType: i.paymentType } : {}),
+              },
+            });
           }
-          await this.prisma.requisitionItem.update({
-            where: { id: i.id },
-            data: {
-              ...(i.itemName !== undefined ? { itemName: i.itemName } : {}),
-              ...(i.quantity !== undefined ? { quantity: i.quantity } : {}),
-              ...(i.unit !== undefined ? { unit: i.unit } : {}),
-              ...(i.note !== undefined ? { note: i.note || null } : {}),
-              ...(i.stockId !== undefined ? { stockId: i.stockId || null } : {}),
-              ...(i.costPrice !== undefined ? { costPrice: i.costPrice } : {}),
-              ...(i.paymentType !== undefined ? { paymentType: i.paymentType } : {}),
-            },
-          });
-        } else {
-          // Create new item
-          await this.prisma.requisitionItem.create({
-            data: {
-              requisitionId: id,
-              itemName: i.itemName!,
-              quantity: i.quantity!,
-              unit: i.unit ?? '',
-              note: i.note || null,
-              stockId: i.stockId || null,
-              costPrice: i.costPrice ?? null,
-              ...(i.paymentType !== undefined ? { paymentType: i.paymentType } : {}),
-            },
-          });
         }
-      }
+        return adjustments;
+      });
     }
 
     // Determine if status needs to auto-downgrade:
@@ -511,6 +657,8 @@ export class RequisitionService {
         statusDowngraded: shouldDowngrade,
       },
     });
+
+    this.logPaymentAdjustments(paymentAdjustments, adminId, 'ADMIN');
 
     return updated;
   }
