@@ -95,6 +95,13 @@ enum PaymentStatus {
   PARTIAL
 }
 
+enum PurchaseOrderStatus {
+  PENDING
+  PARTIALLY_RECEIVED
+  FULLY_RECEIVED
+  CANCELLED
+}
+
 // ─── ADMIN ──────────────────────────────────────────
 
 model Admin {
@@ -133,8 +140,9 @@ model Site {
   requisitions  Requisition[]
   stockOuts     StockOut[]
   siteAccess    SiteEmployeeAccess[]
-  migrationsOut StockMigration[]     @relation("MigrationSourceSite")
-  migrationsIn  StockMigration[]     @relation("MigrationDestSite")
+  migrationsOut  StockMigration[]     @relation("MigrationSourceSite")
+  migrationsIn   StockMigration[]     @relation("MigrationDestSite")
+  purchaseOrders PurchaseOrder[]
 
   @@index([adminId])
   @@map("Site")
@@ -248,6 +256,7 @@ model Supplier {
   stockSuppliers StockSupplier[]
   payments       SupplierPayment[]
   requisitions   Requisition[]
+  purchaseOrders PurchaseOrder[]
 
   @@index([adminId])
   @@map("Supplier")
@@ -263,7 +272,8 @@ model Category {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  stocks Stock[]
+  stocks             Stock[]
+  purchaseOrderItems PurchaseOrderItem[]
 
   @@index([adminId])
   @@map("Category")
@@ -301,8 +311,9 @@ model Stock {
   payments         SupplierPayment[]
   stockOuts        StockOut[]
   stockSuppliers   StockSupplier[]
-  migrationsOut    StockMigration[]  @relation("MigrationSourceStock")
-  migrationsIn     StockMigration[]  @relation("MigrationDestStock")
+  migrationsOut      StockMigration[]    @relation("MigrationSourceStock")
+  migrationsIn       StockMigration[]    @relation("MigrationDestStock")
+  purchaseOrderItems PurchaseOrderItem[]
 
   @@unique([itemName, siteId])
   @@index([adminId])
@@ -441,6 +452,59 @@ model ReceivingLog {
   @@map("ReceivingLog")
 }
 
+// ─── PURCHASE ORDERS ────────────────────────────────
+
+model PurchaseOrder {
+  id               String              @id @default(cuid())
+  supplierId       String
+  siteId           String?
+  reference        String?             @unique
+  status           PurchaseOrderStatus @default(PENDING)
+  notes            String?             @db.Text
+  createdByAdminId String
+  date             DateTime            @default(now())
+  expectedDate     DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  deletedAt        DateTime?
+
+  supplier Supplier            @relation(fields: [supplierId], references: [id])
+  site     Site?               @relation(fields: [siteId], references: [id])
+  items    PurchaseOrderItem[]
+
+  @@index([supplierId])
+  @@index([siteId])
+  @@map("PurchaseOrder")
+}
+
+model PurchaseOrderItem {
+  id              String          @id @default(cuid())
+  purchaseOrderId String
+  stockId         String?
+  categoryId      String?
+  itemName        String
+  description     String?         @db.Text
+  quantity        Decimal         @db.Decimal(14, 4)
+  unit            String?
+  unitCost        Decimal?        @db.Decimal(14, 2)
+  receivedQty     Decimal         @default(0) @db.Decimal(14, 4)
+  receivingStatus ReceivingStatus @default(NOT_RECEIVED)
+  paymentType     String          @default("NONE")
+  notes           String?         @db.Text
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  purchaseOrder PurchaseOrder     @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  stock         Stock?            @relation(fields: [stockId], references: [id])
+  category      Category?         @relation(fields: [categoryId], references: [id])
+  payments      SupplierPayment[]
+
+  @@index([purchaseOrderId])
+  @@index([stockId])
+  @@index([categoryId])
+  @@map("PurchaseOrderItem")
+}
+
 // ─── PERMISSIONS ────────────────────────────────────
 
 model Permission {
@@ -499,10 +563,11 @@ model Unit {
 
 model SupplierPayment {
   id                String         @id @default(cuid())
-  supplierId        String
-  stockId           String?
-  requisitionItemId String?
-  type              PaymentType
+  supplierId          String
+  stockId             String?
+  requisitionItemId   String?
+  purchaseOrderItemId String?
+  type                PaymentType
   amount            Decimal        @db.Decimal(14, 2)
   quantity          Decimal?       @db.Decimal(14, 4)
   reference         String?        @db.Text
@@ -515,13 +580,15 @@ model SupplierPayment {
   updatedAt         DateTime       @updatedAt
   deletedAt         DateTime?
 
-  supplier        Supplier         @relation(fields: [supplierId], references: [id])
-  stock           Stock?           @relation(fields: [stockId], references: [id])
-  requisitionItem RequisitionItem? @relation(fields: [requisitionItemId], references: [id])
+  supplier          Supplier           @relation(fields: [supplierId], references: [id])
+  stock             Stock?             @relation(fields: [stockId], references: [id])
+  requisitionItem   RequisitionItem?   @relation(fields: [requisitionItemId], references: [id])
+  purchaseOrderItem PurchaseOrderItem? @relation(fields: [purchaseOrderItemId], references: [id])
 
   @@index([supplierId])
   @@index([stockId])
   @@index([requisitionItemId])
+  @@index([purchaseOrderItemId])
   @@map("SupplierPayment")
 }
 
@@ -560,6 +627,26 @@ model ActivityLog {
   @@index([performedById])
   @@index([createdAt])
   @@map("ActivityLog")
+}
+
+// ─── IMPORT SNAPSHOT ────────────────────────────────
+
+model ImportSnapshot {
+  id               String    @id @default(cuid())
+  createdAt        DateTime  @default(now())
+  performedById    String
+  performedByName  String
+  fileName         String    @default("backup.json")
+  strategy         String    @default("SKIP")
+  groups           Json?
+  summary          Json
+  createdIds       Json
+  status           String    @default("active")
+  rolledBackAt     DateTime?
+  rolledBackById   String?
+  rolledBackByName String?
+
+  @@map("ImportSnapshot")
 }
 
 // ─── PUSH SUBSCRIPTIONS ─────────────────────────────

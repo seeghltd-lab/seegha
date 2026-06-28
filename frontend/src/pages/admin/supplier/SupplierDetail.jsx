@@ -5,10 +5,12 @@ import {
   Package, CreditCard, ArrowUpCircle, ArrowDownCircle, ChevronDown,
   X, RefreshCw, Plus, AlertCircle, CheckCircle,
   TrendingDown, Edit2, List, LayoutGrid, ChevronLeft, ChevronRight, Calendar, Printer, BadgeCheck, Search, Trash2,
+  ShoppingCart, ClipboardList,
 } from 'lucide-react';
 import supplierService from '../../../services/supplierService';
+import purchaseOrderService from '../../../services/purchaseOrderService';
 import { useRole } from '../../../hooks/useRole';
-import { buildPaymentReceipt, buildGroupReceipt, buildRequisitionReceipt, SupplierReceiptModal } from '../../../components/ReceiptModal';
+import { buildPaymentReceipt, buildGroupReceipt, buildRequisitionReceipt, buildPOReceipt, SupplierReceiptModal } from '../../../components/ReceiptModal';
 
 // --- Helpers -----------------------------------------------------------------
 
@@ -1352,6 +1354,9 @@ function PaymentRow({ p, supplier, onReceipt, onEdit, onDelete, selected, onTogg
             {p.requisitionItemId && (
               <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--accent)', background: 'color-mix(in oklch, var(--accent) 10%, transparent)', padding: '1px 4px', borderRadius: 3, display: 'inline-block' }}>REQ</span>
             )}
+            {p.purchaseOrderItemId && (
+              <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--success)', background: 'color-mix(in oklch, var(--success) 10%, transparent)', padding: '1px 4px', borderRadius: 3, display: 'inline-block' }}>PO</span>
+            )}
           </div>
         </td>
         <td>
@@ -1827,12 +1832,384 @@ function TabFinance({ supplier, onRecordPayment, onRefresh, onBulkPay, onEditPay
   );
 }
 
+// --- Purchase Orders Tab ------------------------------------------------------
+
+const PO_STATUS_BADGE = {
+  PENDING:            'stoq-badge stoq-badge--warning',
+  PARTIALLY_RECEIVED: 'stoq-badge stoq-badge--accent',
+  FULLY_RECEIVED:     'stoq-badge stoq-badge--success',
+  CANCELLED:          'stoq-badge stoq-badge--danger',
+};
+const PO_STATUS_LABEL = {
+  PENDING: 'Pending',
+  PARTIALLY_RECEIVED: 'Partial',
+  FULLY_RECEIVED: 'Received',
+  CANCELLED: 'Cancelled',
+};
+const RECV_BADGE = {
+  NOT_RECEIVED:       'stoq-badge',
+  PARTIALLY_RECEIVED: 'stoq-badge stoq-badge--warning',
+  FULLY_RECEIVED:     'stoq-badge stoq-badge--success',
+};
+const RECV_LABEL = {
+  NOT_RECEIVED: 'Pending',
+  PARTIALLY_RECEIVED: 'Partial',
+  FULLY_RECEIVED: 'Received',
+};
+
+function PODetailModal({ po: initialPO, supplier, onClose, onRefresh, showToast }) {
+  const navigate = useNavigate();
+  const { path } = useRole();
+  const [po, setPO] = useState(initialPO);
+  const [receipt, setReceipt] = useState(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [settingPaymentType, setSettingPaymentType] = useState(null);
+
+  const reload = useCallback(async () => {
+    try {
+      const updated = await purchaseOrderService.getOne(po.id);
+      setPO(updated);
+    } catch {}
+  }, [po.id]);
+
+  const handleSetPaymentType = async (item, value) => {
+    setSettingPaymentType(item.id);
+    try {
+      await purchaseOrderService.setItemPaymentType(po.id, item.id, value);
+      await reload();
+      showToast('Payment type updated');
+    } catch (err) {
+      showToast(err?.response?.data?.message || 'Failed to update', 'error');
+    } finally {
+      setSettingPaymentType(null);
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!window.confirm('Cancel this purchase order?')) return;
+    setCancelling(true);
+    try {
+      await purchaseOrderService.cancel(po.id);
+      showToast('Purchase order cancelled');
+      onRefresh();
+      await reload();
+    } catch (err) {
+      showToast(err?.response?.data?.message || 'Failed to cancel', 'error');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  const totalOrdered = (po.items || []).reduce((s, i) => {
+    return s + (i.unitCost ? parseFloat(i.quantity) * parseFloat(i.unitCost) : 0);
+  }, 0);
+
+  const canCancel = po.status === 'PENDING' && !(po.items || []).some(i => parseFloat(i.receivedQty) > 0);
+
+  return (
+    <div className="stoq-modal-backdrop" style={{ zIndex: 1050 }}>
+      <div className="stoq-modal" style={{ maxWidth: 940, width: '100%' }}>
+        <div className="stoq-modal__head">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div>
+              <div className="stoq-modal__title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {po.reference}
+                <span className={PO_STATUS_BADGE[po.status] || 'stoq-badge'}>{PO_STATUS_LABEL[po.status] || po.status}</span>
+              </div>
+              <div className="stoq-modal__sub">
+                {supplier?.name} · {fmtDate(po.date)}
+                {po.expectedDate && <> · Expected: {fmtDate(po.expectedDate)}</>}
+              </div>
+            </div>
+          </div>
+          <button className="stoq-btn stoq-btn--ghost stoq-btn--icon" onClick={onClose}><X size={14} /></button>
+        </div>
+
+        <div className="stoq-modal__body" style={{ padding: 0, maxHeight: '70vh', overflowY: 'auto' }}>
+          {po.notes && (
+            <div style={{ padding: '10px 20px', background: 'color-mix(in oklch, var(--warning) 8%, transparent)', borderBottom: '1px solid var(--border)', fontSize: 13, color: 'var(--fg-muted)' }}>
+              <strong>Notes:</strong> {po.notes}
+            </div>
+          )}
+          <div style={{ overflowX: 'auto' }}>
+            <table className="stoq-tbl" style={{ minWidth: 820 }}>
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th className="num-cell">Ordered</th>
+                  <th className="num-cell">Received</th>
+                  <th className="num-cell">Remaining</th>
+                  <th>Unit</th>
+                  <th className="num-cell">Unit Cost</th>
+                  <th className="num-cell">Total</th>
+                  <th>Pay Type</th>
+                  <th>Status</th>
+                  <th style={{ width: 90 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {(po.items || []).map(item => {
+                  const ordered = parseFloat(item.quantity);
+                  const received = parseFloat(item.receivedQty);
+                  const remaining = ordered - received;
+                  const total = item.unitCost ? ordered * parseFloat(item.unitCost) : null;
+                  const canReceive = po.status !== 'CANCELLED' && item.receivingStatus !== 'FULLY_RECEIVED';
+                  const payTypeDisabled = received > 0 || settingPaymentType === item.id;
+                  return (
+                    <tr key={item.id}>
+                      <td>
+                        <div className="cell-stack__main">{item.itemName}</div>
+                        {item.description && <div className="cell-stack__sub">{item.description}</div>}
+                        {item.notes && <div className="cell-stack__sub" style={{ fontStyle: 'italic' }}>{item.notes}</div>}
+                      </td>
+                      <td className="num-cell">{ordered}</td>
+                      <td className="num-cell" style={{ color: received > 0 ? 'var(--success)' : undefined }}>{received}</td>
+                      <td className="num-cell" style={{ color: remaining > 0 ? 'var(--accent)' : 'var(--fg-subtle)' }}>{remaining}</td>
+                      <td style={{ fontSize: 12, color: 'var(--fg-muted)' }}>{item.unit || '—'}</td>
+                      <td className="num-cell" style={{ fontSize: 12 }}>{item.unitCost ? fmt(item.unitCost) : '—'}</td>
+                      <td className="num-cell" style={{ fontWeight: 600 }}>{total ? fmt(total) : '—'}</td>
+                      <td>
+                        <select
+                          className="stoq-select"
+                          style={{ fontSize: 11, padding: '2px 6px', minWidth: 80 }}
+                          value={item.paymentType}
+                          disabled={payTypeDisabled}
+                          onChange={e => handleSetPaymentType(item, e.target.value)}
+                        >
+                          <option value="NONE">None</option>
+                          <option value="CREDIT">Credit</option>
+                          <option value="DEBIT">Debit</option>
+                        </select>
+                      </td>
+                      <td>
+                        <span className={RECV_BADGE[item.receivingStatus] || 'stoq-badge'} style={{ fontSize: 10 }}>
+                          {RECV_LABEL[item.receivingStatus] || item.receivingStatus}
+                        </span>
+                      </td>
+                      <td>
+                        {canReceive && (
+                          <button
+                            className="stoq-btn stoq-btn--sm"
+                            style={{ fontSize: 11 }}
+                            onClick={() => { onClose(); navigate(path(`/purchase-orders/${po.id}/receive`)); }}
+                          >
+                            Receive
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="stoq-modal__foot" style={{ justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {canCancel && (
+              <button className="stoq-btn stoq-btn--danger" onClick={handleCancel} disabled={cancelling}>
+                {cancelling ? 'Cancelling…' : 'Cancel PO'}
+              </button>
+            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {totalOrdered > 0 && (
+              <span style={{ fontSize: 13, fontWeight: 600 }}>Total: {fmt(totalOrdered)}</span>
+            )}
+            <button
+              className="stoq-btn stoq-btn--ghost"
+              onClick={() => setReceipt(buildPOReceipt(po, supplier))}
+            >
+              <Printer size={13} /> Print Receipt
+            </button>
+            <button className="stoq-btn" onClick={onClose}>Close</button>
+          </div>
+        </div>
+      </div>
+
+      {receipt && <SupplierReceiptModal data={receipt} supplier={supplier} onClose={() => setReceipt(null)} />}
+    </div>
+  );
+}
+
+function TabPurchaseOrders({ supplier, showToast, onRefresh }) {
+  const navigate = useNavigate();
+  const { path } = useRole();
+  const [pos, setPOs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [page, setPage] = useState(1);
+  const [selectedPO, setSelectedPO] = useState(null);
+  const PAGE = 10;
+
+  const loadPOs = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await purchaseOrderService.getAll({ supplierId: supplier.id, limit: 200 });
+      setPOs(data.purchaseOrders ?? data ?? []);
+    } catch {
+      showToast('Failed to load purchase orders', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [supplier.id]);
+
+  useEffect(() => { loadPOs(); }, [loadPOs]);
+
+  const filtered = pos.filter(po => {
+    if (statusFilter && po.status !== statusFilter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      return (po.reference || '').toLowerCase().includes(q) || (po.notes || '').toLowerCase().includes(q);
+    }
+    return true;
+  });
+
+  const totalPages = Math.ceil(filtered.length / PAGE);
+  const paged = filtered.slice((page - 1) * PAGE, page * PAGE);
+
+  const totalValue = pos.reduce((s, po) => {
+    return s + (po.items || []).reduce((si, i) => si + (i.unitCost ? parseFloat(i.quantity) * parseFloat(i.unitCost) : 0), 0);
+  }, 0);
+  const pendingCount = pos.filter(p => p.status === 'PENDING').length;
+  const receivedCount = pos.filter(p => p.status === 'FULLY_RECEIVED').length;
+
+  if (loading) {
+    return <div className="stoq-panel" style={{ padding: 40, textAlign: 'center', color: 'var(--fg-muted)' }}>Loading purchase orders…</div>;
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="kpi-grid kpi-grid--3">
+        <div className="kpi">
+          <div className="kpi__label">Total POs</div>
+          <div className="kpi__value">{pos.length}</div>
+        </div>
+        <div className="kpi">
+          <div className="kpi__label">Pending</div>
+          <div className="kpi__value" style={{ color: 'var(--warning)' }}>{pendingCount}</div>
+        </div>
+        <div className="kpi">
+          <div className="kpi__label">Received</div>
+          <div className="kpi__value" style={{ color: 'var(--success)' }}>{receivedCount}</div>
+        </div>
+      </div>
+
+      <div className="stoq-panel">
+        <div className="stoq-toolbar">
+          <div className="stoq-toolbar__search">
+            <Search size={13} style={{ color: 'var(--fg-muted)' }} />
+            <input
+              className="stoq-input stoq-input--search"
+              placeholder="Search POs…"
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
+            />
+          </div>
+          <div className="stoq-segment">
+            {['', 'PENDING', 'PARTIALLY_RECEIVED', 'FULLY_RECEIVED', 'CANCELLED'].map(s => (
+              <button
+                key={s}
+                data-active={String(statusFilter === s)}
+                onClick={() => { setStatusFilter(s); setPage(1); }}
+              >
+                {s === '' ? 'All' : PO_STATUS_LABEL[s] || s}
+              </button>
+            ))}
+          </div>
+          <div style={{ flex: 1 }} />
+          <button className="stoq-btn stoq-btn--icon" onClick={loadPOs}><RefreshCw size={13} /></button>
+          <button className="stoq-btn stoq-btn--primary" onClick={() => navigate(path(`/purchase-orders/create?supplierId=${supplier.id}`))}>
+            <Plus size={13} /> New PO
+          </button>
+        </div>
+
+        {paged.length === 0 ? (
+          <div style={{ padding: '60px 24px', textAlign: 'center' }}>
+            <ShoppingCart size={32} style={{ color: 'var(--fg-subtle)', marginBottom: 12 }} />
+            <div style={{ color: 'var(--fg-muted)', marginBottom: 16 }}>
+              {filtered.length === 0 && pos.length === 0 ? 'No purchase orders yet' : 'No results match your filter'}
+            </div>
+            {pos.length === 0 && (
+              <button className="stoq-btn stoq-btn--primary" onClick={() => navigate(path(`/purchase-orders/create?supplierId=${supplier.id}`))}>
+                <Plus size={13} /> Create Purchase Order
+              </button>
+            )}
+          </div>
+        ) : (
+          <table className="stoq-tbl">
+            <thead>
+              <tr>
+                <th>Reference</th>
+                <th>Date</th>
+                <th>Expected</th>
+                <th className="num-cell">Items</th>
+                <th className="num-cell">Total Value</th>
+                <th>Status</th>
+                <th style={{ width: 110 }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {paged.map(po => {
+                const poTotal = (po.items || []).reduce((s, i) => s + (i.unitCost ? parseFloat(i.quantity) * parseFloat(i.unitCost) : 0), 0);
+                return (
+                  <tr key={po.id} style={{ cursor: 'pointer' }} onClick={() => setSelectedPO(po)}>
+                    <td>
+                      <div className="cell-stack__main" style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{po.reference}</div>
+                      {po.notes && <div className="cell-stack__sub">{po.notes.slice(0, 50)}{po.notes.length > 50 ? '…' : ''}</div>}
+                    </td>
+                    <td style={{ fontSize: 12, color: 'var(--fg-muted)' }}>{fmtDate(po.date)}</td>
+                    <td style={{ fontSize: 12, color: 'var(--fg-muted)' }}>{po.expectedDate ? fmtDate(po.expectedDate) : '—'}</td>
+                    <td className="num-cell">{(po._count?.items ?? po.items?.length) || 0}</td>
+                    <td className="num-cell" style={{ fontWeight: 600 }}>{poTotal > 0 ? fmt(poTotal) : '—'}</td>
+                    <td><span className={PO_STATUS_BADGE[po.status] || 'stoq-badge'}>{PO_STATUS_LABEL[po.status] || po.status}</span></td>
+                    <td onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 4, padding: '8px 10px' }}>
+                      <button
+                        className="stoq-btn stoq-btn--sm stoq-btn--ghost"
+                        onClick={() => setSelectedPO(po)}
+                        title="View details"
+                      >
+                        <ClipboardList size={13} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 8, padding: '12px 0', borderTop: '1px solid var(--border)' }}>
+            <button className="stoq-btn stoq-btn--ghost stoq-btn--icon" disabled={page === 1} onClick={() => setPage(p => p - 1)}><ChevronLeft size={14} /></button>
+            <span style={{ fontSize: 13, color: 'var(--fg-muted)', alignSelf: 'center' }}>{page} / {totalPages}</span>
+            <button className="stoq-btn stoq-btn--ghost stoq-btn--icon" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}><ChevronRight size={14} /></button>
+          </div>
+        )}
+      </div>
+
+      {selectedPO && (
+        <PODetailModal
+          po={selectedPO}
+          supplier={supplier}
+          onClose={() => setSelectedPO(null)}
+          onRefresh={() => { loadPOs(); onRefresh(); }}
+          showToast={showToast}
+        />
+      )}
+    </div>
+  );
+}
+
 // --- Main Page ----------------------------------------------------------------
 
 const TABS = [
   { id: 'info', label: 'Info', icon: Building2 },
   { id: 'items', label: 'Items & Requisitions', icon: Package },
   { id: 'finance', label: 'Finance', icon: CreditCard },
+  { id: 'purchase_orders', label: 'Purchase Orders', icon: ShoppingCart },
 ];
 
 export default function SupplierDetail() {
@@ -1998,6 +2375,9 @@ export default function SupplierDetail() {
           onBulkPay={(credits) => setBulkCreditItems(credits)}
           onEditPayment={(p) => setEditPayment(p)}
         />
+      )}
+      {activeTab === 'purchase_orders' && (
+        <TabPurchaseOrders supplier={supplier} showToast={showToast} onRefresh={load} />
       )}
 
       {showPayment && (

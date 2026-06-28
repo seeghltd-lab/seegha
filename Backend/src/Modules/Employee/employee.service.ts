@@ -35,10 +35,11 @@ export class EmployeeService {
     actorId?: string,
     actorName?: string,
   ) {
-    const existing = await this.prisma.employee.findUnique({
-      where: { email: data.email },
+    // Block if an active (non-deleted) employee already has this email.
+    const activeExisting = await this.prisma.employee.findFirst({
+      where: { email: data.email, deletedAt: null },
     });
-    if (existing) {
+    if (activeExisting) {
       throw new BadRequestException(
         'An employee with this email already exists',
       );
@@ -47,21 +48,48 @@ export class EmployeeService {
     const rawPassword = generatePassword();
     const hashedPassword = await bcrypt.hash(rawPassword, 10);
 
-    const employee = await this.prisma.employee.create({
-      data: {
-        firstName: data.firstName,
-        lastName: data.lastName,
-        email: data.email,
-        phone: data.phone,
-        position: data.position,
-        status: data.status || 'ACTIVE',
-        password: hashedPassword,
-        profilePicture: data.profilePicture ?? null,
-        idCardImage: data.idCardImage ?? null,
-        cvDocument: data.cvDocument ?? null,
-        supportingDocument: data.supportingDocument ?? null,
-      },
+    // If there is a soft-deleted record with this email, restore it with the
+    // new data instead of creating a duplicate (would violate the @unique constraint).
+    const softDeleted = await this.prisma.employee.findFirst({
+      where: { email: data.email, deletedAt: { not: null } },
     });
+
+    let employee: any;
+    if (softDeleted) {
+      employee = await this.prisma.employee.update({
+        where: { id: softDeleted.id },
+        data: {
+          firstName: data.firstName,
+          lastName: data.lastName,
+          phone: data.phone,
+          position: data.position,
+          status: data.status || 'ACTIVE',
+          password: hashedPassword,
+          isLocked: false,
+          deletedAt: null,
+          profilePicture: data.profilePicture ?? null,
+          idCardImage: data.idCardImage ?? null,
+          cvDocument: data.cvDocument ?? null,
+          supportingDocument: data.supportingDocument ?? null,
+        },
+      });
+    } else {
+      employee = await this.prisma.employee.create({
+        data: {
+          firstName: data.firstName,
+          lastName: data.lastName,
+          email: data.email,
+          phone: data.phone,
+          position: data.position,
+          status: data.status || 'ACTIVE',
+          password: hashedPassword,
+          profilePicture: data.profilePicture ?? null,
+          idCardImage: data.idCardImage ?? null,
+          cvDocument: data.cvDocument ?? null,
+          supportingDocument: data.supportingDocument ?? null,
+        },
+      });
+    }
 
     try {
       await this.emailService.sendStaffWelcomeEmail({
@@ -83,7 +111,12 @@ export class EmployeeService {
       performedById: actorId ?? 'system',
       performedByType: 'ADMIN',
       performedByName: actorName,
-      metadata: { email: employee.email, position: employee.position, status: employee.status },
+      metadata: {
+        email: employee.email,
+        position: employee.position,
+        status: employee.status,
+        ...(softDeleted ? { restored: true } : {}),
+      },
     });
 
     return employeeWithoutPassword;

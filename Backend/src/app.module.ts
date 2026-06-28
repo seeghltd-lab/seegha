@@ -22,6 +22,8 @@ import { UnitModule } from './Modules/Unit/unit.module';
 import { ActivityLogModule } from './Modules/ActivityLog/activity-log.module';
 import { WorkerCategoryModule } from './Modules/WorkerCategory/worker-category.module';
 import { CloudinaryModule } from './Global/cloudinary/cloudinary.module';
+import { DataExportModule } from './Modules/DataExport/data-export.module';
+import { PurchaseOrderModule } from './Modules/PurchaseOrder/purchase-order.module';
 
 @Module({
   imports: [
@@ -47,7 +49,9 @@ import { CloudinaryModule } from './Global/cloudinary/cloudinary.module';
     UnitModule,
     ActivityLogModule,
     WorkerCategoryModule,
-    CloudinaryModule
+    CloudinaryModule,
+    DataExportModule,
+    PurchaseOrderModule,
   ],
   controllers: [],
   providers: [],

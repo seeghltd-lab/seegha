@@ -57,6 +57,9 @@ const EmployeeRequisitionDetail = lazy(() => import("./pages/employee/Requisitio
 const RequisitionDetail   = lazy(() => import("./pages/admin/requisition/RequisitionDetail"));
 const CreateRequisition   = lazy(() => import("./pages/admin/requisition/CreateRequisition"));
 const EditRequisition     = lazy(() => import("./pages/admin/requisition/EditRequisition"));
+const DataExportPage      = lazy(() => import("./pages/admin/DataExportPage"));
+const CreatePurchaseOrder = lazy(() => import("./pages/admin/purchaseOrder/CreatePurchaseOrder"));
+const ReceivePurchaseOrder = lazy(() => import("./pages/admin/purchaseOrder/ReceivePurchaseOrder"));
 
 function NotificationBridge() {
   const { admin, isAuthenticated: adminAuth } = useAdminAuth();
@@ -119,6 +122,10 @@ function App() {
                     <Route path="/suppliers/edit/:id"        element={<AddEditSupplier />} />
                     <Route path="/suppliers/:id"             element={<SupplierDetail />} />
 
+                    {/* Purchase Orders */}
+                    <Route path="/purchase-orders/create"         element={<CreatePurchaseOrder />} />
+                    <Route path="/purchase-orders/:id/receive"    element={<ReceivePurchaseOrder />} />
+
                     {/* Sites — matches Sidebar path="/sites" */}
                     <Route path="/sites"                          element={<SiteManagement />} />
                     <Route path="/sites/add"                      element={<AddEditSite />} />
@@ -180,6 +187,12 @@ function App() {
                     <Route path="/admin/sites/:siteId/migrate-stock"  element={<MigrateStock />} />
                     <Route path="/admin/sites/:siteId/workers/add"    element={<SiteRecordWorkers />} />
                     <Route path="/admin/sites/:id"                    element={<SiteDetail />} />
+
+                    <Route path="/admin/data-export"                  element={<DataExportPage />} />
+
+                    {/* Purchase Orders */}
+                    <Route path="/admin/purchase-orders/create"       element={<CreatePurchaseOrder />} />
+                    <Route path="/admin/purchase-orders/:id/receive"  element={<ReceivePurchaseOrder />} />
 
                     <Route path="*" element={<NotFound />} />
                   </Route>

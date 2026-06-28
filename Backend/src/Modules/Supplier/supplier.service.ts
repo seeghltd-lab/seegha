@@ -186,6 +186,16 @@ export class SupplierService {
                 requisition: { select: { id: true, createdAt: true, status: true } },
               },
             },
+            purchaseOrderItem: {
+              select: {
+                id: true,
+                itemName: true,
+                quantity: true,
+                unit: true,
+                purchaseOrderId: true,
+                purchaseOrder: { select: { id: true, reference: true, status: true } },
+              },
+            },
           },
         },
         _count: { select: { stockSuppliers: true } },
@@ -440,6 +450,16 @@ export class SupplierService {
             unit: true,
             requisitionId: true,
             requisition: { select: { id: true, createdAt: true, status: true } },
+          },
+        },
+        purchaseOrderItem: {
+          select: {
+            id: true,
+            itemName: true,
+            quantity: true,
+            unit: true,
+            purchaseOrderId: true,
+            purchaseOrder: { select: { id: true, reference: true, status: true } },
           },
         },
       },

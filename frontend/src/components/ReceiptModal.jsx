@@ -773,6 +773,37 @@ export function SupplierReceiptModal({ data, supplier, onClose }) {
 }
 
 /**
+ * Build receipt data for a Purchase Order (ordering document)
+ */
+export function buildPOReceipt(po, supplierData) {
+  const items = (po.items ?? []).map((i) => ({
+    name:     i.itemName,
+    quantity: parseFloat(i.quantity),
+    unit:     i.unit || '',
+    unitCost: i.unitCost != null ? parseFloat(i.unitCost) : null,
+    total:    i.unitCost != null ? parseFloat(i.quantity) * parseFloat(i.unitCost) : null,
+    note:     i.notes || '',
+  }));
+  const totalAmount = items.reduce((s, i) => s + (i.total ?? 0), 0);
+  return {
+    id:           po.id,
+    type:         'PURCHASE_ORDER',
+    title:        'PURCHASE ORDER',
+    reference:    po.reference ?? `PO-${po.id.slice(-6).toUpperCase()}`,
+    issuedTo:     supplierData?.name ?? po.supplier?.name ?? '—',
+    issuedBy:     '—',
+    status:       po.status,
+    supplierName: supplierData?.name ?? po.supplier?.name ?? null,
+    createdAt:    po.date ?? po.createdAt,
+    completedAt:  po.status === 'FULLY_RECEIVED' ? po.updatedAt : null,
+    items,
+    totalAmount,
+    notes:        po.notes ?? null,
+    expectedDate: po.expectedDate ?? null,
+  };
+}
+
+/**
  * Build receipt data from a supplier payment object + supplier name
  */
 export function buildPaymentReceipt(payment, supplierName = '', linkedItems = []) {
