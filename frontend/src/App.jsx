@@ -58,6 +58,7 @@ const RequisitionDetail   = lazy(() => import("./pages/admin/requisition/Requisi
 const CreateRequisition   = lazy(() => import("./pages/admin/requisition/CreateRequisition"));
 const EditRequisition     = lazy(() => import("./pages/admin/requisition/EditRequisition"));
 const DataExportPage      = lazy(() => import("./pages/admin/DataExportPage"));
+const ReportsPage         = lazy(() => import("./pages/admin/ReportsPage"));
 const CreatePurchaseOrder = lazy(() => import("./pages/admin/purchaseOrder/CreatePurchaseOrder"));
 const ReceivePurchaseOrder = lazy(() => import("./pages/admin/purchaseOrder/ReceivePurchaseOrder"));
 
@@ -189,6 +190,7 @@ function App() {
                     <Route path="/admin/sites/:id"                    element={<SiteDetail />} />
 
                     <Route path="/admin/data-export"                  element={<DataExportPage />} />
+                    <Route path="/admin/reports"                       element={<ReportsPage />} />
 
                     {/* Purchase Orders */}
                     <Route path="/admin/purchase-orders/create"       element={<CreatePurchaseOrder />} />

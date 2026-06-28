@@ -203,6 +203,11 @@ export class AdminService {
         s.setDate(today.getDate() - 30);
         return { start: s, end: tomorrow };
       }
+      case 'quarter': {
+        const s = new Date(today);
+        s.setDate(today.getDate() - 90);
+        return { start: s, end: tomorrow };
+      }
       case 'year': {
         const s = new Date(today);
         s.setFullYear(today.getFullYear() - 1);
@@ -362,6 +367,406 @@ export class AdminService {
         itemCount: r._count.items,
         createdAt: r.createdAt,
       })),
+    };
+  }
+
+  async getReports(
+    adminId: string,
+    period = 'month',
+    fromDate?: string,
+    toDate?: string,
+  ) {
+    const { start, end } = this.getPeriodRange(period, fromDate, toDate);
+    const now = new Date();
+    const in90Days = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+
+    // ── Stock Health ────────────────────────────────────────────────
+    const [
+      stockAgg,
+      lowStockItems,
+      outOfStockItems,
+      expiringItems,
+      topValueItems,
+      categoryBreakdown,
+      materialCount,
+      equipmentCount,
+    ] = await Promise.all([
+      this.prisma.stock.aggregate({
+        where: { deletedAt: null },
+        _sum: { totalValue: true },
+        _count: { id: true },
+      }),
+      this.prisma.$queryRaw<{
+        id: string; sku: string; itemName: string; quantity: number;
+        reorderLevel: number; unit: string; categoryName: string | null; siteName: string | null;
+      }[]>`
+        SELECT s.id, s.sku, s.itemName, s.quantity, s.reorderLevel, s.unit,
+               c.name AS categoryName, si.name AS siteName
+        FROM Stock s
+        LEFT JOIN Category c ON s.categoryId = c.id
+        LEFT JOIN Site si ON s.siteId = si.id
+        WHERE s.deletedAt IS NULL AND s.quantity > 0 AND s.reorderLevel > 0
+          AND s.quantity <= s.reorderLevel
+        ORDER BY (s.reorderLevel - s.quantity) DESC
+        LIMIT 50
+      `,
+      this.prisma.$queryRaw<{
+        id: string; sku: string; itemName: string; unit: string;
+        categoryName: string | null; siteName: string | null;
+      }[]>`
+        SELECT s.id, s.sku, s.itemName, s.unit,
+               c.name AS categoryName, si.name AS siteName
+        FROM Stock s
+        LEFT JOIN Category c ON s.categoryId = c.id
+        LEFT JOIN Site si ON s.siteId = si.id
+        WHERE s.deletedAt IS NULL AND s.quantity = 0
+        ORDER BY s.itemName ASC
+        LIMIT 50
+      `,
+      this.prisma.$queryRaw<{
+        id: string; sku: string; itemName: string; quantity: number; unit: string;
+        expiryDate: Date; siteName: string | null;
+      }[]>`
+        SELECT s.id, s.sku, s.itemName, s.quantity, s.unit, s.expiryDate,
+               si.name AS siteName
+        FROM Stock s
+        LEFT JOIN Site si ON s.siteId = si.id
+        WHERE s.deletedAt IS NULL AND s.expiryDate IS NOT NULL
+          AND s.expiryDate > ${now} AND s.expiryDate <= ${in90Days}
+        ORDER BY s.expiryDate ASC
+        LIMIT 30
+      `,
+      this.prisma.$queryRaw<{
+        id: string; sku: string; itemName: string; totalValue: number;
+        quantity: number; unit: string;
+      }[]>`
+        SELECT id, sku, itemName, CAST(totalValue AS DECIMAL(14,2)) AS totalValue,
+               quantity, unit
+        FROM Stock
+        WHERE deletedAt IS NULL
+        ORDER BY CAST(totalValue AS DECIMAL(14,2)) DESC
+        LIMIT 10
+      `,
+      this.prisma.$queryRaw<{
+        categoryName: string; count: bigint; totalValue: number;
+      }[]>`
+        SELECT COALESCE(c.name, 'Uncategorised') AS categoryName,
+               COUNT(s.id) AS count,
+               SUM(CAST(s.totalValue AS DECIMAL(14,2))) AS totalValue
+        FROM Stock s
+        LEFT JOIN Category c ON s.categoryId = c.id
+        WHERE s.deletedAt IS NULL
+        GROUP BY c.name
+        ORDER BY totalValue DESC
+      `,
+      this.prisma.stock.count({ where: { deletedAt: null, stockType: 'MATERIAL' } }),
+      this.prisma.stock.count({ where: { deletedAt: null, stockType: 'EQUIPMENT' } }),
+    ]);
+
+    // ── Stock Movements (period) ────────────────────────────────────
+    const [rawMovements, rawTopOut, pendingMigrations, movTotals] = await Promise.all([
+      this.prisma.$queryRaw<{ date: Date; movementType: string; qty: bigint }[]>`
+        SELECT DATE(sh.createdAt) AS date, sh.movementType,
+               SUM(ABS(sh.qtyChange)) AS qty
+        FROM StockHistory sh
+        WHERE sh.createdAt >= ${start} AND sh.createdAt < ${end}
+        GROUP BY DATE(sh.createdAt), sh.movementType
+        ORDER BY DATE(sh.createdAt) ASC
+      `,
+      this.prisma.$queryRaw<{ itemName: string; totalOut: bigint }[]>`
+        SELECT s.itemName, SUM(ABS(sh.qtyChange)) AS totalOut
+        FROM StockHistory sh
+        JOIN Stock s ON sh.stockId = s.id
+        WHERE sh.createdAt >= ${start} AND sh.createdAt < ${end}
+          AND sh.movementType = 'OUT'
+        GROUP BY s.itemName
+        ORDER BY totalOut DESC
+        LIMIT 10
+      `,
+      this.prisma.stockMigration.findMany({
+        where: { status: 'IN_TRANSIT' },
+        select: {
+          id: true, quantity: true, unit: true, status: true, createdAt: true,
+          stock: { select: { itemName: true } },
+          sourceSite: { select: { name: true } },
+          destinationSite: { select: { name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      }),
+      this.prisma.$queryRaw<{ movementType: string; total: bigint }[]>`
+        SELECT movementType, SUM(ABS(qtyChange)) AS total
+        FROM StockHistory
+        WHERE createdAt >= ${start} AND createdAt < ${end}
+          AND movementType IN ('IN', 'OUT', 'ADJUSTMENT')
+        GROUP BY movementType
+      `,
+    ]);
+
+    const movementMap = new Map<string, { in: number; out: number }>();
+    for (const m of rawMovements) {
+      const dateStr = new Date(m.date).toISOString().slice(0, 10);
+      if (!movementMap.has(dateStr)) movementMap.set(dateStr, { in: 0, out: 0 });
+      const entry = movementMap.get(dateStr)!;
+      if (m.movementType === 'IN') entry.in += Number(m.qty);
+      if (m.movementType === 'OUT') entry.out += Number(m.qty);
+    }
+    const dailyTrend = Array.from(movementMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, vals]) => ({ date, ...vals }));
+
+    const totalsMap = new Map(movTotals.map((t) => [t.movementType, Number(t.total)]));
+
+    // ── Stockouts ───────────────────────────────────────────────────
+    const activeStockOuts = await this.prisma.stockOut.findMany({
+      where: { status: 'OUT' },
+      select: {
+        id: true, quantity: true, unit: true, date: true,
+        recordedByName: true, notes: true,
+        stock: { select: { itemName: true, sku: true } },
+        site: { select: { id: true, name: true } },
+      },
+      orderBy: { date: 'desc' },
+      take: 100,
+    });
+
+    const stockOutBySite = new Map<string, { siteName: string; count: number; totalQty: number }>();
+    for (const so of activeStockOuts) {
+      const key = so.site?.id ?? 'unknown';
+      if (!stockOutBySite.has(key)) {
+        stockOutBySite.set(key, { siteName: so.site?.name ?? 'Unknown', count: 0, totalQty: 0 });
+      }
+      const entry = stockOutBySite.get(key)!;
+      entry.count += 1;
+      entry.totalQty += Number(so.quantity);
+    }
+
+    // ── Purchase Orders ─────────────────────────────────────────────
+    const [poStatusCounts, overdueOrders, recentOrders] = await Promise.all([
+      this.prisma.$queryRaw<{ status: string; count: bigint }[]>`
+        SELECT status, COUNT(*) AS count FROM PurchaseOrder GROUP BY status
+      `,
+      this.prisma.purchaseOrder.findMany({
+        where: {
+          status: { notIn: ['FULLY_RECEIVED', 'CANCELLED'] },
+          expectedDate: { lt: now, not: null },
+        },
+        select: {
+          id: true, reference: true, status: true, expectedDate: true, date: true,
+          supplier: { select: { name: true } },
+          _count: { select: { items: true } },
+        },
+        orderBy: { expectedDate: 'asc' },
+        take: 20,
+      }),
+      this.prisma.purchaseOrder.findMany({
+        select: {
+          id: true, reference: true, status: true, date: true,
+          supplier: { select: { name: true } },
+          _count: { select: { items: true } },
+        },
+        orderBy: { date: 'desc' },
+        take: 10,
+      }),
+    ]);
+
+    // ── Suppliers ───────────────────────────────────────────────────
+    const [supplierStatusCounts, outstandingPayments, topSuppliers] = await Promise.all([
+      this.prisma.$queryRaw<{ status: string; count: bigint }[]>`
+        SELECT status, COUNT(*) AS count FROM Supplier GROUP BY status
+      `,
+      this.prisma.$queryRaw<[{ outstanding: number }]>`
+        SELECT COALESCE(SUM(CAST(amount AS DECIMAL(14,2)) - CAST(paidAmount AS DECIMAL(14,2))), 0) AS outstanding
+        FROM SupplierPayment
+        WHERE status IN ('UNPAID', 'PARTIAL')
+      `,
+      this.prisma.$queryRaw<{ supplierId: string; supplierName: string; orderCount: bigint; totalValue: number }[]>`
+        SELECT po.supplierId, s.name AS supplierName,
+               COUNT(po.id) AS orderCount,
+               COALESCE(SUM(poi.quantity * poi.unitCost), 0) AS totalValue
+        FROM PurchaseOrder po
+        JOIN Supplier s ON po.supplierId = s.id
+        LEFT JOIN PurchaseOrderItem poi ON poi.purchaseOrderId = po.id
+        GROUP BY po.supplierId, s.name
+        ORDER BY orderCount DESC
+        LIMIT 5
+      `,
+    ]);
+
+    // ── Requisitions ────────────────────────────────────────────────
+    const [reqStatusCounts, pendingApprovals] = await Promise.all([
+      this.prisma.$queryRaw<{ status: string; count: bigint }[]>`
+        SELECT status, COUNT(*) AS count FROM Requisition GROUP BY status
+      `,
+      this.prisma.requisition.findMany({
+        where: { status: 'PENDING' },
+        select: {
+          id: true, createdAt: true,
+          employee: { select: { firstName: true, lastName: true, position: true } },
+          _count: { select: { items: true } },
+        },
+        orderBy: { createdAt: 'asc' },
+        take: 5,
+      }),
+    ]);
+
+    // ── Sites ───────────────────────────────────────────────────────
+    const [siteStatusCounts, allSites, siteValueRows, siteExpenseRows, latestWorkerRows] =
+      await Promise.all([
+        this.prisma.$queryRaw<{ status: string; count: bigint }[]>`
+          SELECT status, COUNT(*) AS count FROM Site GROUP BY status
+        `,
+        this.prisma.site.findMany({
+          select: { id: true, name: true, status: true, _count: { select: { stocks: true } } },
+          orderBy: { name: 'asc' },
+        }),
+        this.prisma.$queryRaw<{ siteId: string; total: number }[]>`
+          SELECT siteId, SUM(CAST(totalValue AS DECIMAL(14,2))) AS total
+          FROM Stock WHERE deletedAt IS NULL AND siteId IS NOT NULL GROUP BY siteId
+        `,
+        this.prisma.$queryRaw<{ siteId: string; total: number }[]>`
+          SELECT siteId, SUM(CAST(amount AS DECIMAL(14,2))) AS total
+          FROM SiteExpense
+          WHERE createdAt >= ${start} AND createdAt < ${end}
+          GROUP BY siteId
+        `,
+        this.prisma.$queryRaw<{ siteId: string; workerCount: number }[]>`
+          SELECT siteId, workerCount
+          FROM SiteWorkerRecord sw1
+          WHERE createdAt = (
+            SELECT MAX(sw2.createdAt) FROM SiteWorkerRecord sw2 WHERE sw2.siteId = sw1.siteId
+          )
+        `,
+      ]);
+
+    const siteValueMap = new Map(siteValueRows.map((r) => [r.siteId, Number(r.total)]));
+    const siteExpenseMap = new Map(siteExpenseRows.map((r) => [r.siteId, Number(r.total)]));
+    const siteWorkerMap = new Map(latestWorkerRows.map((r) => [r.siteId, r.workerCount]));
+
+    return {
+      period: { label: period, from: start.toISOString(), to: end.toISOString() },
+
+      stock: {
+        totalSKUs: stockAgg._count.id,
+        totalValue: Number(stockAgg._sum.totalValue ?? 0),
+        lowStockItems: (lowStockItems as any[]).map((s) => ({
+          id: s.id, sku: s.sku, itemName: s.itemName,
+          quantity: Number(s.quantity), reorderLevel: Number(s.reorderLevel),
+          unit: s.unit, categoryName: s.categoryName, siteName: s.siteName,
+          deficit: Number(s.reorderLevel) - Number(s.quantity),
+        })),
+        outOfStockItems: (outOfStockItems as any[]).map((s) => ({
+          id: s.id, sku: s.sku, itemName: s.itemName,
+          unit: s.unit, categoryName: s.categoryName, siteName: s.siteName,
+        })),
+        expiringItems: (expiringItems as any[]).map((s) => {
+          const daysLeft = Math.ceil(
+            (new Date(s.expiryDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+          );
+          return {
+            id: s.id, sku: s.sku, itemName: s.itemName,
+            quantity: Number(s.quantity), unit: s.unit,
+            expiryDate: s.expiryDate, daysLeft, siteName: s.siteName,
+          };
+        }),
+        topValueItems: (topValueItems as any[]).map((s) => ({
+          id: s.id, sku: s.sku, itemName: s.itemName,
+          totalValue: Number(s.totalValue), quantity: Number(s.quantity), unit: s.unit,
+        })),
+        categoryBreakdown: (categoryBreakdown as any[]).map((c) => ({
+          categoryName: c.categoryName,
+          count: Number(c.count),
+          totalValue: Number(c.totalValue ?? 0),
+        })),
+        byType: { MATERIAL: materialCount, EQUIPMENT: equipmentCount },
+      },
+
+      movements: {
+        totalIn: totalsMap.get('IN') ?? 0,
+        totalOut: totalsMap.get('OUT') ?? 0,
+        totalAdjustments: totalsMap.get('ADJUSTMENT') ?? 0,
+        dailyTrend,
+        topOutItems: rawTopOut.map((r) => ({
+          itemName: r.itemName,
+          totalOut: Number(r.totalOut),
+        })),
+        pendingMigrations: pendingMigrations.map((m) => ({
+          id: m.id, quantity: m.quantity, unit: m.unit, status: m.status,
+          itemName: m.stock?.itemName ?? '—',
+          fromSite: m.sourceSite?.name ?? '—',
+          toSite: m.destinationSite?.name ?? '—',
+          createdAt: m.createdAt,
+        })),
+      },
+
+      stockOuts: {
+        totalActive: activeStockOuts.length,
+        activeItems: activeStockOuts.map((so) => ({
+          id: so.id, quantity: Number(so.quantity), unit: so.unit,
+          date: so.date, recordedByName: so.recordedByName, notes: so.notes,
+          itemName: so.stock?.itemName ?? '—', sku: so.stock?.sku ?? '—',
+          siteName: so.site?.name ?? '—',
+        })),
+        bySite: Array.from(stockOutBySite.values()).sort((a, b) => b.count - a.count),
+      },
+
+      purchaseOrders: {
+        statusCounts: Object.fromEntries(
+          poStatusCounts.map((r) => [r.status, Number(r.count)]),
+        ),
+        overdueOrders: overdueOrders.map((po) => ({
+          id: po.id, reference: po.reference, status: po.status,
+          expectedDate: po.expectedDate,
+          daysPastDue: po.expectedDate
+            ? Math.floor((now.getTime() - new Date(po.expectedDate).getTime()) / 86_400_000)
+            : 0,
+          supplierName: po.supplier?.name ?? '—',
+          itemCount: po._count.items,
+        })),
+        recentOrders: recentOrders.map((po) => ({
+          id: po.id, reference: po.reference, status: po.status, date: po.date,
+          supplierName: po.supplier?.name ?? '—',
+          itemCount: po._count.items,
+        })),
+      },
+
+      suppliers: {
+        statusCounts: Object.fromEntries(
+          supplierStatusCounts.map((r) => [r.status, Number(r.count)]),
+        ),
+        outstanding: Number((outstandingPayments as any[])[0]?.outstanding ?? 0),
+        topSuppliers: (topSuppliers as any[]).map((s) => ({
+          supplierId: s.supplierId,
+          supplierName: s.supplierName,
+          orderCount: Number(s.orderCount),
+          totalValue: Number(s.totalValue ?? 0),
+        })),
+      },
+
+      requisitions: {
+        statusCounts: Object.fromEntries(
+          reqStatusCounts.map((r) => [r.status, Number(r.count)]),
+        ),
+        pendingApprovals: pendingApprovals.map((r) => ({
+          id: r.id, createdAt: r.createdAt,
+          employeeName: `${r.employee?.firstName ?? ''} ${r.employee?.lastName ?? ''}`.trim(),
+          position: r.employee?.position ?? '',
+          itemCount: r._count.items,
+        })),
+      },
+
+      sites: {
+        statusCounts: Object.fromEntries(
+          siteStatusCounts.map((r) => [r.status, Number(r.count)]),
+        ),
+        siteDetails: allSites.map((s) => ({
+          id: s.id, name: s.name, status: s.status,
+          stockCount: s._count.stocks,
+          stockValue: siteValueMap.get(s.id) ?? 0,
+          workerCount: siteWorkerMap.get(s.id) ?? 0,
+          expenseTotal: siteExpenseMap.get(s.id) ?? 0,
+        })),
+      },
     };
   }
 }

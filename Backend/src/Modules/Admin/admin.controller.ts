@@ -108,6 +108,17 @@ export class AdminController {
     return this.adminService.getDashboard(req.admin!.id, period, from, to);
   }
 
+  @Get('reports')
+  @UseGuards(AdminAuthGuard)
+  async getReports(
+    @Req() req: RequestWithAdmin,
+    @Query('period') period?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.adminService.getReports(req.admin!.id, period, from, to);
+  }
+
   @Get('all')
   @UseGuards(AdminAuthGuard, RolesGuard)
   @Roles('SUPER_ADMIN')

@@ -2,7 +2,7 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Package, Users, FileText, X,
-  Truck, User, Landmark, Shield, Bell, History, Activity, PackagePlus, Database,
+  Truck, User, Landmark, Shield, Bell, History, Activity, PackagePlus, Database, BarChart3,
 } from 'lucide-react';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import { useEmployeeAuth } from '../context/EmployeeAuthContext';
@@ -28,6 +28,7 @@ const Sidebar = ({ isOpen, isCollapsed, onToggle, role }) => {
     { id: 'permissions',   label: 'Permissions',     icon: Shield,          path: '/admin/permissions' },
     { id: 'notifications', label: 'Notifications',   icon: Bell,            path: '/admin/notifications' },
     { id: 'activity-log',  label: 'Activity Log',    icon: Activity,        path: '/admin/activity-log' },
+    { id: 'reports',       label: 'Reports',         icon: BarChart3,       path: '/admin/reports' },
     { id: 'sites',         label: 'Sites',           icon: Landmark,        path: '/admin/site-management' },
     { id: 'data-export',   label: 'Data Export',     icon: Database,        path: '/admin/data-export' },
     { id: 'profile',       label: 'My Profile',      icon: User,            path: '/admin/profile' },
