@@ -24,6 +24,7 @@ import { WorkerCategoryModule } from './Modules/WorkerCategory/worker-category.m
 import { CloudinaryModule } from './Global/cloudinary/cloudinary.module';
 import { DataExportModule } from './Modules/DataExport/data-export.module';
 import { PurchaseOrderModule } from './Modules/PurchaseOrder/purchase-order.module';
+import { HealthModule } from './Modules/Health/health.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { PurchaseOrderModule } from './Modules/PurchaseOrder/purchase-order.modu
     CloudinaryModule,
     DataExportModule,
     PurchaseOrderModule,
+    HealthModule,
   ],
   controllers: [],
   providers: [],
