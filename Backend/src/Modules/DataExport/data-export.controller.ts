@@ -17,11 +17,11 @@ import { Response } from 'express';
 import { DataExportService } from './data-export.service';
 import { DataImportService } from './data-import.service';
 import { AdminAuthGuard } from '../../Guards/admin-auth.guard';
+import { AdminOrBackupKeyGuard } from '../../Guards/admin-or-backup-key.guard';
 import { ActivityLogService } from '../ActivityLog/activity-log.service';
 import { RequestWithAdmin } from '../../common/interfaces/request-admin.interface';
 
 @Controller('data-export')
-@UseGuards(AdminAuthGuard)
 export class DataExportController {
   constructor(
     private readonly exportService: DataExportService,
@@ -30,9 +30,12 @@ export class DataExportController {
   ) {}
 
   @Post('export')
+  @UseGuards(AdminOrBackupKeyGuard)
   async export(@Body() options: any, @Req() req: RequestWithAdmin, @Res() res: Response) {
     const format: string = options.format ?? 'json';
-    const actor = { id: req.admin!.id, name: req.admin!.names, type: 'ADMIN' as const };
+    const actor = req.isBackupServiceCall
+      ? { id: 'backup-service', name: 'Backup Service', type: 'ADMIN' as const }
+      : { id: req.admin!.id, name: req.admin!.names, type: 'ADMIN' as const };
     const dateStr = new Date().toISOString().split('T')[0];
 
     if (format === 'json') {
@@ -77,6 +80,7 @@ export class DataExportController {
   }
 
   @Post('import/preview')
+  @UseGuards(AdminAuthGuard)
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
   async importPreview(@UploadedFile() file: Express.Multer.File, @Body() body: any) {
     if (!file) return { error: 'No file uploaded' };
@@ -87,6 +91,7 @@ export class DataExportController {
   }
 
   @Post('import')
+  @UseGuards(AdminAuthGuard)
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
   async importData(
     @UploadedFile() file: Express.Multer.File,
@@ -115,6 +120,7 @@ export class DataExportController {
   }
 
   @Post('import/stock-csv/preview')
+  @UseGuards(AdminAuthGuard)
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
   async previewStockCsv(@UploadedFile() file: Express.Multer.File) {
     if (!file) throw new BadRequestException('No file uploaded');
@@ -122,6 +128,7 @@ export class DataExportController {
   }
 
   @Post('import/stock-csv')
+  @UseGuards(AdminAuthGuard)
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
   async importStockCsv(
     @UploadedFile() file: Express.Multer.File,
@@ -143,11 +150,13 @@ export class DataExportController {
   }
 
   @Get('import/history')
+  @UseGuards(AdminAuthGuard)
   async importHistory() {
     return this.importService.listSnapshots();
   }
 
   @Post('import/rollback/:id')
+  @UseGuards(AdminAuthGuard)
   async rollbackImport(@Param('id') id: string, @Req() req: RequestWithAdmin) {
     await this.importService.rollback(id, { id: req.admin!.id, name: req.admin!.names });
     this.activityLog.log({

@@ -7,4 +7,6 @@ export interface RequestWithAdmin extends Request {
     email: string;
     names: string;
   };
+  /** Set by AdminOrBackupKeyGuard when the request was authenticated via x-backup-api-key instead of an admin session. */
+  isBackupServiceCall?: boolean;
 }
